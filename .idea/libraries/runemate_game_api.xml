@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="runemate-game-api">
+    <CLASSES />
+    <JAVADOC />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../runemate-game-api/src/main/java" />
+    </SOURCES>
+  </library>
+</component>

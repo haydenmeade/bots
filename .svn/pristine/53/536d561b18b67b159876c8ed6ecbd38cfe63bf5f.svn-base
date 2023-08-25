@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreTask")
+public class RestoreTask extends LeafTask {
+    private static final int jb_interface_id = 590;
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        sire.updateStatus(String.format("Restoring"));
+        if (sire.castleWars.contains(Players.getLocal()) && u.isRestored()) {
+            SireState.setBotState(SireState.RESTOCKING);
+            return;
+        } else if (!House.isInside()) {
+            util.teleToHouse();
+            if (!Execution.delayUntil(() -> House.isInside(), 10000)) {
+                sire.updateStatus(String.format("Unable to teleport to house"));
+                return;
+            }
+        }
+
+        if (!u.isRestored()) {
+            if (!HouseUtil.restoreStatsInHouse(SireState.getEventDispatcher()))
+                return;
+        }
+
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+
+        if (SireState.getFightState() == FightState.Phase1) {
+            SireState.setBotState(SireState.TRAVERSING);
+            return;
+        }
+
+        HouseUtil.JbToCastleWars();
+    }
+}

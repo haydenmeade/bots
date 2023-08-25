@@ -1,0 +1,50 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+
+@Log4j2
+public class HouseLocationTraverse implements TraverseMethod {
+    private final House.Location location;
+
+    public HouseLocationTraverse(House.Location location) {
+        this.location = location;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new HouseRequirement(h -> Objects.equals(House.getCurrent(), location)));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var p = Players.getLocal().getServerPosition().getContainingRegionId();
+        if (Inventory.contains(items.houseTab)) {
+            log.debug("break house tab outside");
+            var item = Inventory.getItems(items.houseTab).first();
+            if (item != null)
+                DirectInput.send(MenuAction.forSpriteItem(item, "Outside"));
+        } else {
+            log.debug("tele outside house");
+            if (!Magic.TELEPORT_TO_HOUSE.activate("Outside")) {
+                log.debug("tele to house spell failed");
+                return false;
+            }
+        }
+        return Execution.delayUntil(() -> p != Players.getLocal().getServerPosition().getContainingRegionId(), util::playerAnimating, 6000);
+    }
+}

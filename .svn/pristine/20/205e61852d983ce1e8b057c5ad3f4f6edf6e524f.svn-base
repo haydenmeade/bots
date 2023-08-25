@@ -1,0 +1,41 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.RunePouch;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Alcher")
+public class AlchListener implements EngineListener {
+
+    private final String[] alchables;
+    private int cooldown = 0;
+
+    public AlchListener(String... alchList) {
+        this.alchables = alchList;
+    }
+
+    @Override
+    public void onTickStart() {
+        if (this.cooldown > 0) {
+            cooldown -= 1;
+            return;
+        }
+
+        if (!Inventory.contains("Nature rune") && RunePouch.getQuantity(Rune.NATURE) == 0) return;
+        try {
+            var item = Inventory.getItems(alchables).first();
+            if (item != null) {
+                log.debug(String.format("alching: %s", item));
+                DirectInput.sendSpellCastOn(Magic.HIGH_LEVEL_ALCHEMY, item);
+                cooldown += 5;
+                Action.set(Action.Alch);
+            }
+        } catch (Exception e) {
+            log.error("Alch", e);
+        }
+    }
+}

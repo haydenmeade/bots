@@ -1,0 +1,36 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.dk.dk</main-class>
+    <name>Necks Dagannoth Kings</name>
+    <tag-line>Kills the Dagannoth Kings</tag-line>
+    <description>Kills Dagannoth Kings</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>0.0.18</version>
+    <open-source>true</open-source>
+    <internal-id>Neck_DK</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.dk.DkSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>dagannoth</tag>
+        <tag>king</tag>
+        <tag>kings</tag>
+        <tag>rex</tag>
+        <tag>prime</tag>
+        <tag>supreme</tag>
+        <tag>boss</tag>
+        <tag>slayer</tag>
+        <tag>pet</tag>
+    </tags>
+</manifest>

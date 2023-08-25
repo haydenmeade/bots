@@ -1,0 +1,38 @@
+package com.neck_flexed.scripts.common;
+
+public enum Food {
+    Shark("Shark", 3),
+    MantaRay("Manta ray", 3),
+    PineapplePizza("Pineapple pizza", 3),
+    TunaPotato("Tuna potato", 3),
+    Karambwan("Cooked karambwan", 3),
+    PotatoWithCheese("Potato with cheese", 3),
+    Monkfish("Monkfish", 3),
+    Anglerfish("Anglerfish", 3);
+
+    private final String name;
+    private final int tickDelay;
+
+    Food(String s, int tickDelay) {
+        this.name = s;
+        this.tickDelay = tickDelay;
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+
+    public String gameName() {
+        return name;
+    }
+
+    public int getTickDelay() {
+        return tickDelay;
+    }
+
+    public int getHeals() {
+        // TODO
+        return 20;
+    }
+}

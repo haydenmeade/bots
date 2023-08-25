@@ -1,0 +1,419 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.RegionPath;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.tree.BranchTask;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import com.runemate.game.api.script.framework.tree.TreeBot;
+import com.runemate.game.api.script.framework.tree.TreeTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class Tree extends TreeBot {
+
+    @Override
+    public TreeTask createRootTask() {
+        return new RootTask();
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        BotState.setActivePrayers(Arrays.asList(Prayer.PROTECT_FROM_MISSILES,
+                Prayer.RIGOUR.isActivatable() ? Prayer.RIGOUR :
+                        Prayer.EAGLE_EYE.isActivatable() ? Prayer.EAGLE_EYE :
+                                Prayer.HAWK_EYE));
+        BotState.setEventDispatcher(this.getEventDispatcher());
+        BotState.setBotState(BotState.TRAVERSING);
+    }
+}
+
+class RootTask extends BranchTask {
+    @Override
+    public boolean validate() {
+        return BotState.inLizardRoom();
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new NeedsRestoreTask();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new FightTask();
+    }
+}
+
+class NeedsRestoreTask extends BranchTask {
+    @Override
+    public boolean validate() {
+        return BotState.getBotState() == BotState.RESTORING ||
+                (BotState.getBotState() == BotState.STARTING &&
+                        (Health.getCurrentPercent() < 100 || Health.isPoisoned()));
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new NeedsRestockTask();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new RestoreTask();
+    }
+}
+
+class NeedsRestockTask extends BranchTask {
+    @Override
+    public boolean validate() {
+        return BotState.getBotState() == BotState.RESTOCKING;
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new IsInTemple();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new RestockTask();
+    }
+}
+
+class IsInTemple extends BranchTask {
+
+    @Override
+    public boolean validate() {
+        return BotState.getBotState() == BotState.TRAVERSING && BotState.inLizardTemple();
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new IsOutdoors();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new FindRoomTask();
+    }
+}
+
+@Log4j2(topic = "TraverseInTempleTask")
+class IsOutdoors extends BranchTask {
+
+    @Override
+    public boolean validate() {
+        return BotState.getBotState() == BotState.TRAVERSING && lizard.outdoors.contains(Players.getLocal());
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new StartRestoreTask();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new TraverseToTempleTask();
+    }
+}
+
+class FindRoomTask extends BranchTask {
+
+    @Override
+    public boolean validate() {
+        return BotState.getBotState() == BotState.TRAVERSING && BotState.nearLizardRoom();
+    }
+
+    @Override
+    public TreeTask failureTask() {
+        return new TraverseInTempleTask();
+    }
+
+    @Override
+    public TreeTask successTask() {
+        return new GoIntoLizardRoomTask();
+    }
+}
+
+@Log4j2(topic = "StartRestoreTask")
+class StartRestoreTask extends LeafTask {
+    @Override
+    public void execute() {
+        BotState.setBotState(BotState.RESTORING);
+    }
+}
+
+@Log4j2(topic = "TraverseInTempleTask")
+class TraverseInTempleTask extends ListenerTask {
+    public TraverseInTempleTask() {
+        super(new Ticker(),
+                new Consumeables(),
+                new Alcher());
+    }
+
+    @Override
+    public void execute() {
+        BotState.setBotState(BotState.TRAVERSING);
+
+        var destination = new Coordinate(1293, 10091);
+        var path = RegionPath.buildTo(destination);
+        while (!destination.equals(Players.getLocal().getPosition())) {
+            if (path != null) {
+                path.step();
+                return;
+            } else {
+                throw new RuntimeException("Could not generate webPath in Walk");
+            }
+        }
+        var door = GameObjects.getLoaded(34642).nearest();
+        if (door == null) {
+            Magic.TELEPORT_TO_HOUSE.activate();
+            throw new RuntimeException("Could not get a door");
+        }
+        this.eventDispatcher.addListener(new PrayerFlicker());
+        door.interact("Pass");
+        Execution.delayUntil(() -> lizard.roomWest.contains(Players.getLocal()), 5000);
+        var door2 = GameObjects.getLoaded(34643).nearest();
+        if (door2 == null) {
+            Magic.TELEPORT_TO_HOUSE.activate();
+            throw new RuntimeException("Could not get a door2");
+        }
+        door2.interact("Pass");
+        Execution.delayUntil(() -> lizard.nearArea.contains(Players.getLocal()), 5000);
+    }
+}
+
+@Log4j2(topic = "TraverseToTempleTask")
+class TraverseToTempleTask extends LeafTask {
+
+    public static GameObject getEntry() {
+        return GameObjects.getLoaded(gameObject -> gameObject.getId() == 34405 && gameObject.getPosition() == new Coordinate(1312, 3686)).first();
+    }
+
+    @Override
+    public void execute() {
+        BotState.setBotState(BotState.TRAVERSING);
+        var destination = Area.rectangular(new Coordinate(1309, 3684), new Coordinate(1316, 3680));
+        var webPath = Traversal.getDefaultWeb().getPathBuilder().buildTo(destination);
+        while (!destination.contains(Players.getLocal())) {
+            if (webPath != null) {
+                webPath.step();
+            } else {
+                throw new RuntimeException("Could not generate webPath in Walk");
+            }
+        }
+        log.debug("Trying to click entry");
+        var entry = getEntry();
+        if (entry != null) {
+            log.debug("Found Entry");
+            DirectInput.send(MenuAction.forGameObject(entry, "Enter"));
+            entry.interact("Enter");
+            Execution.delayUntil(() -> lizard.temple.contains(Players.getLocal()), 60000);
+        } else {
+            log.debug("Entry2");
+            var l = GameObjects.getLoaded("Lizard dwelling").nearest();
+            l.interact("Enter");
+            Execution.delayUntil(() -> lizard.temple.contains(Players.getLocal()), 60000);
+        }
+    }
+}
+
+@Log4j2(topic = "RestockTask")
+class RestockTask extends LeafTask {
+    @Override
+    public void execute() {
+        Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null && Banks.getLoaded().nearest().isVisible(), 5000);
+        if (!Bank.open()) {
+            log.error("unable to open bank");
+            throw new RuntimeException("Unable to open bank");
+        }
+        Bank.depositAllExcept("Rune pouch", "Fire rune", "Nature rune", "Dust rune", "Law rune");
+        if (!Bank.withdraw("Divine ranging potion(4)", 4)) {
+            Bank.withdraw("Ranging potion(4)", 4);
+        }
+        Bank.withdraw("Antidote++(4)", 2);
+        Bank.withdraw("Prayer potion(4)", 1);
+        Bank.withdraw("Manta ray", 12);
+        Bank.close();
+
+        log.debug("done restock");
+        BotState.setBotState(BotState.TRAVERSING);
+    }
+}
+
+@Log4j2(topic = "ListenerTask")
+abstract
+class ListenerTask extends LeafTask {
+    public final EventDispatcher eventDispatcher;
+    private final List<EventListener> eventListeners;
+
+    public ListenerTask(EventListener... listeners) {
+        this.eventDispatcher = BotState.getEventDispatcher();
+        this.eventListeners = Arrays.stream(listeners).collect(Collectors.toList());
+    }
+
+    public void verifyListeners() {
+        var cl = this.eventDispatcher.getListeners();
+        for (EventListener l : cl) {
+            if (!this.eventListeners.stream().anyMatch(eventListener -> l.getClass().equals(eventListener.getClass()))) {
+                this.eventDispatcher.removeListener(l);
+            }
+        }
+
+        for (EventListener l : this.eventListeners) {
+            if (!this.eventDispatcher.getListeners().stream().anyMatch(eventListener -> l.getClass().equals(eventListener.getClass()))) {
+                this.eventDispatcher.addListener(l);
+            }
+        }
+    }
+
+    @Override
+    public void execute() {
+        verifyListeners();
+    }
+}
+
+@Log4j2(topic = "RestoreTask")
+class RestoreTask extends ListenerTask {
+
+    public RestoreTask() {
+        super(new Ticker(), new Alcher());
+    }
+
+    public static boolean isRestored() {
+        return !Health.isPoisoned() &&
+                Health.getCurrentPercent() == 100 &&
+                Prayer.getMaximumPoints() == Prayer.getPoints() &&
+                SpecialAttack.getEnergy() == 100 &&
+                Traversal.getRunEnergy() == 100;
+    }
+
+    public static LocatableEntityQueryResults<GameObject> getPools() {
+        return (LocatableEntityQueryResults) GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Ornate pool of Rejuvenation"}).actions(new String[]{"Drink"}).results();
+    }
+
+    public static LocatableEntityQueryResults<GameObject> getJewelleryBox() {
+        return GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Ornate Jewellery Box"}).actions(new String[]{"Teleport Menu"}).results();
+    }
+
+    @Override
+    public void execute() {
+        super.execute();
+        log.debug("restoring");
+        if (!House.isInside()) {
+            log.debug("tele to house");
+            Magic.TELEPORT_TO_HOUSE.activate();
+            if (!Execution.delayUntil(() -> House.isInside(), 5000)) {
+                throw new RuntimeException("Unable to get to house");
+            }
+        }
+
+        Execution.delay(2000);
+        if (!isRestored()) {
+
+            if (!Execution.delayUntil(() -> !getPools().isEmpty(), 5000)) {
+                throw new RuntimeException("Unable to pool lll");
+            }
+            var pool = getPools().first();
+            if (pool == null) {
+                throw new RuntimeException("Unable to find pool");
+            }
+
+            DirectInput.send(MenuAction.forGameObject(pool, "Drink"));
+            if (!Execution.delayUntil(() -> isRestored(), 10000)) {
+                throw new RuntimeException("Unable to restore");
+            }
+            Execution.delay(1200);
+        }
+
+        if (!Execution.delayUntil(() -> !getJewelleryBox().isEmpty(), 5000)) {
+            throw new RuntimeException("Unable to find jewellery box");
+        }
+        var jb = getJewelleryBox().first();
+        if (!jb.interact("Farming Guild")) {
+            // TODO interface
+        }
+        if (!Execution.delayUntil(() -> lizard.outdoors.contains(Players.getLocal()), 15000)) {
+            throw new RuntimeException("jewellery didn't work");
+        }
+        BotState.setBotState(BotState.RESTOCKING);
+    }
+}
+
+@Log4j2(topic = "GoIntoLizardRoomTask")
+class GoIntoLizardRoomTask extends ListenerTask {
+
+    public GoIntoLizardRoomTask() {
+        super(new Ticker(),
+                new PrayerFlicker(),
+                new Consumeables(),
+                new Alcher());
+    }
+
+    @Override
+    public void execute() {
+        super.execute();
+        BotState.setBotState(BotState.TRAVERSING);
+        var door = GameObjects.getLoaded(gameObject ->
+                (gameObject.getId() == 34644 || gameObject.getId() == 34645) &&
+                        gameObject.getPosition() != null &&
+                        (gameObject.getPosition().equals(new Coordinate(1308, 10096, 0)) ||
+                                gameObject.getPosition().equals(new Coordinate(1317, 10096, 0))));
+        if (door.isEmpty()) {
+            throw new RuntimeException("unable to find door");
+        }
+        log.debug("entering room");
+        if (!door.nearest().interact("Pass")) {
+            Magic.TELEPORT_TO_HOUSE.activate();
+            throw new RuntimeException("Can't pass room");
+        }
+        if (!Execution.delayUntil(() -> BotState.inLizardRoom(), 5000)) {
+            Magic.TELEPORT_TO_HOUSE.activate();
+            throw new RuntimeException("Can't enter room");
+        }
+        BotState.setBotState(BotState.FIGHTING);
+    }
+}
+
+class FightTask extends ListenerTask {
+    public FightTask() {
+        super(new Ticker(),
+                new PrayerFlicker(),
+                new Movement(),
+                new Attacker(),
+                new Consumeables(),
+                new Looter(),
+                new Alcher());
+    }
+
+    @Override
+    public void execute() {
+        super.execute();
+    }
+}
+
+

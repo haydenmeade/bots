@@ -1,0 +1,334 @@
+package com.neck_flexed.scripts.common;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.overlay.Overlay;
+import com.neck_flexed.scripts.common.overlay.render.RenderTarget;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.Environment;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.LoopingBot;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.SkillListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.open.Settings;
+import javafx.application.Platform;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "NeckBot")
+public abstract class NeckBot<TSettings extends Settings, TState extends Enum> extends LoopingBot implements SettingsListener, ChatboxListener, SkillListener, PlayerListener {
+    private static final String INVENT_FULL_MSG = "You don't have enough free inventory space to do that.";
+    protected final Inactivity inactivity = new Inactivity(this);
+
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+    private final List<Callable<String>> texts = new ArrayList<>();
+    private final List<RenderTarget> renderables = new ArrayList<>();
+    public Loadouts loadouts;
+    public PrayerFlicker prayerFlicker = new PrayerFlicker();
+    public Junk junkDropper = new Junk();
+    public BreakManager breakManager;
+    protected boolean ignoreLoadouts = false;
+    protected boolean started = false;
+    protected Runnable diFixRunnable = new Runnable() {
+        public void run() {
+            Execution.delay(100, 1050);
+            Keyboard.pressKey(8);
+        }
+    };
+    @Getter
+    protected LoopState<TState> currentState;
+    protected TState forcedState = null;
+    private int killCount = 0;
+    private boolean loaded = false;
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        if (isPaused() || !started) return;
+        if (!Objects.equals(event.getType(), Chatbox.Message.Type.SERVER)) return;
+        var msg = event.getMessage();
+        if (msg == null) return;
+        if (msg.endsWith("It then crumbles to dust.")) {
+            log.debug("Bracelet crumbled {}", event);
+            this.loadouts.invalidateCurrent();
+        } else if (Objects.equals(msg, INVENT_FULL_MSG)) {
+            log.debug("Invent full message {}", event);
+            if (!Food.dropWorst()) {
+                log.error("error equiping 2h weapon");
+                this.pause("error equiping 2h weapon");
+                this.updateStatus("error equiping 2h weapon");
+            }
+            this.loadouts.invalidateCurrent();
+        }
+
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        if (Environment.isDevMode()) {
+            Platform.runLater(() -> {
+                try {
+                    var overlay = new Overlay(this);
+                    overlay.show();
+                } catch (Exception e) {
+                    log.warn("Error adding one of the additional panels", e);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onStop(String reason) {
+        if (this.prayerFlicker != null) {
+            this.prayerFlicker.setActivePrayers();
+        }
+        this.inactivity.stop();
+    }
+
+    public final int getKillCount() {
+        return killCount;
+    }
+
+    public final void addKill() {
+        this.killCount++;
+    }
+
+    public final void addListener(EventListener l) {
+        if (this.getEventDispatcher().getListeners().stream().noneMatch(
+                e -> Objects.equals(e.getClass().getName(), l.getClass().getName()))) {
+            log.debug(String.format("Add listener %s", l.getClass().getName()));
+            this.getEventDispatcher().addListener(l);
+        }
+    }
+
+    @Override
+    public final void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        if (started) {
+            resetKill();
+            if (this.currentState == null || !this.currentState.get().equals(this.getBreakStateEnum()))
+                this.forceState(this.getStartStateEnum());
+            for (var l : this.getEventListenerForRunning()) {
+                addListener(l);
+            }
+            this.inactivity.start();
+        }
+    }
+
+    @Override
+    public final void onPause() {
+        super.onPause();
+        log.debug("paused");
+        if (this.prayerFlicker != null) {
+            this.prayerFlicker.setActivePrayers();
+        }
+        for (var l : this.getEventListenerForRunning()) {
+            removeListener(l);
+        }
+        if (this.currentState != null) {
+            try {
+                this.currentState.deactivate(this.getEventDispatcher());
+            } catch (Exception e) {
+                log.warn("Pause Deactivate error {}", this.currentState.get());
+            }
+            this.currentState = this.getStartingState();
+            forceState(this.getStartStateEnum());
+        }
+        this.inactivity.stop();
+    }
+
+    protected abstract EventListener[] getEventListenerForRunning();
+
+    public final void removeListener(EventListener l) {
+        if (l == null) return;
+        if (l.getClass() != null)
+            log.debug(String.format("Remove listener %s", l.getClass().getName()));
+        this.getEventDispatcher().removeListener(l);
+    }
+
+    public abstract void resetKill();
+
+    public void startPauseAndEndBotTimeout(String reason) {
+        var msg = String.format("Ending bot in 5 minutes, resume bot to stop timer. Reason: %s", reason);
+        log.warn(msg);
+        this.updateStatus(msg);
+        this.pause(msg);
+        ClientUI.showAlert(ClientUI.AlertLevel.ERROR, msg);
+        executor.schedule(() -> this.inactivity.startTimeout(5, msg), 2, TimeUnit.SECONDS);
+    }
+
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        if (!Objects.equals(event.getSource(), Players.getLocal())) return;
+        log.error("death {}", event);
+        this.updateStatus("dead");
+        ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Dead, whoops...");
+        startPauseAndEndBotTimeout("Died");
+    }
+
+    protected abstract void initFromSettings(TSettings settings);
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        log.debug(settingChangedEvent);
+    }
+
+    @Override
+    public final void onSettingsConfirmed() {
+        log.debug("Settings confirmed");
+        this.started = true;
+        if (!isPaused()) {
+            resetKill();
+            for (var l : this.getEventListenerForRunning()) {
+                addListener(l);
+            }
+        }
+        if (settings() != null) {
+            Stopwatch timer = Stopwatch.createStarted();
+            this.updateStatus("Loading... can take a minute depending on number of loadouts");
+            initFromSettings(settings());
+            this.updateStatus("Loading Finished");
+            log.debug("Load settings done in: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        } else {
+            log.error("Null settings");
+            this.updateStatus("Null settings");
+            this.pause("Null settings");
+        }
+        this.loaded = true;
+        this.inactivity.start();
+    }
+
+    protected abstract LoopState<TState> getState(TState s);
+
+    protected abstract LoopState<TState> getStartingState();
+
+    protected abstract TState getBreakStateEnum();
+
+    protected abstract TState getStartStateEnum();
+
+    @Override
+    public final void onLoop() {
+        if (this.isPaused()
+                || !this.started
+                || this.settings() == null
+                || !this.loaded
+                || Players.getLocal() == null
+        ) return;
+        if (currentState == null) {
+            if (!ignoreLoadouts) {
+                if (this.loadouts == null) {
+                    ClientUI.showAlert(ClientUI.AlertLevel.ERROR,
+                            "Unable to load loadouts, please check you have filled in loadouts and update settings.");
+                    this.pause("Loadout error");
+                    return;
+                }
+                this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getAnyCombat());
+                if (this.loadouts.getEquipped() == null) {
+                    ClientUI.showAlert(ClientUI.AlertLevel.ERROR,
+                            "Unable to set current loadout, please refresh loadouts and try again.");
+                    this.pause("Loadout equip error");
+                    return;
+                }
+            }
+            this.currentState = getStartingState();
+        }
+        if (currentState.fatalError() != null && !currentState.fatalError().isEmpty()) {
+            log.error(String.format("Fatal error from %s: %s", currentState.get(), currentState.fatalError()));
+            updateStatus(String.format("STOPPING during %s, error: %s", currentState.fatalError(), currentState.get()));
+            this.stop(currentState.fatalError());
+            return;
+        }
+        if (currentState.done() || (forcedState != null && this.forcedState != currentState.get())) {
+            try {
+                var tState = currentState.deactivate(this.getEventDispatcher());
+                var newState = forcedState == null ? tState : forcedState;
+                var newStateImpl = this.getState(newState);
+                newStateImpl.activate(this.getEventDispatcher());
+                var oldState = this.currentState;
+                this.currentState = newStateImpl;
+                if (forcedState != null) {
+                    log.debug(String.format("FORCE change state from %s to %s", oldState.get(), newState));
+                } else {
+                    log.debug(String.format("Change state from %s to %s", oldState.get(), newState));
+                }
+            } catch (Exception e) {
+                log.error("Caught error during state switch", e);
+            }
+        }
+        forcedState = null;
+        if (currentState != null && !currentState.done()) {
+            try {
+                currentState.executeLoop();
+            } catch (Exception e) {
+                log.error(String.format("Caught error during loop of %s attempting to recover using starting", currentState.get()), e);
+                forceState(this.getStartStateEnum());
+            }
+            if (currentState.get().equals(this.getBreakStateEnum())) {
+                this.onBreakingLoop();
+            }
+        }
+    }
+
+    private void onBreakingLoop() {
+        this.inactivity.stop();
+
+    }
+
+    public final void forceState(TState state) {
+        this.forcedState = state;
+    }
+
+    public abstract void updateStatus(String s);
+
+    protected final void updateItemFilter(Pattern[] stuff) {
+        try {
+            var s = settings();
+            if (s == null) return;
+
+
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(this,
+                    (e -> {
+                        if (Bank.isOpen()) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(stuff).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+
+    public abstract TSettings settings();
+}

@@ -1,0 +1,69 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreState")
+public class RestoreState implements LoopState<KqState> {
+    private final PrayerFlicker prayerFlicker;
+    private String error;
+    private boolean done;
+    private EventDispatcher dispatcher;
+    private KqListener kqListener;
+
+    public RestoreState(PrayerFlicker prayerFlicker, KqListener kqListener) {
+        this.prayerFlicker = prayerFlicker;
+        this.kqListener = kqListener;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.dispatcher = d;
+        kq.updateStatus(String.format("Restoring"));
+        this.prayerFlicker.setActivePrayers();
+        this.kqListener.reset();
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        return KqState.RESTOCKING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.RESTORING;
+    }
+
+    @Override
+    public String fatalError() {
+        return this.error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!House.isInside()) {
+            util.teleToHouse();
+            return;
+        }
+
+        if (!HouseUtil.restoreStatsInHouse(dispatcher)) {
+            return;
+        }
+
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+
+        this.done = HouseUtil.JbToCastleWars();
+    }
+}

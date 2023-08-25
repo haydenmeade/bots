@@ -1,0 +1,35 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import java.util.Arrays;
+import java.util.List;
+
+public class lizard extends Tree {
+    public static String LIZ = "Lizardman shaman";
+    public static String Spawn = "Spawn";
+    public static int SpawnDeathAnimation = 7159;
+    public static Area areaCentre = Area.rectangular(new Coordinate(1309, 10100), new Coordinate(1316, 10091));
+    public static Area roomWest = Area.rectangular(new Coordinate(1289, 10100), new Coordinate(1296, 10093));
+    public static Area nearArea = Area.rectangular(new Coordinate(1298, 10097), new Coordinate(1324, 10096));
+    public static Area temple = Area.rectangular(new Coordinate(1281, 10110), new Coordinate(1342, 10048));
+    public static List<Coordinate> area1Safe = Arrays.asList(
+            new Coordinate(1310, 10100, 0),
+            new Coordinate(1310, 10099, 0),
+            new Coordinate(1309, 10098, 0),
+            new Coordinate(1309, 10097, 0),
+            new Coordinate(1309, 10096, 0),
+            new Coordinate(1309, 10095, 0),
+            new Coordinate(1309, 10094, 0),
+            new Coordinate(1310, 10093, 0),
+            new Coordinate(1310, 10092, 0),
+            new Coordinate(1311, 10092, 0),
+            new Coordinate(1312, 10093, 0),
+            new Coordinate(1313, 10093, 0),
+            new Coordinate(1314, 10092, 0),
+            new Coordinate(1315, 10092, 0));
+
+    public static Area outdoors = Area.rectangular(new Coordinate(1209, 3771), new Coordinate(1341, 3648));
+
+}

@@ -1,0 +1,135 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Loadout;
+import com.neck_flexed.scripts.common.Loadouts;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "EnterLairState")
+public class EnterLairState implements LoopState<CerbState> {
+
+    private final cerb bot;
+    private final Loadouts loadouts;
+    // "Turn" "Iron Winch"
+    private PeekListener peekListener;
+    private CerbListener cerbListener;
+
+    public EnterLairState(CerbListener cerbListener, cerb bot) {
+        this.cerbListener = cerbListener;
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+    }
+
+    private static GameObject getRoomEntrance() {
+        return GameObjects.newQuery()
+                .names("Iron Winch")
+                .within(Area.rectangular(new Coordinate(1288, 1257, 0), new Coordinate(1297, 1247, 0)))
+                .actions("Turn", "Peek")
+                .results().nearest();
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Entering boss room");
+        this.peekListener = new PeekListener(d);
+        this.cerbListener.reset();
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        this.peekListener.stop();
+        if (this.needHop()) {
+            if (ChatDialog.isOpen()) {
+                var c = ChatDialog.getContinue();
+                if (c != null) {
+                    c.select();
+                    Execution.delay(600, 700);
+                }
+            }
+            return CerbState.HOPPING;
+        }
+        return CerbState.FIGHTING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.ENTERING_LAIR;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return needHop() || cerb.isInBossRoom();
+    }
+
+    private boolean needHop() {
+        return this.peekListener.getPlayerCount() > 0;
+    }
+
+
+    @Override
+    public void executeLoop() {
+        if (this.loadouts.getEquipped() == null) {
+            this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getForRole(Loadout.LoadoutRole.Combat));
+            this.loadouts.equip(this.loadouts.getEquipped(), true);
+        }
+        if (cerb.isInBossRoomIncludingEntrance() && !cerb.isInBossRoom()) {
+            var qp = "Quick Pass";
+            var flm = "Flames";
+            var flames = GameObjects.newQuery().on(new Coordinate(1240, 1242, 0)).names(flm).actions(qp).results().nearest();
+            var p = Players.getLocal().getServerPosition();
+            if (util.otherPlayersNearby()
+                    && bot.settings().fightStrategy().equals(FightStrategy.Flinch)
+                    && (Players.getLocal().getHealthGauge() == null || !Players.getLocal().getHealthGauge().isValid())
+            ) {
+                this.bot.forceState(CerbState.HOPPING);
+                return;
+            }
+            if (flames != null && p.getY() <= 1242) {
+                log.debug("trying to pass flames");
+                DirectInput.send(MenuAction.forGameObject(flames, qp));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getY() > 1242, 5000, 5100);
+            } else {
+                if (!Players.getLocal().isMoving()) {
+                    log.debug("move to center");
+                    util.moveTo(cerb.centerSpawnTile);
+                    Execution.delay(50, 60);
+                }
+            }
+            return;
+        }
+
+        var roomEntrance = getRoomEntrance();
+        if (roomEntrance == null) {
+            log.debug("null winch");
+            Execution.delay(600);
+            return;
+        }
+
+        if (this.peekListener.getPlayerCount() == -1) {
+            log.debug("peeking the winch");
+            DirectInput.send(MenuAction.forGameObject(roomEntrance, "Peek"));
+            Execution.delayUntil(() -> this.peekListener.getPlayerCount() != -1, 5000);
+        } else {
+            log.debug("going in boss room");
+            DirectInput.send(MenuAction.forGameObject(roomEntrance, "Turn"));
+            Execution.delayUntil(() -> cerb.isInBossRoomIncludingEntrance() || needHop(), 5000, 5500);
+        }
+    }
+}

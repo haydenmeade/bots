@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.ashes;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "SelfDeathState")
+public class SelfDeathState implements LoopState<AshState> {
+    private static final Area dangerArea = new Area.Rectangular(new Coordinate(3297, 3892, 0), new Coordinate(3314, 3882, 0));
+    private final com.neck_flexed.scripts.ashes.ashes ashes;
+    private WebPath path;
+
+    public SelfDeathState(ashes ashes) {
+        this.ashes = ashes;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.ashes.updateStatus("Dying");
+    }
+
+    @Override
+    public AshState deactivate(EventDispatcher d) {
+        this.ashes.resetKill();
+        return AshState.RESTOCKING;
+    }
+
+    @Override
+    public AshState get() {
+        return AshState.SELFDEATH;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.ashes.isDead();
+    }
+
+    @Override
+    public void executeLoop() {
+        if (Health.getCurrent() > 1) {
+            util.ReduceHpWithRockCake();
+            Execution.delay(400, 600);
+        }
+        var npc = Npcs.newQuery().names("Greater demon").results().nearest();
+        if (npc != null) {
+            if (!npc.equals(Players.getLocal().getTarget()))
+                npc.interact("Attack");
+            return;
+        }
+        if (path == null) {
+            this.path = WebPath.buildTo(dangerArea);
+        }
+        if (path != null) {
+            path.step();
+        } else {
+            log.error("Could not generate path to fountain");
+        }
+    }
+}

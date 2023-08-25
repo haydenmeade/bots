@@ -1,0 +1,33 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.slayer.Monster;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+
+public class SteelDragonTraverseOverride implements TraverseOverride {
+    private static final Area overrideArea = new Area.Polygonal(
+            new Coordinate(1629, 10050, 0),
+            new Coordinate(1622, 10037, 0),
+            new Coordinate(1639, 10006, 0),
+            new Coordinate(1651, 10001, 0),
+            new Coordinate(1654, 9990, 0),
+            new Coordinate(1697, 9989, 0),
+            new Coordinate(1703, 10069, 0),
+            new Coordinate(1633, 10066, 0)
+    );
+    private Traverser traverser;
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        var p = Players.getLocal().getServerPosition();
+        if (!overrideArea.contains(p)) return false;
+
+        if (this.traverser == null)
+            this.traverser = Traverser.webPathTraverser(Monster.getByEnum(Task.ANKOU).get().getTraverseToTile());
+        traverser.executeLoop();
+        return true;
+    }
+}

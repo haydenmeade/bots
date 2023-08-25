@@ -1,0 +1,16 @@
+package com.neck_flexed.scripts.kq;
+
+public enum TraverseMethod {
+    HouseFairyRing("House fairy ring"),
+    ArdyCloakFairyRing("Ardougne cloak fairy ring");
+    private final String name;
+
+    TraverseMethod(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+}

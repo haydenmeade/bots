@@ -1,0 +1,97 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "Loadouts")
+public class Loadouts {
+    private final List<Loadout> loadouts;
+    private Loadout current;
+    private Loadout spec;
+
+    public Loadouts(List<Loadout> loadouts) {
+        this.loadouts = loadouts;
+        this.spec = getSpec();
+    }
+
+    public static Loadouts fromEquipmentLoadouts(Map<EquipmentLoadout, Loadout.LoadoutRole> _loadouts) {
+        return new Loadouts(_loadouts.entrySet().stream()
+                .map(kv -> Loadout.fromEquipmentLoadout(kv.getKey(), kv.getValue()))
+                .collect(Collectors.toList()));
+    }
+
+    public Loadout getCurrent() {
+        return current;
+    }
+
+    public Loadout getSpecLoadout() {
+        return spec;
+    }
+
+    private Loadout getSpec() {
+        return loadouts.stream().filter(Loadout::isSpecLoadout).findFirst().orElse(null);
+    }
+
+    private Loadout getRole(Loadout.LoadoutRole role) {
+        return loadouts.stream().filter(l -> l.getRole().equals(role)).findFirst().orElse(null);
+    }
+
+    public void equip(Loadout l) {
+        if (l == null) return;
+        current = l.equip(current);
+    }
+
+    public void equip(Loadout l, boolean force) {
+        if (l == null) return;
+        current = l.equip(force ? null : current);
+    }
+
+    public void equipStyle(CombatStyle style) {
+        equip(getForStyle(style));
+    }
+
+    public void equipStyle(CombatStyle style, boolean force) {
+        equip(getForStyle(style), force);
+    }
+
+    public Loadout getEquipped() {
+        return this.current;
+    }
+
+    public Loadout getForStyle(CombatStyle style) {
+        return loadouts.stream()
+                .filter(l -> l.getStyle().equals(style) && !l.isSpecLoadout())
+                .findFirst().orElse(null);
+    }
+
+    public void setCurrentFromEquipmentOrEquip(Loadout defaultTo) {
+        current = null;
+        for (var l : loadouts) {
+            var isLoadout = l.getLoadout().loadout();
+            boolean check = true;
+            for (var s : Equipment.Slot.values()) {
+                var item = Equipment.getItemIn(s);
+                var d = item == null ? null : item.getDefinition();
+                if (!isLoadout.test(d)) {
+                    check = false;
+                    break;
+                }
+            }
+            if (check) {
+                log.debug("Found loadout, equiping: " + l.getStyle());
+                current = l;
+                break;
+            }
+        }
+        if (current == null && defaultTo != null) {
+            current = defaultTo;
+            defaultTo.equip(null);
+            log.debug("No loadout, defaulting to: " + defaultTo.getStyle());
+        }
+    }
+}

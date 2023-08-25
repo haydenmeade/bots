@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/uiDesigner.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Bots.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/Main.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Action.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Alcher.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Attacker.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/BotState.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Consumeables.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/FightTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/FindRoomTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/GoIntoLizardRoomTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/IsInTemple.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/IsOutdoors.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/ListenerTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Looter.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Movement.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/NeedsRestockTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/NeedsRestoreTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Notes.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/PrayerFlicker$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/PrayerFlicker.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/RestockTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/RestoreTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/RootTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/SpecialAttackCost.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/StartRestoreTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Ticker.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/TraverseInTempleTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/TraverseToTempleTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/Tree.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/lizard.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/lizard/lizard.manifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Action.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Antipoison.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/CombatBoost.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Consumeables.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/FightState.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/FightTask$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/FightTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Food.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/HoppingTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/LogListener.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/LootTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/PausedTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase1Boost.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase2.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase2Fighter.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase3.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase31Fighter.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Phase32Fighter.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/PrayerFlicker$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/PrayerFlicker.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/RestockTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/RestoreTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/SireSettings.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/SireState$1.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/SireState.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/StartingTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/Traverse.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/TraverseTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsFightTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsHoppingTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsLootTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsRestockTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsRestoreTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$IsTraverseTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire$RootTask.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/sire.manifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/com/goblinneck/scripts/sire/u.class" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/out/production/LizardLick/generated" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Action.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Alcher.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Attacker.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/BotState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Consumeables.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Looter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Movement.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Notes.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/PrayerFlicker.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/SpecialAttackCost.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Ticker.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/Tree.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/lizard.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/lizard/lizard.manifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Action.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Antipoison.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/CombatBoost.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Consumeables.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/FightState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/FightTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Food.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/HoppingTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/LogListener.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/LootTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/PausedTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase1Boost.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase2.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase2Fighter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase3.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase31Fighter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Phase32Fighter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/PrayerFlicker.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/RestockTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/RestoreTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/SireSettings.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/SireState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/StartingTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Traverse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/TraverseTask.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/sire.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/sire.manifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/u.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+        <option value="Enum" />
+      </list>
+    </option>
+  </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="OptimizeOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectId" id="2QRyEawx83s19dkxmxRIYkXF8C1" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.JavaDocs&quot;: &quot;true&quot;,
+    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Hayden/IdeaProjects/LizardLick/src/com/goblinneck/scripts/sire&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;vcs.Subversion&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CreateClassDialog.RecentsKey">
+      <recent name="com.goblinneck.scripts.sire" />
+    </key>
+    <key name="MoveMembersDialog.RECENTS_KEY">
+      <recent name="com.goblinneck.scripts.sire.Traverse" />
+      <recent name="com.goblinneck.scripts.sire.u" />
+      <recent name="com.goblinneck.scripts.sire.sire" />
+      <recent name="com.goblinneck.scripts.sire.Phase2" />
+      <recent name="com.goblinneck.scripts.sire.Phase3" />
+    </key>
+    <key name="CopyClassDialog.RECENTS_KEY">
+      <recent name="com.goblinneck.scripts.sire" />
+      <recent name="com.goblinneck.scripts.lizard" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="Launch" type="Application" factoryName="Application">
+      <envs>
+        <env name="RUNEMATE_USERNAME" value="hmeade.osrs@gmail.com" />
+        <env name="RUNEMATE_PASSWORD" value="mysmellyoldsocks" />
+      </envs>
+      <option name="MAIN_CLASS_NAME" value="com.runemate.client.boot.Boot" />
+      <module name="Bots" />
+      <option name="PROGRAM_PARAMETERS" value="--dev" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="SvnConfiguration" cleanupOnStartRun="true">
+    <configuration>C:\Users\Hayden\AppData\Roaming\Subversion</configuration>
+    <supportedVersion>125</supportedVersion>
+  </component>
+  <component name="SvnFileUrlMappingImpl">
+    <option name="myMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+    <option name="myMoreRealMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="" />
+      <created>1685330583571</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1685330583571</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="LAST_COMMIT_MESSAGE" value="" />
+  </component>
+</project>

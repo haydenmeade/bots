@@ -1,0 +1,32 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.kq.kq</main-class>
+    <name>Necks Kalphite Queen [Beta]</name>
+    <tag-line>Squish the big BUG</tag-line>
+    <description>Kills the Kalphite Queen for you.</description>
+    <access>public</access>
+    <price>0.05</price>
+    <version>0.0.24</version>
+    <internal-id>Neck_KQ</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>COMBAT</category>
+        <category>SLAYER</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.kq.KqSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>bug</tag>
+        <tag>kalphite</tag>
+        <tag>queen</tag>
+        <tag>kalphite queen</tag>
+        <tag>boss</tag>
+        <tag>slayer</tag>
+    </tags>
+</manifest>

@@ -1,0 +1,93 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState implements LoopState<KqState> {
+    public static final List<String> mustLoot = Arrays.asList(
+            "Dragon chainbody",
+            "Kq head",
+            "Dragon 2h sword",
+            "Dragon pickaxe",
+            "Jar of sand",
+            "Kq head (tattered)"
+    );
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Mithril arrow",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final KqListener kqListener;
+    private final kq bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(KqListener kqListener, kq bot, BreakManager breakManager) {
+        this.kqListener = kqListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looting");
+        if (kqListener.getDeadArea() == null) return;
+        util.moveTo(kqListener.getDeadArea().getCenter());
+        Loot.waitForLoot(kqListener.getDeadArea(), Pattern.compile(".*"), 10000);
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        bot.resetKill();
+        if (bot.doWeNeedToRestock() || result.equals(Loot.LootResult.Full) || this.breakManager.breaking() || this.breakManager.stopBot()) {
+            return KqState.RESTORING;
+        } else {
+            return KqState.POST_LOOT_WAITING;
+        }
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(
+                null
+                , ignoreLoot
+                ,
+                bot.settings().phase1Boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().phase1Boost().patternAny()
+                , 5000
+                , 600
+                // filter unnoted potato cactus
+                , g -> g.getDefinition() != null && "Potato cactus".equals(g.getDefinition().getName()) && !g.getDefinition().isNoted()
+                , bot.settings().minAlchValue()
+                , mustLoot
+        );
+    }
+}

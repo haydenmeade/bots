@@ -1,0 +1,126 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<DkState>, EngineListener {
+    private final DkListener dkListener;
+    private final PrayerFlicker prayerFlicker;
+    private final dk bot;
+    private final DkSettings settings;
+    private final int specEnergy;
+    private final CombatStyle specStyle;
+    private boolean done = false;
+    private King currentTarget;
+
+
+    public FightState(DkListener dkListener,
+                      PrayerFlicker prayerFlicker,
+                      dk bot,
+                      DkSettings settings,
+                      int specEnergy,
+                      CombatStyle specStyle
+    ) {
+        this.dkListener = dkListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.settings = settings;
+        this.specEnergy = specEnergy;
+        this.specStyle = specStyle;
+    }
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        return DkState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Action.set(Action.None);
+        log.debug("activate");
+        //dk.updateStatus("Fighting");
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    private void equip(CombatStyle style) {
+        switch (style) {
+            case Melee:
+                util.equip(DkState.getSettings().meleeEquipment());
+                break;
+            case Ranged:
+                util.equip(DkState.getSettings().rangedEquipment());
+                break;
+            case Magic:
+                util.equip(DkState.getSettings().magicEquipment());
+                break;
+        }
+
+    }
+
+    @Override
+    public void onTickStart() {
+        if (currentTarget == null || currentTarget.getNpc() == null) {
+            currentTarget = getNewTarget();
+        }
+        if (currentTarget == null) return;
+
+        var p = Players.getLocal();
+
+        equip(currentTarget.getAttackWith());
+        util.boostIfNeeded(currentTarget.getAttackWith());
+        if (p.getTarget().equals(currentTarget)) return;
+
+        util.attack(currentTarget.getNpc());
+    }
+
+    // Supreme>Prime>Rex.
+    private King getNewTarget() {
+        var attackers = King.getAttackingKings();
+        if (!attackers.isEmpty()) {
+            if (attackers.contains(King.Supreme))
+                return King.Supreme;
+            else if (attackers.contains(King.Prime)) {
+                return King.Prime;
+            } else if (attackers.contains(King.Rex)) {
+                return King.Rex;
+            }
+        }
+        var all = King.getAttackingKings();
+        if (!all.isEmpty()) {
+            if (all.contains(King.Supreme))
+                return King.Supreme;
+            else if (all.contains(King.Prime)) {
+                return King.Prime;
+            } else if (all.contains(King.Rex)) {
+                return King.Rex;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void executeLoop() {
+        var s = DkState.getSettings();
+        var target = Players.getLocal().getTarget();
+        //done = true;
+    }
+}

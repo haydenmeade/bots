@@ -1,0 +1,133 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.neck_flexed.scripts.slayer.*;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+@Getter
+public enum BarrageMonster implements SlayerMonster {
+    DustDevil("Dust devil", "Choke devil", areas.DUST_DEVIL, areas.DUST_DEVIL_1, areas.DUST_DEVIL_2, Monster.getByEnum(Task.DUST_DEVILS).get()),
+    AbyssalDemon("Abyssal demon", "Greater abyssal demon", areas.ABYSSAL_DEMON, areas.ABYSSAL_DEMON_1, areas.ABYSSAL_DEMON_2, Monster.getByEnum(Task.ABYSSAL_DEMONS).get()),
+    Nechryael("Greater Nechryael", "Nechryarch", areas.NECH, areas.NECH_1, areas.NECH_2, Monster.getByEnum(Task.NECHRYAEL).get()),
+    Jelly("Warped Jelly", "Vitreous warped Jelly", areas.JELLY, areas.JELLY_1, areas.JELLY_2, Monster.getByEnum(Task.JELLIES).orElse(null)),
+    ;
+
+    private final String monsterName;
+    private final String superiorName;
+    private final Area area;
+    private final Coordinate tile1;
+    private final Coordinate tile2;
+    private final SlayerMonster monster;
+
+    @Override
+    public Coordinate getTraverseToTile() {
+        return monster.getTraverseToTile();
+    }
+
+    @Override
+    public String toString() {
+        return this.monsterName;
+    }
+
+    @Override
+    public String[] getSuperiorNames() {
+        return new String[]{this.superiorName};
+    }
+
+    @Override
+    public int[] getPathRegions() {
+        return monster.getPathRegions();
+    }
+
+    @Override
+    public TraverseMethod[] getTraverseMethods() {
+        return monster.getTraverseMethods();
+    }
+
+    @Override
+    public Coordinate getCannon() {
+        return null;
+    }
+
+    @Override
+    public Prayer getPrayer() {
+        return Prayer.PROTECT_FROM_MELEE;
+    }
+
+    @Override
+    public boolean needsLightSource() {
+        return false;
+    }
+
+    @Override
+    public SlayerFinishItem getFinishItem() {
+        return null;
+    }
+
+    @Override
+    public SlayerProtectionItem getProtection() {
+        return null;
+    }
+
+    @Override
+    public boolean isInSafeArea() {
+        return false;
+    }
+
+    @Override
+    public TraverseOverride getTraverseOverride() {
+        return null;
+    }
+
+    @Override
+    public boolean isLeafBladed() {
+        return false;
+    }
+
+    @Override
+    public boolean isBarrageMonster() {
+        return true;
+    }
+
+    @Override
+    public boolean isDragon() {
+        return false;
+    }
+
+    @Override
+    public boolean isPoisonous() {
+        return false;
+    }
+
+    @Override
+    public int getFood() {
+        return 1;
+    }
+
+    @Override
+    public boolean isHoppingDisabled() {
+        return false;
+    }
+
+    @Override
+    public BoneType getBoneType() {
+        return monster.getBoneType();
+    }
+
+    @Override
+    public boolean isWyvern() {
+        return false;
+    }
+
+    @Override
+    public String[] getAlternatives() {
+        return new String[0];
+    }
+
+}

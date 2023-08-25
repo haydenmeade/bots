@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.SpecialAttackCost;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Phase2Fighter")
+public class Phase2Fighter implements EngineListener, PlayerListener, NpcListener {
+
+    @Override
+    public void onTickStart() {
+        if (done()) return;
+        if (u.getSire() == null) return;
+        if (u.getSire().getId() == sire.SireId_Phase2or3_Walk) {
+            util.boostIfNeeded(util.getCombatStyle(SireState.getSettings().phase2Equipment()));
+            log.debug("wait for walk");
+            return;
+        }
+        var settings = SireState.getSettings();
+        if (sire.onMiasmaPool()) {
+            util.moveTo(Players.getLocal().getPosition().equals(Phase2.tile1) ? Phase2.tile2 : Phase2.tile1);
+        } else if (Action.get() != Action.Attack) {
+            log.debug("attack");
+            if (!settings.specEquipment().isEmpty() &&
+                    settings.specEquipment().getDefinition(Equipment.Slot.WEAPON) != null &&
+                    SpecialAttack.getEnergy() >= SpecialAttackCost.getCost(settings.specEquipment().getDefinition(Equipment.Slot.WEAPON).getId())) {
+                log.debug("spec");
+                u.equipSpec();
+                util.activateSpec();
+                u.attackSire();
+                Action.set(Action.Spec);
+            } else {
+                u.equipPhase2();
+                u.attackSire();
+            }
+        }
+    }
+
+    public boolean done() {
+        var st = SireState.getFightState();
+        if (st != null && st != FightState.Phase2) return true;
+        var s = u.getSire();
+        return s == null || s.getId() == sire.SireId_Phase3_1 || (s.getHealthGauge() != null && s.getHealthGauge().getPercent() < 50);
+    }
+
+}

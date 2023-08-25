@@ -1,0 +1,252 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.VarpID;
+import com.runemate.game.api.hybrid.local.Varps;
+import com.runemate.game.api.hybrid.local.Worlds;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.GameObjectListener;
+import com.runemate.game.api.script.framework.listeners.VarpListener;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import com.runemate.game.api.script.framework.listeners.events.VarpEvent;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+
+@RequiredArgsConstructor
+@Log4j2(topic = "Cannon")
+public class Cannon implements GameObjectListener, VarpListener, ChatboxListener, EngineListener {
+
+    public final DI di;
+    public int reloadThreshold = 5;
+    private boolean firstCannonLoad;
+    @Getter
+    private int cballsLeft;
+    @Getter
+    private boolean cannonPlaced;
+    @Getter
+    private Area cannonPosition;
+    @Getter
+    private int cannonWorld = -1;
+    @Getter
+    private GameObject cannon;
+    @Getter
+    private boolean started;
+    private int tick;
+    private boolean isReloading = false;
+    private int reloadingStart;
+
+    private static Area buildCannonWorldArea(Coordinate worldPoint) {
+        var x = worldPoint.getX() - 1;
+        var y = worldPoint.getY() - 1;
+        var z = worldPoint.getPlane();
+        return new Area.Rectangular(new Coordinate(x, y, z), new Coordinate(x + 3, y + 3, z));
+    }
+
+    public static boolean hasCannon() {
+        return (Inventory.contains("Cannonball") || Inventory.contains("Granite cannonball")) &&
+                (Inventory.contains("Cannon base")
+                        || !GameObjects.newQuery()
+                        .names("Dwarf multicannon")
+                        .results().isEmpty());
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            tick++;
+            if (reloadingStart + 10 < tick && isReloading) isReloading = false;
+            if (!started) return;
+            if (cannon == null) return;
+            var def = cannon.getActiveDefinition();
+            if (def == null) return;
+            if (def.getActions().contains("Repair")) {
+                repare();
+            } else if (cballsLeft == 0) {
+                reload();
+            }
+            if (isReloading && cballsLeft > reloadThreshold) {
+                // next tick
+                reloadingStart = -1;
+            }
+
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    private void repare() {
+        if (this.cannon == null) return;
+        this.isReloading = true;
+        reloadingStart = tick;
+        log.debug("Repairing cannon on {}", tick);
+        di.send(MenuAction.forGameObject(this.cannon, "Repair"));
+    }
+
+    public void place() {
+        log.debug("try set up cannon");
+        var base = Inventory.getItems("Cannon base").first();
+        if (base == null) {
+            startUp();
+            return;
+        }
+        if (base.interact("Set-up"))
+            log.debug("setup up cannon");
+
+        Execution.delayUntil(
+                () -> isCannonPlaced() && cannon != null,
+                util::playerMoving,
+                4000, 5000);
+        Execution.delay(600);
+    }
+
+    public boolean pickup() {
+        log.debug("try to pick up cannon");
+        if (cannon == null) return false;
+        var def = cannon.getActiveDefinition();
+        if (def == null) return false;
+        if (!def.getActions().contains("Pick-up"))
+            log.error("unable to pick up cannon");
+        di.send(MenuAction.forGameObject(cannon, "Pick-up"));
+        var r = Execution.delayUntil(
+                () -> {
+                    var q = GameObjects.newQuery();
+                    if (cannonPosition != null)
+                        q = q.within(cannonPosition);
+                    return q.names("Dwarf multicannon")
+                            .results().isEmpty();
+                }, util::playerMoving, 1000, 2000);
+        if (r) {
+            shutDown();
+        }
+        return r;
+    }
+
+    public void reload() {
+        log.debug("reload");
+        if (isReloading) return;
+        var cannon = this.cannon;
+        if (cannon == null) {
+            log.debug("no cannon in reload");
+            return;
+        }
+        var cballs = Inventory.getItems("Cannonball", "Granite cannonball").first();
+        if (cballs == null) {
+            log.error("no cannonballs");
+            this.pickup();
+            this.shutDown();
+            return;
+        }
+        isReloading = true;
+        reloadingStart = tick;
+        log.debug("reloading cannon {} with {}", cannon, cballs);
+        di.send(MenuAction.forGameObject(cannon, "Fire"));
+    }
+
+    public void startUp() {
+        log.debug("cannon start");
+        var varp = Varps.getAt(VarpID.CANNON_AMMO.getId());
+        cballsLeft = varp.getValue();
+        if (cannon == null) {
+            log.debug("no cannon in start, trying to find");
+            GameObject object = GameObjects.newQuery()
+                    .names("Dwarf multicannon")
+                    .results().nearest();
+            if (object != null && Players.getLocal().getServerPosition().distanceTo(object.getPosition()) <= 10) {
+                var pos = object.getPosition();
+                log.debug("cannon found on {}", pos);
+                cannonPlaced = true;
+                cannonWorld = Worlds.getCurrent();
+                cannon = object;
+                cannonPosition = buildCannonWorldArea(pos);
+            }
+        }
+        if (cannon != null) {
+            log.debug("Cannon initial start {}", cannon.getAnimationId());
+            if (cannon.getAnimationId() == -1) {
+                reload();
+                this.started = Execution.delayUntil(() -> cannon.getAnimationId() != -1, 1400, 2600);
+            } else {
+                this.started = true;
+            }
+        }
+    }
+
+    public void shutDown() {
+        this.started = false;
+
+        cannon = null;
+        cannonPlaced = false;
+        cannonWorld = -1;
+        cannonPosition = null;
+        cballsLeft = 0;
+    }
+
+    @Override
+    public void onValueChanged(VarpEvent varpEvent) {
+        if (varpEvent.getVarp().getIndex() != VarpID.CANNON_AMMO.getId()) return;
+        cballsLeft = varpEvent.getNewValue();
+        if (started && cballsLeft <= reloadThreshold) {
+            reload();
+        }
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        if (!Objects.equals(event.getType(), Chatbox.Message.Type.SERVER)) {
+            return;
+        }
+
+        if (event.getMessage().equals("You add the furnace.")) {
+            cannonPlaced = true;
+            firstCannonLoad = true;
+        } else if (event.getMessage().contains("You pick up the cannon")
+                || event.getMessage().contains("Your cannon has decayed. Speak to Nulodion to get a new one!")
+                || event.getMessage().contains("Your cannon has been destroyed!")) {
+            cannonPlaced = false;
+            cannonPosition = null;
+        } else if (event.getMessage().startsWith("You load the cannon with")) {
+            // Set the cannon's position and object if the player's animation was interrupted during setup
+            if (cannonPosition == null) {
+                if (firstCannonLoad) {
+                    GameObject object = GameObjects.newQuery()
+                            .names("Dwarf multicannon")
+                            .results().nearest();
+                    if (object != null && Players.getLocal().getServerPosition().distanceTo(object.getPosition()) <= 2) {
+                        var pos = object.getPosition();
+                        log.debug("cannon placed from message on {}", pos);
+                        cannonPlaced = true;
+                        cannonWorld = Worlds.getCurrent();
+                        cannon = object;
+                        cannonPosition = buildCannonWorldArea(pos);
+                    }
+                    firstCannonLoad = false;
+                }
+            }
+        } else if (event.getMessage().contains("Your cannon is out of ammo!")) {
+            log.debug("Your cannon is out of ammo!");
+            isReloading = false;
+            if (started) {
+                reload();
+            }
+        } else if (event.getMessage().equals("This isn't your cannon!") || event.getMessage().equals("This is not your cannon.")) {
+            log.error("Not your cannon");
+        }
+    }
+
+    public boolean isReloading() {
+        return this.isReloading;
+    }
+}

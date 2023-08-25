@@ -1,0 +1,117 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState extends BaseState<KqState> {
+    private final KqListener kqListener;
+    private final PrayerFlicker prayerFlicker;
+    private final kq bot;
+    private final Prayer[] phase1Prayers;
+    private final Prayer[] phase2Prayers;
+    private final CombatStyle phase1CombatStyle;
+    private final CombatStyle phase2CombatStyle;
+    private final Loadouts loadouts;
+    private final Loadout phase1loadout;
+    private final Loadout phase2loadout;
+    private final Loadout specLoadout;
+    private KqPhase prevPhase = KqPhase.Phase2;
+
+    public FightState(KqListener kqListener,
+                      PrayerFlicker prayerFlicker,
+                      kq bot
+    ) {
+        super(bot, KqState.FIGHTING);
+        this.kqListener = kqListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.phase1loadout = loadouts.getForName(KqPhase.Phase1);
+        this.phase2loadout = loadouts.getForName(KqPhase.Phase2);
+        this.phase1Prayers = util.joinPrayers(phase1loadout.getBoostPrayers(), Prayer.PROTECT_FROM_MAGIC);
+        this.phase2Prayers = util.joinPrayers(phase2loadout.getBoostPrayers(), Prayer.PROTECT_FROM_MAGIC);
+        this.phase1CombatStyle = phase1loadout.getStyle();
+        this.phase2CombatStyle = phase2loadout.getStyle();
+        this.specLoadout = loadouts.getSpecLoadout();
+    }
+
+    public static int getHealthForWalkUnder() {
+        return 49;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Fighting");
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.kqListener.isDead()
+                || kq.getKq() == null
+                || (Health.getCurrent() <= getHealthForWalkUnder() && Food.countInventory() > 0);
+    }
+
+    @Override
+    public void executeLoop() {
+        var phase = this.kqListener.getPhase();
+        var s = bot.settings();
+        var target = Players.getLocal().getTarget();
+        //log.debug(String.format("Phase: %s, prevPhase: %s, prevAction: %s", phase, prevPhase, Action.get()));
+        log.debug("CCV:{}", util.canCastVengeance());
+        if (util.canCastVengeance()) {
+            di.send(MenuAction.forInterfaceComponent(
+                    Magic.Lunar.VENGEANCE.getComponent(), 0));
+            Execution.delay(600, 700);
+        }
+
+        if (phase.equals(KqPhase.Phase1)) {
+            prevPhase = KqPhase.Phase1;
+            this.prayerFlicker.setActivePrayers(phase1Prayers);
+            util.boostIfNeeded(this.phase1CombatStyle, bot.settings().reboost1());
+            if (this.specLoadout != null && SpecialAttack.getEnergy() >= this.specLoadout.getSpecEnergy()) {
+                util.activateSpec();
+                if (target == null || !Action.get().equals(Action.Spec)) {
+                    loadouts.equip(specLoadout);
+                    bot.attack();
+                    Action.set(Action.Spec);
+                    Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 100, 110);
+                }
+            } else if (target == null || Action.get() != Action.Attack) {
+                loadouts.equip(phase1loadout);
+                bot.attack();
+                Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 100, 110);
+            }
+        } else if (phase.equals(KqPhase.Transition)) {
+            prevPhase = KqPhase.Transition;
+            util.eatIfHpAllows(s.food());
+            util.boostIfNeeded(this.phase2CombatStyle, bot.settings().reboost2());
+            loadouts.equip(phase2loadout);
+            this.prayerFlicker.setActivePrayers(this.phase2Prayers);
+            var c = kq.getKq().getArea().getCenter();
+            if (!Players.getLocal().getPosition().equals(c)) {
+                util.moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c), 600, 1300);
+            }
+        } else if (target == null || prevPhase.equals(KqPhase.Transition) || Action.get() != Action.Attack) {
+            bot.attack();
+            prevPhase = KqPhase.Phase2;
+            Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 200, 310);
+        }
+    }
+}

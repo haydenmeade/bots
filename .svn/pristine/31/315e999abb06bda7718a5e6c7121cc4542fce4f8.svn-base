@@ -1,0 +1,220 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.EventListener;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Mole")
+public class Mole extends NeckBot<MoleSettings, MoleState> {
+    public static final String Mole = "Giant Mole";
+    public static final Pattern falShield = Pattern.compile("Falador shield.*");
+    public static final int MoleId = 5779;
+    public static final int MoleHillId = 12202;
+    public static final Area lair = Area.rectangular(new Coordinate(1787, 5246), new Coordinate(1730, 5131));
+    public static final Coordinate entryTile = new Coordinate(2996, 3377);
+    private static final Area park = Area.rectangular(new Coordinate(2985, 3383), new Coordinate(3015, 3362));
+    private static final int moleLairReg1 = 6993;
+    private static final int moleLairReg2 = 6992;
+    public static Coordinate centreLair = new Coordinate(1761, 5188);
+    private MoleListener moleListener;
+    private PrayerFlicker prayerFlicker;
+    private boolean isDharoks = false;
+    private Consumeables consumeables;
+    private Integer specEnergy;
+    private AlchListener alcher;
+    @SettingsProvider(updatable = true)
+    private MoleSettings settings;
+
+    public static boolean isInLair() {
+        var r = Players.getLocal().getPosition().getContainingRegionId();
+        return r == moleLairReg1 || r == moleLairReg2;
+    }
+
+    public static @Nullable Npc getMole() {
+        var m = new NpcQueryBuilder().ids(MoleId).results().first();
+        if (m == null) return null;
+        if (m.getAnimationId() == 3310) return null;
+        return m;
+    }
+
+    public static void attack() {
+        var m = getMole();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static boolean inFaladorPark() {
+        return park.contains(Players.getLocal());
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (settings().staminaAmount() > 0 && Inventory.getItems(items.staminaPotions).isEmpty()) {
+            return true;
+        }
+        if (Health.getCurrentPercent() < 50 && Inventory.getItems(settings().food().gameName()).isEmpty()) {
+            return true;
+        }
+        if (!Inventory.contains(items.spade)) {
+            return true;
+        }
+        if (!Inventory.contains(falShield)) {
+            return true;
+        }
+        if (!settings().light().equals(LightSource.None) && !Inventory.contains(settings().light().getPattern())) {
+            return true;
+        }
+        return false;
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.moleListener.reset();
+    }
+
+    @Override
+    protected void initFromSettings(MoleSettings settings) {
+        if (settings != null && settings.equipment() != null) {
+            isDharoks = util.isDharoks(settings.equipment());
+            consumeables.setDharok(isDharoks);
+        }
+        if (settings != null
+                && settings.specEquipment() != null
+                && !settings.specEquipment().isEmpty()
+                && settings.specEquipment().getDefinition(Equipment.Slot.WEAPON) != null) {
+            this.specEnergy = SpecialAttackCost.getCost(settings.specEquipment().getDefinition(Equipment.Slot.WEAPON).getId());
+        } else {
+            this.specEnergy = 50;
+        }
+        this.breakManager = new BreakManager(settings);
+        updateItemFilter(util.concatenate(
+                util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                        settings.food().gameName()}),
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling},
+                util.toItemList(settings.equipment()),
+                util.toItemList(settings.specEquipment())
+        ));
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, alcher, moleListener};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        moleListener = new MoleListener(this);
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this, 31, MoleState.RESTORING, isDharoks);
+        this.alcher = new AlchListener("Adamant longsword",
+                "Mithril platebody",
+                "Amulet of strength",
+                "Mithril axe",
+                "Mithril battleaxe");
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings());
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: Falador Hard\n" +
+                        "HouseBank: Requires house teleport runes, ornate pool, and jewellery box\n" +
+                        "FeroxBank: Requires dueling ring, falador teleport runes\n" +
+                        "Alching: Requires alch runes\n" +
+                        "Should detect and reduce health when using Dharok's and rock cake / locator orb in invent. Will probably kill you if using divine pots (untested).\n"
+        ));
+    }
+
+    public List<Prayer> getQuickPrayers() {
+        if (settings() == null) return new ArrayList<Prayer>();
+        var p = util.getBoostPrayers(settings().style());
+        p.add(Prayer.PROTECT_FROM_MELEE);
+        if (isDharoks) {
+            p.add(Prayer.RAPID_HEAL);
+        }
+        return p;
+    }
+
+    protected LoopState<MoleState> getState(MoleState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case FIGHTING:
+                return new FightState(this, this.moleListener, this.prayerFlicker, this.specEnergy, this.isDharoks);
+            case SEARCHING:
+                return new SearchState(this, this.moleListener);
+            case LOOTING:
+                return new LootState(this.moleListener, this, this.breakManager);
+            case RESTORING:
+                return new RestoreState(this, breakManager);
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), MoleState.STARTING, MoleState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, MoleState.BREAKING, MoleState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<MoleState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected MoleState getBreakStateEnum() {
+        return MoleState.BREAKING;
+    }
+
+    @Override
+    protected MoleState getStartStateEnum() {
+        return MoleState.STARTING;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Mole KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public MoleSettings settings() {
+        return settings;
+    }
+}

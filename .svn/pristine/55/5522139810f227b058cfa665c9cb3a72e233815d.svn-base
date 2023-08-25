@@ -1,0 +1,105 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.HintArrow;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.queries.HintArrowQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "SearchState")
+public class SearchState implements LoopState<MoleState> {
+    private final Mole bot;
+    private final MoleListener moleListener;
+    private Path pathToCentre;
+
+    public SearchState(Mole bot, MoleListener moleListener) {
+        this.bot = bot;
+        this.moleListener = moleListener;
+    }
+
+    public static @Nullable HintArrow getMoleHint() {
+        return new HintArrowQueryBuilder().results().first();
+    }
+
+    public static Path getPathTo(Coordinate c) {
+        return BresenhamPath.buildTo(c);
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Searching");
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        if (util.isCannonNearby()) {
+            return MoleState.HOPPING;
+        }
+        if (Mole.getMole() != null) {
+            // TODO
+            boolean myMole = false;
+            if (util.otherPlayersNearby() && !myMole) {
+                return MoleState.HOPPING;
+            } else {
+                this.moleListener.resetDig();
+                return MoleState.FIGHTING;
+            }
+        } else {
+            log.debug("search no mole");
+        }
+        if (!Mole.isInLair())
+            return MoleState.TRAVERSING;
+        return MoleState.STARTING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.SEARCHING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return Mole.getMole() != null || util.isCannonNearby() || !Mole.isInLair();
+    }
+
+    @Override
+    public void executeLoop() {
+        var arr = getMoleHint();
+        if (arr == null || arr.getPosition() == null) {
+            //log.debug("No hint, going to centre");
+            if (!Players.getLocal().getPosition().equals(Mole.centreLair)) {
+                if (pathToCentre == null)
+                    pathToCentre = getPathTo(Mole.centreLair);
+                if (pathToCentre != null) {
+                    pathToCentre.step();
+                    Action.set(Action.Move);
+                } else {
+                    log.debug("Could not generate path in Mole.search no arrow");
+                }
+            }
+        } else {
+            var pos = arr.getPosition();
+            if (pos == null) return;
+            var path = getPathTo(pos);
+            if (path != null) {
+                path.step();
+                Action.set(Action.Move);
+            } else {
+                log.debug("Could not generate path in Mole.search");
+            }
+        }
+    }
+}
+

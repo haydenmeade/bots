@@ -1,0 +1,82 @@
+package com.neck_flexed.scripts.mole;
+
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "MoleState")
+public enum MoleState {
+    STARTING(),
+    STOPPING(),
+    TRAVERSING(),
+    FIGHTING(),
+    SEARCHING(),
+    LOOTING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+    ;
+    private static MoleState botState = STARTING;
+    private static EventDispatcher eventDispatcher;
+
+    private static MoleSettings settings = null;
+    private static boolean isPaused = true;
+    private static Mole bot;
+    private static int moleKilled = 0;
+
+    private MoleState() {
+    }
+
+
+    public static String getFood() {
+        return MoleState.getSettings() == null ? "Shark" : MoleState.getSettings().food().name;
+    }
+
+    public static MoleState get() {
+        return botState;
+    }
+
+    public static void set(MoleState botState) {
+        MoleState.botState = botState;
+    }
+
+    public static EventDispatcher getEventDispatcher() {
+        return eventDispatcher;
+    }
+
+    public static void setEventDispatcher(EventDispatcher eventDispatcher) {
+        MoleState.eventDispatcher = eventDispatcher;
+    }
+
+
+    public static MoleSettings getSettings() {
+        return settings;
+    }
+
+    public static void setSettings(MoleSettings settings) {
+        MoleState.settings = settings;
+    }
+
+    public static boolean isPaused() {
+        return MoleState.isPaused;
+    }
+
+    public static void setPaused(boolean paused) {
+        MoleState.isPaused = paused;
+    }
+
+    public static Mole getBot() {
+        return bot;
+    }
+
+    public static void setBot(Mole bot) {
+        MoleState.bot = bot;
+    }
+
+    public static int getMoleKilled() {
+        return moleKilled;
+    }
+
+    public static void setMoleKilled(int moleKilled) {
+        MoleState.moleKilled = moleKilled;
+    }
+}

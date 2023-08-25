@@ -1,0 +1,10 @@
+# TODO
+
+- Add more fight strategies for Cerb
+- Fix looting (Drop or consume supplies)
+- Remove logic in resume/pause handlers
+- Add more traverse/banking options
+- Drop food or supplies for switching
+- Reset killcount on start.
+- Use picked up food
+- Prepotting during restocking

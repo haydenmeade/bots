@@ -1,0 +1,14 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+@Getter
+public enum DigsiteDestination {
+    Digsite("Digsite", 1),
+    HouseOnHill("House on the hill", 2),
+    Lithriken("Lithriken", 3);
+    private final String label;
+    private final int key;
+}

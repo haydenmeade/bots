@@ -1,0 +1,25 @@
+package com.neck_flexed.scripts.common.loot;
+
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsSection;
+
+public interface LootSettings {
+    @SettingsSection(title = "Looting", description = "Settings for looting", order = 3)
+    String LOOTING = "Looting";
+
+    @Setting(key = "always_loot", title = "Always Loot List", order = 1, description = "Comma separated Regex List (Case Insensitive), bot has defaults", section = LOOTING)
+    default String alwaysLoot() {
+        return "Infernal.*,Abyssal whip";
+    }
+
+    @Setting(key = "never_loot", title = "Never Loot List", order = 2, description = "Comma separated Regex List (Case Insensitive), bot has defaults", section = LOOTING)
+    default String neverLoot() {
+        return "Raw chicken";
+    }
+
+    @Setting(key = "minalchvaue", title = "Loot Minimum Alch Value", order = 5, section = LOOTING)
+    default int minAlchValue() {
+        return 0;
+    }
+
+}

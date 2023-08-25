@@ -1,0 +1,95 @@
+package com.neck_flexed.scripts.common.state;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "BaseRestoreState")
+public class RestoreState<TState extends Enum<TState>> extends BaseState<TState> {
+    private final NeckBot<?, TState> bot;
+    private final HouseConfig houseConfig;
+    private final boolean endOnSlayerTaskFinished;
+    private String error;
+    private boolean done;
+
+    public RestoreState(NeckBot<?, TState> bot,
+                        TState restoreState,
+                        HouseConfig houseConfig,
+                        boolean endOnSlayerTaskFinished
+    ) {
+        super(bot, restoreState);
+        this.bot = bot;
+        this.houseConfig = houseConfig;
+        this.endOnSlayerTaskFinished = endOnSlayerTaskFinished;
+    }
+
+    public RestoreState(NeckBot<?, TState> bot,
+                        TState restoreState,
+                        HouseConfig houseConfig
+    ) {
+        this(bot, restoreState, houseConfig, false);
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Restoring");
+        bot.prayerFlicker.disable();
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        if (this.endOnSlayerTaskFinished && !SlayerTask.hasTask()) {
+            bot.updateStatus("Finished endOnSlayerTaskFinished task");
+            Execution.delay(1000);
+            bot.stop("Finished endOnSlayerTaskFinished task");
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return this.error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        // TODO refactor
+        if (houseConfig.getPool().equals(HouseConfig.Pool.Ornate) && houseConfig.getJewelleryBox().getLevel() > 0) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                return;
+            }
+
+            if (!HouseUtil.restoreStatsInHouse(bot)) {
+                return;
+            }
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            this.done = HouseUtil.JbToCastleWars();
+        } else {
+            if (!Inventory.contains(items.ringOfDueling) && !Equipment.contains(items.ringOfDueling)) {
+                error = "Unable to restore without ring of dueling";
+                return;
+            }
+            if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                log.error("Unable to tele to ferox");
+                return;
+            } else if (!util.restoreAtFerox(bot)) {
+                return;
+            }
+            this.done = true;
+        }
+    }
+}

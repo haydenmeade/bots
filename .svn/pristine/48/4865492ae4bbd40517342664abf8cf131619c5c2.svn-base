@@ -1,0 +1,54 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+@Log4j2(topic = "Phase32Fighter")
+public class Phase32Fighter implements EngineListener, PlayerListener, NpcListener {
+
+
+    private boolean isDead = false;
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && ((Npc) event.getSource()).getName() == sire.Sire) {
+            isDead = true;
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        if (done()) return;
+        if (u.getSire() == null) {
+            log.debug("no sire");
+            return;
+        }
+        if (u.getSire().getId() != sire.SireId_Phase3_2) {
+            log.debug("wait for anim");
+            return;
+        }
+        if (sire.onMiasmaPool()) {
+            log.debug("move");
+            u.moveTo(Phase3.getMoveToTile2(Players.getLocal().getPosition()));
+        } else if (SireState.getLastClick() != Action.Attack) {
+            log.debug("attack");
+            u.attackSire();
+        }
+
+    }
+
+
+    public boolean done() {
+        if (isDead) return true;
+        var s = u.getSire();
+        return s == null || s.getId() == -1;
+    }
+
+}

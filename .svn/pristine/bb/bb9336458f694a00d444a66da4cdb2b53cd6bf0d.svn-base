@@ -1,0 +1,48 @@
+package com.neck_flexed.scripts.lizard;
+
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.InventoryListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+
+@Log4j2(topic = "Alcher")
+public class Alcher implements EngineListener, InventoryListener {
+    public static String[] alchables = Arrays.asList(
+            "Rune med helm",
+            "Earth battlestaff",
+            "Mystic earth staff",
+            "Rune warhammer",
+            "Rune chainbody",
+            "Red d'hide vambraces",
+            "Rune 2h sword",
+            "Rune battleaxe",
+            "Rune sq shield",
+            "Rune kiteshield",
+            "Dragon med helm",
+            "Rune spear").toArray(new String[0]);
+
+
+    @Override
+    public void onTickStart() {
+        if (BotState.getAlchCooldown() > 0) {
+            return;
+        }
+        try {
+            var item = Inventory.getItems(alchables).first();
+            if (item != null) {
+                log.debug(String.format("alching: %s", item.toString()));
+                DirectInput.sendSpellCastOn(Magic.HIGH_LEVEL_ALCHEMY, item);
+                BotState.setAlchCooldown(5);
+                BotState.setLastAction(Action.Alch);
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+}

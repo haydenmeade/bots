@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.Xeric;
+import com.neck_flexed.scripts.common.items;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class XericTraverse implements TraverseMethod {
+    private final Xeric dest;
+
+    public XericTraverse(Xeric dest) {
+        this.dest = dest;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new BaseRequirement(Pattern.compile(items.xericsTalisman)));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var talisman = Inventory.contains(items.xericsTalisman)
+                ? Inventory.getItems(items.xericsTalisman).first()
+                : Equipment.getItems(items.xericsTalisman).first();
+        if (talisman == null) {
+            return false;
+        }
+        var p = Players.getLocal().getServerPosition().getContainingRegionId();
+        if (!talisman.interact("Rub")) return false;
+        if (!Execution.delayUntil(() -> InterfaceContainers.getAt(187) != null, 1000, 2000))
+            return false;
+        Keyboard.pressKey(dest.getKey());
+        return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != p, 2000, 3000);
+    }
+
+}

@@ -1,0 +1,17 @@
+package com.neck_flexed.scripts.kq;
+
+public enum BankAndRestoreMethod {
+    House("House"),
+    Ferox("Ferox");
+
+    private final String name;
+
+    BankAndRestoreMethod(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+}

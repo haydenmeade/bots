@@ -1,0 +1,150 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.queries.GameObjectQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<MoleState> {
+    private static final Area faladorArea = Area.rectangular(new Coordinate(2933, 3395), new Coordinate(3033, 3351));
+    private final Mole bot;
+    private final MoleHillListener moleHillListener;
+    private boolean needToHop = false;
+    private String error;
+
+    public TraverseState(Mole bot) {
+        super(MoleState.TRAVERSING);
+        this.bot = bot;
+        this.moleHillListener = new MoleHillListener();
+    }
+
+    private static GameObject getMoleHill() {
+        return new GameObjectQueryBuilder().on(Mole.entryTile).ids(Mole.MoleHillId).results().first();
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{moleHillListener};
+    }
+
+    private boolean traverseToFallyPark() {
+        if (!Mole.isInLair() && !Mole.inFaladorPark() && !House.isInside()) {
+            if (bot.settings().hasOrnateJewelleryBox() && bot.settings().hasOrnatePool()) {
+                util.teleToHouse();
+                return true;
+            } else {
+                if (!faladorArea.contains(Players.getLocal())) {
+                    Magic.FALADOR_TELEPORT.activate();
+                    if (!Execution.delayUntil(() -> faladorArea.contains(Players.getLocal()), 5000)) {
+                        log.debug("unable to tele to falador");
+                        return true;
+                    }
+                    Execution.delay(600);
+                }
+
+                if (!Mole.inFaladorPark()) {
+                    var path = BresenhamPath.buildTo(Mole.entryTile);
+                    if (path != null) {
+                        path.step();
+                        Action.set(Action.Move);
+                        Execution.delay(600, 1200);
+                    } else {
+                        log.debug("Could not generate path in traverse to fally park");
+                    }
+                }
+                return Mole.inFaladorPark();
+            }
+        }
+        if (House.isInside()) {
+            if (!HouseUtil.JbToFallyPark(bot)) {
+                return true;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private int lookInsideMoleHill() {
+        if (moleHillListener.getPlayerCount() > -1) return moleHillListener.getPlayerCount();
+        log.debug("looking inside mole hill");
+        var mh = getMoleHill();
+        if (mh == null) return -1;
+        if (!mh.interact("Look-inside")) return -1;
+        Execution.delayUntil(() -> moleHillListener.getPlayerCount() > -1 || bot.isPaused(), 5000);
+        return moleHillListener.getPlayerCount();
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        if (needToHop)
+            bot.forceState(MoleState.HOPPING);
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return needToHop || Mole.isInLair();
+    }
+
+    private void enterLair() {
+        log.debug("entering lair");
+        var spade = Inventory.getItems(items.spade).first();
+        if (spade == null) {
+            this.error = "no spade found";
+            return;
+        }
+        spade.interact("Dig");
+        Execution.delayUntil(() -> Mole.isInLair() || bot.isPaused(), 5000);
+    }
+
+    @Override
+    public void executeLoop() {
+        if (traverseToFallyPark()) return;
+
+        if (Mole.inFaladorPark() && !Players.getLocal().getPosition().equals(Mole.entryTile)) {
+            if (!Players.getLocal().getPosition().equals(Mole.entryTile)) {
+                util.moveTo(Mole.entryTile);
+                Execution.delay(600, 750);
+            }
+            return;
+        }
+
+        if (Players.getLocal().getPosition().equals(Mole.entryTile)) {
+            var pc = lookInsideMoleHill();
+            if (pc > 0) {
+                // check if players inside.
+                needToHop = true;
+            } else if (pc == 0) {
+                if (this.bot.loadouts != null)
+                    this.bot.loadouts.setCurrentFromEquipmentOrEquip(this.bot.loadouts.getAnyCombat());
+                enterLair();
+            }
+        }
+
+    }
+}

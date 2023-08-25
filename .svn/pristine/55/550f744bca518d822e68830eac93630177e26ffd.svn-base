@@ -1,0 +1,32 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.hydra.bot</main-class>
+    <name>Necks Alchemical Hydra [Beta]</name>
+    <tag-line>Alchemicals the Hydra</tag-line>
+    <description>Kills Alchemical Hydra</description>
+    <access>public</access>
+    <price>0.06</price>
+    <version>0.0.7</version>
+    <internal-id>Neck_Hydra</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.dk.HydraSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <open-source>true</open-source>
+    <tags>
+        <tag>boss</tag>
+        <tag>alchemical</tag>
+        <tag>hydra</tag>
+        <tag>slayer</tag>
+        <tag>pet</tag>
+    </tags>
+</manifest>

@@ -1,0 +1,35 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.slayer.turael.bot</main-class>
+    <name>Necks Turael Skipper Booster [BETA]</name>
+    <tag-line>Skips for more Neck</tag-line>
+    <description>Turael skip for tasks or boost for points</description>
+    <access>public</access>
+    <price>0.05</price>
+    <version>0.0.59</version>
+    <internal-id>NECK_Turael</internal-id>
+    <open-source>true</open-source>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.*</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>turael</tag>
+        <tag>konar</tag>
+        <tag>duradel</tag>
+        <tag>nieve</tag>
+        <tag>steve</tag>
+        <tag>krystilia</tag>
+        <tag>slayer</tag>
+        <tag>skip</tag>
+        <tag>boost</tag>
+    </tags>
+</manifest>

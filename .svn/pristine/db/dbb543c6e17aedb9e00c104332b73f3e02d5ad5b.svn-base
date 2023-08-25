@@ -1,0 +1,332 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.Region;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.LoopingBot;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Kq")
+public class kq extends LoopingBot implements SettingsListener {
+    public static final String name = "Kalphite Queen";
+    public static final int IdPhase1 = 963;
+    public static final int IdPhase2 = 965;
+    public static final Area tunnels = Area.rectangular(new Coordinate(3454, 9533, 2), new Coordinate(3523, 9470, 2));
+    public static final Area aboveGroundDesert = Area.rectangular(new Coordinate(3212, 3120), new Coordinate(3267, 3076));
+    public static final Coordinate crackUseTile = new Coordinate(3501, 9483, 2);
+    public static final Area lairEntryArea = Area.rectangular(new Coordinate(3501, 9505, 2), new Coordinate(3517, 9491, 2));
+    private static final int lairRegionId = 13972;
+    @SettingsProvider(updatable = true)
+    private KqSettings settings;
+    private KqListener kqListener;
+    private PrayerFlicker prayerFlicker;
+    private LoopState<KqState> currentState;
+    private Consumeables consumeables;
+    private KqState forcedState = null;
+    private CombatStyle phase1CombatStyle;
+    private CombatStyle phase2CombatStyle;
+    private Prayer[] phase1Prayers;
+    private Prayer[] phase2Prayers;
+
+    public static boolean isInLair() {
+        var p = Players.getLocal().getPosition();
+        return (!isInTunnels() && p.getContainingRegionId() == lairRegionId)
+                || (Region.isInstanced() && Arrays.stream(Region.getLoadedRegionIds()).anyMatch(i -> i == lairRegionId));
+    }
+
+    public static boolean atLairEntrance() {
+        return Players.getLocal().getPosition().equals(crackUseTile) || lairEntryArea.contains(Players.getLocal());
+    }
+
+    public static @Nullable Npc getKq() {
+        return new NpcQueryBuilder().names(name).results().first();
+    }
+
+
+    public static void attack() {
+        var m = getKq();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static void updateStatus(String s) {
+        var debugString = String.format("%s - Kq KC: %d", s, KqState.getKqKilled());
+        log.debug(debugString);
+        DefaultUI.setStatus(debugString);
+    }
+
+    public static boolean isAboveGround() {
+        return Players.getLocal().getPosition().getContainingRegionId() == 12848;
+    }
+
+    public static boolean doWeNeedToRestock() {
+        if (KqState.getSettings() == null) return false;
+        var boost = KqState.getSettings().phase1Boost();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        var boost2 = KqState.getSettings().phase2Boost();
+        if (boost2 != Boost.None && Inventory.getItems(boost2.patternAny()).isEmpty()) {
+            return true;
+        }
+        // TODO use food off ground
+        if (Inventory.getQuantity(KqState.getSettings().food().gameName()) <
+                KqState.getSettings().minFood()) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean canUseCreviceShortcut() {
+        return AchievementDiary.DESERT.isEliteComplete() && Skill.AGILITY.getCurrentLevel() >= 86;
+    }
+
+    public static boolean isInTunnels() {
+        return tunnels.contains(Players.getLocal());
+    }
+
+    public static List<Prayer> getPrayersRequired(KqPhase phase) {
+        var p = new ArrayList<Prayer>();
+        if (KqState.getSettings() == null) return p;
+        if (phase == KqPhase.Phase1)
+            p.addAll(util.getBoostPrayers(util.getCombatStyle(KqState.getSettings().phase1Equipment())));
+        else
+            p.addAll(util.getBoostPrayers(util.getCombatStyle(KqState.getSettings().phase2Equipment())));
+        p.add(Prayer.PROTECT_FROM_MAGIC);
+        return p;
+    }
+
+    public void addListener(EventListener l) {
+        log.debug(String.format("Add listener %s", l.getClass().getName()));
+        if (!this.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            this.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public void removeListener(EventListener l) {
+        log.debug(String.format("Remove listener %s", l.getClass().getName()));
+        this.getEventDispatcher().removeListener(l);
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.kqListener.reset();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        var isPaused = KqState.getSettings() == null;
+        KqState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            this.forceState(KqState.STARTING);
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        KqState.setPaused(true);
+        log.debug(String.format("paused"));
+        removeListener(prayerFlicker);
+        removeListener(consumeables);
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        kqListener = new KqListener();
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this);
+        KqState.setBot(this);
+        this.getEventDispatcher().addListener(this);
+        KqState.setPaused(true);
+
+        this.setLoopDelay(10, 25);
+        addListener(kqListener);
+        resetKill();
+        DefaultUI.addPanel(0, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: 2 Ropes permanently on the entrances (Desert hard diary), DirectInput\n" +
+                        "HouseBank: Requires house teleport, ornate pool, fairy ring, and jewellery box\n" +
+                        "Start with house teleport runes / tablets in inventory"
+        ));
+
+
+    }
+
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        KqState.setSettings(settings);
+        updateItemFilter();
+        this.phase1CombatStyle = util.getCombatStyle(KqState.getSettings().phase1Equipment());
+        this.phase2CombatStyle = util.getCombatStyle(KqState.getSettings().phase2Equipment());
+        this.phase1Prayers = kq.getPrayersRequired(KqPhase.Phase1).toArray(new Prayer[0]);
+        this.phase2Prayers = kq.getPrayersRequired(KqPhase.Phase2).toArray(new Prayer[0]);
+    }
+
+    public void updateItemFilter() {
+        try {
+
+            var s = KqState.getSettings();
+            if (s == null) return;
+
+            Pattern[] x = util.concatenate(
+                    util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                            KqState.getFood()}),
+                    new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling},
+                    util.toItemList(KqState.getSettings().phase1Equipment()),
+                    util.toItemList(KqState.getSettings().phase2Equipment()),
+                    util.toItemList(KqState.getSettings().specEquipment())
+            );
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(KqState.getBot(),
+                    (e -> {
+                        if (currentState != null && currentState.get() == KqState.RESTOCKING) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+
+    @Override
+    public void onSettingsConfirmed() {
+        var isPaused = this.isPaused();
+        log.debug(String.format("settings confirmed %s, isPaused %s", settings.toString(), isPaused));
+        KqState.setSettings(settings);
+        updateItemFilter();
+        KqState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+        this.phase1CombatStyle = util.getCombatStyle(KqState.getSettings().phase1Equipment());
+        this.phase2CombatStyle = util.getCombatStyle(KqState.getSettings().phase2Equipment());
+        this.phase1Prayers = kq.getPrayersRequired(KqPhase.Phase1).toArray(new Prayer[0]);
+        this.phase2Prayers = kq.getPrayersRequired(KqPhase.Phase2).toArray(new Prayer[0]);
+
+        if (!AchievementDiary.DESERT.isHardComplete())
+            ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires: Desert hard diary");
+        ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires: 2 Ropes permanently on the entrances (Desert hard diary)");
+    }
+
+    private LoopState<KqState> getState(KqState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState();
+            case SEARCHING_LAIR:
+                return new SearchingLairState();
+            case FIGHTING:
+                return new FightState(this.kqListener, this.prayerFlicker, this,
+                        phase1Prayers, phase2Prayers, phase1CombatStyle, phase2CombatStyle);
+            case LOOTING:
+                return new LootState(this.kqListener, this);
+            case POST_LOOT_WAITING:
+                return new PostLootWaiting(this.prayerFlicker);
+            case RESTORING:
+                return new RestoreState(prayerFlicker, kqListener);
+            case HOPPING:
+                return new HoppingState();
+            case RESTOCKING:
+                return new RestockState();
+            case ENTERING_LAIR:
+                return new EnterLairState(kqListener);
+            case WALK_UNDER:
+                return new WalkUnderState();
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    public void onLoop() {
+        if (KqState.isPaused()) return;
+        if (KqState.getSettings() == null) return;
+        if (Players.getLocal() == null) return;
+        if (currentState == null) {
+            this.currentState = new StartingState(this);
+        }
+        if (currentState.fatalError() != null && !currentState.fatalError().isEmpty()) {
+            log.error(String.format("Fatal error from %s: %s", currentState.get(), currentState.fatalError()));
+            updateStatus(String.format("STOPPING during %s, error: %s", currentState.fatalError(), currentState.get()));
+            this.stop(currentState.fatalError());
+            return;
+        }
+        if (currentState.done() || forcedState != null) {
+            var tState = currentState.deactivate(this.getEventDispatcher());
+            var newState = forcedState == null ? tState : forcedState;
+            var newStateImpl = this.getState(newState);
+            newStateImpl.activate(this.getEventDispatcher());
+            var oldState = this.currentState;
+            this.currentState = newStateImpl;
+            if (forcedState != null) {
+                log.debug(String.format("FORCE change state from %s to %s", oldState.get(), newState));
+                forcedState = null;
+            } else {
+                log.debug(String.format("Change state from %s to %s", oldState.get(), newState));
+            }
+        }
+        if (!currentState.done())
+            currentState.executeLoop();
+    }
+
+
+    public void forceState(KqState kqState) {
+        this.forcedState = kqState;
+    }
+}

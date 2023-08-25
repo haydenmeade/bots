@@ -1,0 +1,321 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "FightTask")
+@RequiredArgsConstructor
+public class FightState implements LoopState<SireState> {
+    private final sireBot bot;
+    private final Loadouts loadouts;
+    private final SireListener sireListener;
+    private final PrayerFlicker prayerFlicker;
+    private EventDispatcher dispatcher;
+    private Coordinate phase32SafeTile;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.dispatcher = d;
+        if (this.sireListener.getSire() == null) {
+            this.sireListener.init();
+        }
+
+    }
+
+    @Override
+    public SireState deactivate(EventDispatcher d) {
+        if (!sireBot.fightArea.contains(Players.getLocal()))
+            return SireState.STARTING;
+        if (sireListener.isDead())
+            return SireState.LOOTING;
+        return SireState.LOOTING;
+    }
+
+    @Override
+    public SireState get() {
+        return SireState.FIGHTING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !sireBot.fightArea.contains(Players.getLocal())
+                || sireListener.isDead();
+    }
+
+    @Override
+    public void executeLoop() {
+        var settings = bot.settings();
+        var isFirstKill = u.hasSpec() || settings.fightStrategy().equals(FightStrategy.RestoreEveryTrip);
+        var sire = this.sireListener.getSire();
+        if (sire == null) {
+            util.moveTo(Phase2.tile1);
+            Execution.delay(606, 705);
+            this.sireListener.init();
+            return;
+        }
+        var sireNpc = sire.getNpc();
+        var p = Players.getLocal();
+        if (p == null) return;
+        var phase1 = u.getPhase1Loadout(loadouts);
+        var phase2 = u.getPhase2Loadout(loadouts);
+        var fs = sireListener.getPhase();
+        if (fs == null) {
+            log.debug("null phase");
+            return;
+        }
+        if (sireNpc != null) {
+            log.debug("sire anim: {}", sireNpc.getAnimationId());
+        }
+        var debugString = String.format("Phase: %s", fs);
+        bot.updateStatus(debugString);
+        switch (fs) {
+            case Phase0:
+                log.debug("phase 0 starting");
+
+                loadouts.equip(phase1);
+                util.boostIfNeeded(phase1.getStyle());
+                prayerFlicker.setActivePrayers(phase1.getBoostPrayers());
+                if (sireNpc == null) {
+                    util.moveTo(Phase2.tile1);
+                    Execution.delay(606, 705);
+                    return;
+                }
+                // wake up.
+                if (!Execution.delayUntil(() -> sireNpc.getId() != sireBot.SireId_Phase0,
+                        600, 1200)) {
+                    sire.attack();
+                }
+                // goto phase 1.
+                this.sireListener.notifyPhasing(Phase.Phase1);
+                log.debug("phase 0 done");
+                break;
+            case Phase1:
+                log.debug("phase 1 starting");
+
+                loadouts.equip(phase1);
+                util.boostIfNeeded(phase1.getStyle());
+                prayerFlicker.setActivePrayers(phase1.getBoostPrayers());
+
+                var target = isFirstKill ? -1 : 2;
+                killRespiratory();
+                if (!isFirstKill && sire.getRespiratoryKilled() == target) {
+                    // restore and run back;
+                    bot.updateStatus(String.format("Restoring and running back"));
+                    prayerFlicker.setActivePrayers();
+                    bot.forceState(SireState.RESTORING);
+                    return;
+                }
+                if (sire.getRespiratoryKilled() == target && !sireListener.isSireVisible()) {
+                    util.moveTo(Phase2.tile1);
+                } else {
+                    if (sireNpc != null)
+                        if (sireNpc.getId() == sireBot.SireId_Phase2 || sireNpc.getId() == sireBot.SireId_Phase2or3_Walk)
+                            sireListener.notifyPhasing(Phase.Phase2);
+                }
+                log.debug("phase 1 done");
+                break;
+            case Phase2:
+                log.debug("phase 2 starting");
+
+                loadouts.equip(phase2);
+                util.boostIfNeeded(phase2.getStyle());
+                prayerFlicker.setActivePrayers(
+                        util.joinPrayers(phase2.getBoostPrayers(), Prayer.PROTECT_FROM_MELEE)
+                );
+
+                if (!p.getServerPosition().equals(Phase2.tile1) && !p.isMoving()) {
+                    util.moveTo(Phase2.tile1);
+                }
+                if (sireNpc != null &&
+                        sireNpc.getId() != sireBot.SireId_Phase2or3_Walk) {
+                    var f = new Phase2Fighter(loadouts, bot);
+                    dispatcher.addListener(f);
+                    Execution.delayUntil(() -> f.done() || bot.isPaused(), 120000);
+                    dispatcher.removeListener(f);
+                    if (bot.isPaused()) return;
+                    sireListener.notifyPhasing(Phase.Phase3_1);
+                    log.debug("phase 2 done, prewalking for phase 3");
+                }
+                log.debug("phase 2 done");
+                break;
+            case Phase3_1:
+                log.debug("phase 3.1 starting");
+                // spam click to phase 3.1
+                if (sireNpc == null) return;
+                if (sireNpc.getId() == sireBot.SireId_Phase2or3_Walk &&
+                        !Phase3.tile1.equals(Players.getLocal().getPosition())) {
+                    util.moveTo(Phase3.tile1);
+
+                    loadouts.equip(phase2);
+                    util.boostIfNeeded(phase2.getStyle());
+                    prayerFlicker.setActivePrayers(
+                            util.joinPrayers(phase2.getBoostPrayers(), Prayer.PROTECT_FROM_MISSILES)
+                    );
+
+                    util.eatIfHpAllows(Food.getAny());
+                    Execution.delay(300, 610);
+                    return;
+                }
+                if (sireNpc.getId() != sireBot.SireId_Phase3_1) return;
+                var f31 = new Phase31Fighter(bot);
+                dispatcher.addListener(f31);
+                Execution.delayUntil(() -> f31.done() || bot.isPaused(), 120000);
+                dispatcher.removeListener(f31);
+                sireListener.notifyPhasing(Phase.Phase3_2);
+                this.phase32SafeTile = Phase3.getMoveToTile(p.getServerPosition());
+                log.debug("phase 3.1 finished, prewalking for phase 3.2");
+                break;
+            case Phase3_2:
+                log.debug("phase 3.2 starting");
+                if (sireNpc == null) return;
+                var m = phase32SafeTile;
+                // spam click escape explosion.
+                if (sireNpc.getId() != sireBot.SireId_Phase3_2 &&
+                        sireNpc.getAnimationId() == Phase3.explosionAnim &&
+                        !m.equals(Players.getLocal().getPosition())) {
+
+                    util.moveTo(m);
+                    util.eatIfHpAllows(Food.getAny());
+
+                    loadouts.equip(phase2);
+                    util.boostIfNeeded(phase2.getStyle());
+                    prayerFlicker.setActivePrayers(
+                            util.joinPrayers(phase2.getBoostPrayers(), Prayer.PROTECT_FROM_MISSILES)
+                    );
+                    return;
+                }
+                var f32 = new Phase32Fighter(loadouts, bot);
+                dispatcher.addListener(f32);
+                Execution.delayUntil(() -> f32.done() || bot.isPaused(), 120000);
+                dispatcher.removeListener(f32);
+                if (bot.isPaused()) return;
+                log.debug("phase 3.2 done, waiting for loot");
+
+                break;
+            case Dead:
+                log.debug("dead fight state");
+                util.moveTo(Phase2.tile1);
+                Execution.delay(606, 705);
+            default:
+        }
+        log.debug("loop fight task");
+
+    }
+
+
+    public @Nullable Coordinate attackClosestRespiratory() {
+        log.debug("attackClosestRespiratory");
+        var nearestResp = Npcs.newQuery()
+                .ids(sireBot.RespId)
+                .names(sireBot.Respiratory)
+                .results()
+                .nearest();
+        var phase = this.sireListener.getPhase();
+        if (nearestResp != null && sireBot.fightArea.contains(nearestResp) && nearestResp.isValid()) {
+            var pos = nearestResp.getPosition();
+            if (pos == null) return null;
+            var trgt = Players.getLocal().getTarget();
+            if (trgt == null || !pos.equals(trgt.getPosition())) {
+                log.debug("sending attack input on respiratory");
+                DirectInput.send(MenuAction.forNpc(nearestResp, "Attack"));
+            }
+            return nearestResp.getPosition();
+        } else {
+            var p = Players.getLocal().getPosition();
+            if (sireBot.leftSide.distanceTo(p) < sireBot.rightSide.distanceTo(p)) {
+                // move right.
+                var c = new Coordinate(2973, 4776);
+                util.moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c) ||
+                        Npcs.getLoaded(sireBot.RespId).nearest() != null ||
+                        phase == Phase.Phase2, 1200);
+
+            } else {
+                // move left.
+                var c = new Coordinate(2966, 4775);
+                util.moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c) ||
+                        Npcs.getLoaded(sireBot.RespId).nearest() != null ||
+                        phase == Phase.Phase2, 1200);
+            }
+            return null;
+        }
+    }
+
+    public boolean isRespDead(Coordinate c) {
+        if (c == null) return true;
+        var nearestResp = Npcs.getLoaded(sireBot.RespId).nearestTo(c);
+        if (nearestResp == null) return true;
+        if (c.distanceTo(nearestResp) > 2) return true;
+        return false;
+    }
+
+    public void waitUntilRespiratoryDead(Coordinate c) {
+        if (c == null) {
+            return;
+        }
+        var nearestResp = Npcs.getLoaded(sireBot.RespId).nearestTo(c);
+        if (nearestResp == null) {
+            log.debug("null nearestResp waitUntilRespiratoryDead");
+            return;
+        }
+        if (c.equals(nearestResp.getPosition())) {
+            log.debug("waiting until resp dead");
+            Execution.delayUntil(() -> isRespDead(c) || !this.sireListener.getSire().isStunned(), 600, 1200);
+        }
+    }
+
+    public void killRespiratory() {
+        var sire = this.sireListener.getSire();
+        if (!sire.isStunned()) {
+            if (!stunSire()) return;
+        }
+        bot.updateStatus(String.format("resp dead: %d", sire.getRespiratoryKilled()));
+        var c = attackClosestRespiratory();
+        waitUntilRespiratoryDead(c);
+    }
+
+    public boolean stunSire() {
+        log.debug("stunning");
+        bot.updateStatus(String.format("stunning sire"));
+        var sire = this.sireListener.getSire();
+        var s = sire.getNpc();
+        if (s == null || !this.sireListener.isSireVisible()) {
+            util.moveTo(Phase2.tile1);
+            return false;
+        }
+        if (s.getId() == sireBot.SireId_Phase2or3_Walk) {
+            return false;
+        }
+        if (s.getId() == sireBot.SireId_Phase1_Stunned) {
+            sire.startStunTimer();
+            return true;
+        }
+
+        var mxp = Skill.MAGIC.getExperience();
+        DirectInput.sendSpellCastOn(Magic.Ancient.SHADOW_BARRAGE, s);
+        if (Execution.delayUntil(() -> Skill.MAGIC.getExperience() > mxp || this.sireListener.getPhase() != Phase.Phase1, 600)) {
+            sire.startStunTimer();
+            return true;
+        }
+        return false;
+    }
+}
+

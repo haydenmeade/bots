@@ -1,0 +1,70 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Getter
+@RequiredArgsConstructor
+public enum SlayerFinishItem {
+    None(""),
+    BagOfSalt("Bag of salt", SlayerUnlock.SLUG_SALTER),
+    IceCooler("Ice cooler", SlayerUnlock.REPTILE_FREEZER),
+    RockHammer("Rock hammer", SlayerUnlock.GARGOYLE_SMASHER),
+    Fungicide("Fungicide spray.*", SlayerUnlock.SHROOM_SPRAYER, "Fungicide"),
+    ;
+    private final String useItem;
+    private final SlayerUnlock slayerUnlock;
+    private final @Nullable String reloadItem;
+
+    SlayerFinishItem(String s) {
+        this.useItem = s;
+        this.reloadItem = null;
+        this.slayerUnlock = null;
+    }
+
+    SlayerFinishItem(String s, SlayerUnlock slayerUnlock) {
+        this.useItem = s;
+        this.reloadItem = null;
+        this.slayerUnlock = slayerUnlock;
+    }
+
+    public boolean needsReload() {
+        switch (this) {
+            case None:
+            case BagOfSalt:
+            case IceCooler:
+            case RockHammer:
+                return false;
+            case Fungicide:
+        }
+        return Inventory.containsAnyOf(Pattern.compile("^Fungicide spray 0$"), Pattern.compile("^Fungicide spray$"));
+    }
+
+    public Map<Pattern, Integer> getBank() {
+        var m = new HashMap<Pattern, Integer>();
+        if (this.equals(None)) return m;
+        switch (this) {
+            case IceCooler:
+            case BagOfSalt:
+                m.put(Pattern.compile(useItem, Pattern.CASE_INSENSITIVE), 0);
+                break;
+            case RockHammer:
+                m.put(Pattern.compile(useItem, Pattern.CASE_INSENSITIVE), 1);
+                break;
+            case Fungicide:
+                m.put(Pattern.compile(useItem, Pattern.CASE_INSENSITIVE), 1);
+                var c = SlayerTask.getCount() > 0 ? (int) Math.ceil((double) SlayerTask.getCount() / 10.0) : 2;
+                m.put(Pattern.compile(reloadItem, Pattern.CASE_INSENSITIVE), c);
+                break;
+        }
+
+        return m;
+    }
+}

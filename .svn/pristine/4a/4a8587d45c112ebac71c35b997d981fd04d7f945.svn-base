@@ -1,0 +1,31 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.BreakManager;
+import com.runemate.game.api.hybrid.RuneScape;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+
+public class BreakHandlerTask extends LeafTask {
+    private final BreakManager breakManager;
+    private final sire bot;
+
+    public BreakHandlerTask(BreakManager breakManager, sire bot) {
+        this.breakManager = breakManager;
+        this.bot = bot;
+    }
+
+    @Override
+    public void execute() {
+        if (this.breakManager.stopBot()) {
+            this.bot.stop("Reached stopping condition");
+        } else if (this.breakManager.breaking()) {
+            sire.updateStatus(String.format("Breaking for another %s Minutes", this.breakManager.timeLeft()));
+            if (!this.bot.isPaused())
+                this.bot.pause();
+            if (RuneScape.isLoggedIn())
+                RuneScape.logout();
+        } else {
+            this.bot.resume();
+            SireState.setBotState(SireState.STARTING);
+        }
+    }
+}

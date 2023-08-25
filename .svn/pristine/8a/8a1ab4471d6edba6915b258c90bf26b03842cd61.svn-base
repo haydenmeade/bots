@@ -1,0 +1,135 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.loot.LootSettings;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.slayer.SlayerBot;
+import com.neck_flexed.scripts.slayer.SlayerBotImpl;
+import com.neck_flexed.scripts.slayer.SlayerMonster;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class LootState extends BaseState<SlayerState> implements ChatboxListener {
+    private static final Pattern ENSOULED_HEADS = Pattern.compile("^Ensouled .* head$", Pattern.CASE_INSENSITIVE);
+    private final Area.Rectangular area;
+    private final SlayerBotImpl<?> bot;
+    private final LootSettings lootSettings;
+    private final SlayerMonster monster;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+    private Coordinate gotIronmanMessageOn;
+
+    public LootState(SlayerBotImpl<?> bot, LootSettings lootSettings, SlayerMonster monster) {
+        super(bot, SlayerState.LOOTING);
+        this.bot = bot;
+        this.lootSettings = lootSettings;
+        this.monster = monster;
+        bot.timeCheckDeathTiles();
+        this.area = getLootArea(bot);
+        bot.getDeathTiles().clear();
+    }
+
+    private static Area.Rectangular getLootArea(SlayerBot bot) {
+        if (bot.getDeathTiles().isEmpty()) return Players.getLocal().getServerPosition().getArea();
+        var tiles = List.copyOf(bot.getDeathTiles().keySet());
+        if (tiles.size() == 1) return new Area.Rectangular(tiles.get(0)).grow(2, 2);
+        var a = Area.absolute(tiles).toRectangular().grow(2, 2);
+        if (a.getHeight() > 50 || a.getHeight() < 0) return null;
+        return a;
+    }
+
+    public static boolean anyAvailableLoot(SlayerBot bot, LootSettings settings) {
+        if (bot.getDeathTiles().isEmpty()) return false;
+        bot.timeCheckDeathTiles();
+        return Loot.getGroundItemToLoot(getLootArea(bot), settings) != null;
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this};
+    }
+
+    @Override
+    public void activate() {
+        super.activate();
+        bot.updateStatus("Looting");
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        if (!SlayerTask.hasTask()) {
+            bot.taskCompleted();
+        }
+        if (this.result.equals(Loot.LootResult.Full))
+            bot.forceState(SlayerState.RESTORING);
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        if (monster != null && monster.getTask().equals(Task.LIZARDMEN)) {
+            if (bot.getShamanEncounter().executeLoop(null)) {
+                log.debug("Lizard encounter override");
+                return;
+            }
+
+            var g = Loot.getGroundItemToLoot(area, lootSettings);
+            if (g != null && !bot.getShamanEncounter().isSafe(g.getPosition())) {
+                log.debug("Unsafe loot tile {}", g.getPosition());
+                return;
+            }
+        }
+        this.result = Loot.doLoop(area
+                , lootSettings
+                , 120
+        );
+        var sb = Inventory.getItems("Soul bearer").first();
+        if (sb != null && Inventory.getQuantity() > 0 && Inventory.isFull()) {
+            di.send(MenuAction.forSpriteItem(sb, "Fill"));
+            Execution.delayUntil(() -> !Inventory.contains(ENSOULED_HEADS), 750);
+        }
+
+        if (gotIronmanMessageOn != null) {
+            var l = Loot.getGroundItemToLoot(gotIronmanMessageOn.getArea(), lootSettings);
+            if (l != null) {
+                log.warn("Blacklisting {} on {}", l, gotIronmanMessageOn);
+                Loot.BLACKLISTED_TILES.put(gotIronmanMessageOn, System.currentTimeMillis());
+                gotIronmanMessageOn = null;
+            }
+        }
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        if (event.getType().equals(Chatbox.Message.Type.SERVER) && event.getMessage().equals(Loot.IRONMAN_LOOT)) {
+            this.gotIronmanMessageOn = Players.getLocal().getServerPosition();
+            log.warn("Got Ironman loot message on {}", gotIronmanMessageOn);
+        }
+    }
+}

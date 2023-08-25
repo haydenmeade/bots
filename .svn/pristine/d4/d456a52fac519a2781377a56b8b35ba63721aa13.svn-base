@@ -1,0 +1,74 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.CombatStyle;
+import com.neck_flexed.scripts.common.Loadouts;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class StartingState implements LoopState<CerbState> {
+    private final cerb bot;
+    private final Loadouts loadouts;
+    private boolean started = false;
+
+    public StartingState(cerb m, Loadouts loadouts) {
+        this.bot = m;
+        this.loadouts = loadouts;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        if (cerb.getCerb() != null || cerb.isInBossRoom()) {
+            return CerbState.FIGHTING;
+        }
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (Health.getCurrentPercent() == 100 && Prayer.getPoints() > 20 && SpecialAttack.getEnergy() >= 80 && !Banks.getLoaded().isEmpty())
+                return CerbState.RESTOCKING;
+            return CerbState.RESTORING;
+        }
+        return CerbState.TRAVERSING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.1, 0.1);
+        if (util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        if (this.loadouts != null)
+            this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getForStyle(CombatStyle.Melee));
+        if (this.bot.settings().traverseStrategy().equals(TraverseStrategy.TaverlyHouse)
+                && !House.getCurrent().equals(House.Location.TAVERLEY)) {
+            ClientUI.showAlert(ClientUI.AlertLevel.ERROR, "Requires house in Taverly");
+        }
+        started = true;
+    }
+}

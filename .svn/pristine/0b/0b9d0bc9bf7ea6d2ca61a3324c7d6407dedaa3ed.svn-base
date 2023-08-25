@@ -1,0 +1,47 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "StartingTask")
+public class StartingState extends BaseState<SireState> {
+    private final com.neck_flexed.scripts.sire.sireBot sireBot;
+    private boolean done = false;
+
+    public StartingState(sireBot sireBot) {
+        super(SireState.STARTING);
+        this.sireBot = sireBot;
+    }
+
+    @Override
+    public void activate() {
+        sireBot.updateStatus(String.format("Starting"));
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        sireBot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.1, 0.1);
+        if (util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        this.done = true;
+    }
+}

@@ -1,0 +1,6 @@
+package com.neck_flexed.scripts.slayer.encounters;
+
+import java.util.EventListener;
+
+public interface EncounterOverride extends EventListener {
+}

@@ -1,0 +1,36 @@
+package com.neck_flexed.scripts.slayer.turael.overrides;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class CowOverride implements TraverseOverride {
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        var pos = Players.getLocal().getServerPosition();
+        var closedGate = GameObjects.newQuery()
+                .names("Gate")
+                .on(new Coordinate(3253, 3267, 0))
+                .actions("Open")
+                .results()
+                .first();
+        if (closedGate != null && closedGate.distanceTo(pos) < 20) {
+
+            bot.di.send(MenuAction.forGameObject(closedGate, "Open"));
+            Execution.delayUntil(
+                    () -> GameObjects.newQuery()
+                            .names("Gate")
+                            .on(new Coordinate(3253, 3267, 0))
+                            .actions("Open")
+                            .results().isEmpty(),
+                    util::playerMoving, 3000, 4000);
+            return true;
+        }
+        return false;
+    }
+}

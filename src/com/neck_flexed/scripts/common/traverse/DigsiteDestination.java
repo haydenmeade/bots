@@ -1,0 +1,15 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.sun.glass.events.KeyEvent;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+@Getter
+public enum DigsiteDestination {
+    Digsite("Digsite", KeyEvent.VK_1),
+    HouseOnHill("Fossil Island", KeyEvent.VK_2),
+    Lithkren("Lithkren", KeyEvent.VK_3);
+    private final String label;
+    private final int key;
+}

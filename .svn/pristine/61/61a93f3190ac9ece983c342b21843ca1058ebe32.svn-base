@@ -1,0 +1,35 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.neck_flexed.scripts.common.Cannon;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.slayer.SlayerBotImpl;
+import com.runemate.game.api.script.Execution;
+import org.jetbrains.annotations.Nullable;
+
+public class PickUpCannonState extends BaseState<SlayerState> {
+    private final Cannon cannon;
+
+    public PickUpCannonState(SlayerBotImpl<?> bot) {
+        super(bot, SlayerState.PICK_UP_CANNON);
+        this.cannon = bot.getCannon();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        var go = cannon.getCannon();
+        return !cannon.isCannonPlaced() || (go == null || !go.isVisible());
+    }
+
+    @Override
+    public void executeLoop() {
+        if (cannon.isCannonPlaced()) {
+            this.cannon.pickup();
+            Execution.delay(600, 700);
+        }
+    }
+}

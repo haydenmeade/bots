@@ -1,0 +1,109 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootTask")
+@RequiredArgsConstructor
+public class LootState implements LoopState<SireState> {
+    public static final Area lootArea = Area.rectangular(new Coordinate(2964, 4779, 0), new Coordinate(2976, 4771, 0));
+
+    public static final List<String> mustLoot = Arrays.asList(
+            "Unsired"
+    );
+    public static List<String> ignoreLoot = Arrays.asList(
+            "Steel arrow",
+            "Fiendish ashes",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Air talisman",
+            "Body talisman",
+            "Earth talisman",
+            "Fire talisman",
+            "Mind talisman",
+            "Water talisman",
+            "Cosmic talisman",
+            "Chaos talisman",
+            "Nature talisman");
+
+    private final SireListener sireListener;
+    private final sireBot bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looting");
+        if (sireListener.getDeadArea() == null) return;
+        util.moveTo(sireListener.getDeadArea().getCenter());
+        Loot.waitForLoot(sireListener.getDeadArea(), Pattern.compile(".*"), 10000);
+
+    }
+
+    @Override
+    public SireState deactivate(EventDispatcher d) {
+        log.debug(String.format("Time until break: %s", this.breakManager.timeLeft()));
+        bot.resetKill();
+
+        if (!util.hasSlayerTask()) {
+            bot.updateStatus("Finished slayer task");
+            util.teleToHouse();
+            Execution.delay(4000, 7000);
+            bot.stop("Finished slayer task");
+            return SireState.BREAKING;
+        }
+        if (bot.doWeNeedToRestock() || this.result.equals(Loot.LootResult.Full) || this.breakManager.breaking() || this.breakManager.stopBot()) {
+            return SireState.RESTORING;
+        } else {
+            return SireState.FIGHTING;
+        }
+    }
+
+    @Override
+    public SireState get() {
+        return SireState.LOOTING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        var ignoreLootCpy = new ArrayList<String>(ignoreLoot);
+        if (!bot.settings().lootAshes()) {
+            ignoreLootCpy.add("Abyssal ashes");
+        }
+        this.result = Loot.doLoop(this.sireListener.getDeadArea(),
+                ignoreLootCpy,
+                bot.settings().phase1Boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().phase1Boost().patternAny()
+                , 600
+                , 600
+                , null
+                , bot.settings().minAlchValue()
+                , mustLoot
+        );
+
+    }
+}

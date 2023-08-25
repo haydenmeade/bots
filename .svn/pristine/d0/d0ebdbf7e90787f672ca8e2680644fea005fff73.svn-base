@@ -1,0 +1,77 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collection;
+import java.util.List;
+
+@Log4j2
+public class HouseDigsiteTraverse implements TraverseMethod {
+    private final Destination dest;
+
+    public HouseDigsiteTraverse(Destination dest) {
+        this.dest = dest;
+    }
+
+    public static GameObject getMountedDigsite() {
+        return GameObjects.newQuery()
+                .names(items.digsitePendant)
+                .results().nearest();
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new HouseRequirement(HouseConfig::isHasMountedDigsite));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        if (!House.isInside()) {
+            util.teleToHouse();
+            return false;
+        }
+        var talisman = getMountedDigsite();
+        if (talisman == null) {
+            log.error("No digsite pendant found");
+            return false;
+        }
+        if (talisman.getActiveDefinition().getActions().contains(dest.getLabel())) {
+            DirectInput.send(MenuAction.forGameObject(talisman, dest.getLabel()));
+            return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                    util::playerAnimatingOrMoving,
+                    2000, 5000);
+        }
+        if (!talisman.interact("Teleport menu")) return false;
+        if (!Execution.delayUntil(() -> InterfaceContainers.getAt(187) != null, util::playerMoving, 1000, 2000))
+            return false;
+        Keyboard.pressKey(dest.getKey());
+        return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                util::playerAnimatingOrMoving,
+                2000, 5000);
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    public enum Destination {
+        Digsite("Digsite", 1),
+        HouseOnHill("HOUSE on the hill", 2),
+        Lithriken("Lithriken", 3);
+        private final String label;
+        private final int key;
+    }
+}

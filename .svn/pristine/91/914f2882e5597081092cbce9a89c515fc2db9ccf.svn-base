@@ -1,0 +1,110 @@
+package com.neck_flexed.scripts.slayer.turael.overrides;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.neck_flexed.scripts.slayer.turael.TuraelMonster;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
+
+@Log4j2
+public class MinotaurOverride implements TraverseOverride {
+
+    private Traverser overrideTraverser;
+
+    private @Nullable GameObject getNextDoor(Coordinate pos) {
+        var d1 = new Coordinate(1858, 5238, 0);
+        var d2 = new Coordinate(1858, 5235, 0);
+        var d3 = new Coordinate(1867, 5217, 0);
+        var d4 = new Coordinate(1870, 5217, 0);
+        for (var d : new Coordinate[]{d1, d2}) {
+            if (pos.getY() <= d.getY()) {
+                continue;
+            }
+            var g = GameObjects.newQuery()
+                    .on(d)
+                    .names("Gate of War")
+                    .actions("Open")
+                    .results()
+                    .first();
+            if (g != null) return g;
+        }
+
+        for (var d : new Coordinate[]{d3, d4}) {
+            if (pos.getX() >= d.getX()) {
+                continue;
+            }
+            var g = GameObjects.newQuery()
+                    .on(d)
+                    .names("Gate of War")
+                    .actions("Open")
+                    .results()
+                    .first();
+            if (g != null) return g;
+        }
+
+        return null;
+    }
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        var pos = Players.getLocal().getServerPosition();
+        var monster = TuraelMonster.Minotaurs;
+        if (monster.getArea().contains(pos)) return true;
+        var stronghold = 7505;
+        if (pos.getContainingRegionId() != stronghold) {
+            var entrance = GameObjects.newQuery()
+                    .on(new Coordinate(3081, 3420, 0))
+                    .names("Entrance")
+                    .actions("Climb-down")
+                    .results()
+                    .first();
+            if (entrance != null) {
+                bot.di.send(MenuAction.forGameObject(entrance, "Climb-down"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == stronghold,
+                        util::playerMoving, 3000, 4000);
+            } else {
+                if (this.overrideTraverser == null)
+                    this.overrideTraverser = Traverser.webPathTraverser(new Coordinate(3080, 3423, 0));
+                overrideTraverser.executeLoop();
+            }
+            return true;
+        }
+        if (ChatDialog.isOpen() && ChatDialog.getContinue() != null) {
+            var cont = ChatDialog.getContinue();
+            if (cont != null && cont.isValid()) {
+                cont.select();
+                Execution.delay(600, 700);
+            }
+            return true;
+        }
+        var nextDoor = getNextDoor(pos);
+        if (nextDoor != null) {
+            bot.di.send(MenuAction.forGameObject(nextDoor, "Open"));
+            Execution.delayUntil(() -> !nextDoor.equals(getNextDoor(Players.getLocal().getServerPosition())) || ChatDialog.isOpen(),
+                    util::playerAnimatingOrMoving, 3000, 4000);
+            if (ChatDialog.isOpen()) {
+                Execution.delay(250, 350);
+            }
+        } else {
+            log.debug("No next door");
+            var c = monster.getCannon();
+            if (pos.distanceTo(c) <= 6) {
+                util.moveTo(c);
+                Execution.delayUntil(() -> Objects.equals(Players.getLocal().getServerPosition(), c),
+                        util::playerMoving, 3000, 4000);
+            }
+        }
+        return false;
+    }
+}

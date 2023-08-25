@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.runemate.game.api.hybrid.local.hud.interfaces.NpcContact;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2()
+public class TuraelTaskGetterState implements LoopState<TuraelState> {
+
+    private final com.neck_flexed.scripts.turael.bot bot;
+    private boolean done = false;
+    private String startTask;
+
+    public TuraelTaskGetterState(bot bot) {
+        this.bot = bot;
+    }
+
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.startTask = SlayerTask.getCurrentTaskName();
+        bot.updateStatus("Getting task from turael");
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        var task = SlayerTask.getCurrentTaskName();
+        log.debug("Got slayer task from Turael: {}", task);
+        if (bot.doWeNeedToRestock())
+            return TuraelState.RESTORING;
+        return TuraelState.TRAVERSING;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.GET_TURAEL_TASK;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        this.done = bot.getSlayerTaskFrom(NpcContact.OSRS.TURAEL, startTask);
+    }
+}

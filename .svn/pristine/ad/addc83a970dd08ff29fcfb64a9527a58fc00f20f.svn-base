@@ -1,0 +1,80 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState extends BaseState<SarachnisState> {
+
+    public static final Pattern[] mustLoot = util.toPatternArray(
+            "Sarachnis cudgel",
+            "Jar of eyes"
+    );
+    public static final Pattern[] ignoreLoot = util.toPatternArray(
+            "Mithril arrow",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Oyster pearls",
+            "Adamant javelin",
+            "Nature talisman");
+    private final SarachnisListener sarachnisListener;
+    private final com.neck_flexed.scripts.sarachnis.bot bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(SarachnisListener sarachnisListener, com.neck_flexed.scripts.sarachnis.bot bot, BreakManager breakManager) {
+        super(bot, SarachnisState.LOOTING);
+        this.sarachnisListener = sarachnisListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Looting");
+        if (sarachnisListener.getDeadArea() == null) return;
+        Loot.waitForLoot(areas.bossRoom, Pattern.compile(".*"), 10000);
+    }
+
+    @Override
+    public void deactivate() {
+        log.debug(String.format("Time until break: %s", this.breakManager.timeLeft()));
+        bot.resetKill();
+        if (this.result.equals(Loot.LootResult.Full)) {
+            bot.forceState(SarachnisState.RESTORING);
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(areas.bossRoom
+                , bot.settings()
+                , ignoreLoot
+                , mustLoot
+                , bot.settings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boost().patternAny()
+                , null
+                , 2000, 600
+        );
+
+    }
+}

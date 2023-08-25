@@ -1,0 +1,6 @@
+package com.neck_flexed.scripts.barrage;
+
+public enum RestoreAndBankStrategy {
+    House,
+    RingOfDueling,
+}

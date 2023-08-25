@@ -1,0 +1,267 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.SpotAnimations;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.game.api.script.framework.tree.BranchTask;
+import com.runemate.game.api.script.framework.tree.TreeBot;
+import com.runemate.game.api.script.framework.tree.TreeTask;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "sire")
+public class sire extends TreeBot implements SettingsListener {
+    public static final int SireId_Phase0 = 5886;
+    public static final String FairyCode = "DIP";
+    public static final String Sire = "Abyssal Sire";
+    public static final Coordinate leftSide = new Coordinate(2958, 4775);
+    public static final Coordinate rightSide = new Coordinate(2979, 4775);
+    // bowfa animation=426
+    // arclight=390or7097or1816
+    // phase3_2 trigger=4177
+    public static final int SireId_Phase1_Awake = 5887;
+    public static final int SireId_Phase1_Stunned = 5888;
+    public static final int SireId_Phase2or3_Walk = 5889;
+    public static final int SireId_Phase2 = 5890;
+    public static final int SireId_Phase3_1 = 5891;
+    public static final int SireId_Phase3_2 = 5908;
+    public static final int MiasmaSpot = 1275;
+    public static final Area abyssalNexus = Area.rectangular(new Coordinate(2947, 4863), new Coordinate(3130, 4737));
+    public static final Area fightArea = Area.rectangular(new Coordinate(2949, 4796), new Coordinate(2988, 4763));
+    public static final Area sirePhase2Area = Area.rectangular(new Coordinate(2965, 4789), new Coordinate(2975, 4779));
+    public static final String Respiratory = "Respiratory system";
+    public static final int RespId = 5914;
+    public static final Area castleWars = Area.rectangular(new Coordinate(2433, 3099), new Coordinate(2447, 3080));
+
+    @SettingsProvider(updatable = true)
+    private SireSettings settings;
+
+    public static boolean onMiasmaPool() {
+        return !SpotAnimations.newQuery().on(Players.getLocal().getPosition()).ids(sire.MiasmaSpot).results().isEmpty();
+    }
+
+    public static void updateStatus(String s) {
+        var debugStr = String.format("%s - Sire KC: %d", s, SireState.getSireKilled());
+        log.debug(debugStr);
+        DefaultUI.setStatus(debugStr);
+    }
+
+    @Override
+    public TreeTask createRootTask() {
+        return new RootTask();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        var isPaused = SireState.getSettings() == null;
+        SireState.setPaused(isPaused);
+        if (!isPaused) {
+            SireState.resetKill();
+            SireState.setBotState(SireState.getInitialState());
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        SireState.setPaused(true);
+        log.debug(String.format("paused"));
+        new PausedTask().execute();
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        SireState.setBot(this);
+        this.getEventDispatcher().addListener(this);
+        SireState.resetKill();
+        SireState.setBotState(SireState.STARTING);
+        SireState.setPaused(true);
+        SireState.setEventDispatcher(this.getEventDispatcher());
+
+        u.addListener(new LogListener());
+        u.addListener(new PrayerFlicker());
+        u.addListener(new Consumeables());
+        u.addListener(new RespiratoryListener());
+        DefaultUI.addPanel(0, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: Abyssal Sire or Abyssal demon slayer task. Ornate pool, Jewellery box, and fairy ring in house.\n" +
+                        "Start with gear, shadow barrage runes, with ancient spellbook, and house tabs in inventory.\n" +
+                        "You'll most likely need stams in bank.\n"
+        ));
+
+    }
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        SireState.setSettings(settings);
+        u.updateItemFilter();
+    }
+
+    @Override
+    public void onSettingsConfirmed() {
+        var isPaused = this.isPaused();
+        log.debug(String.format("settings confirmed %s, isPaused %s", settings.toString(), isPaused));
+        SireState.setSettings(settings);
+        u.updateItemFilter();
+        SireState.setPaused(isPaused);
+        if (!isPaused) {
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+            SireState.resetKill();
+            SireState.setBotState(SireState.getInitialState());
+            if (util.isAutoRetaliateEnabled())
+                util.toggleAutoRetaliate();
+        }
+    }
+
+    class RootTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            if (!SireState.isPaused())
+                log.debug(String.format("sire root task, state: %s", SireState.get()));
+
+            return SireState.get() == SireState.STOPPING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsPausedTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new StopTask();
+        }
+    }
+
+    class IsPausedTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.isPaused();
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsFightTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new PausedTask();
+        }
+    }
+
+
+    class IsFightTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.FIGHTING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsLootTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new FightTask();
+        }
+    }
+
+    class IsLootTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.LOOTING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsRestoreTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new LootTask();
+        }
+    }
+
+    class IsRestoreTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.RESTORING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsRestockTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new RestoreTask();
+        }
+    }
+
+    class IsRestockTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.RESTOCKING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsTraverseTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new RestockTask();
+        }
+    }
+
+    class IsTraverseTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.TRAVERSING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new IsHoppingTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new TraverseTask();
+        }
+    }
+
+    class IsHoppingTask extends BranchTask {
+        @Override
+        public boolean validate() {
+            return SireState.get() == SireState.HOPPING;
+        }
+
+        @Override
+        public TreeTask failureTask() {
+            return new StartingTask();
+        }
+
+        @Override
+        public TreeTask successTask() {
+            return new HoppingTask();
+        }
+    }
+}

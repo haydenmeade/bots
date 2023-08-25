@@ -1,0 +1,71 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Varbit;
+import com.runemate.game.api.hybrid.local.Varbits;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum Thrall {
+    Melee(Magic.Arceuus.RESURRECT_GREATER_ZOMBIE),
+    Mage(Magic.Arceuus.RESURRECT_GREATER_GHOST),
+    Range(Magic.Arceuus.RESURRECT_GREATER_SKELETON);
+    public static final int RESURRECT_THRALL_COOLDOWN = 12290;
+    private static Varbit thrallCooldownVarbit = Varbits.load(RESURRECT_THRALL_COOLDOWN);
+    private final Magic.Arceuus spell;
+    private ThrallListener listener;
+
+    public static boolean isCooldownActive() {
+        if (thrallCooldownVarbit == null) {
+            thrallCooldownVarbit = Varbits.load(RESURRECT_THRALL_COOLDOWN);
+        }
+        return thrallCooldownVarbit != null && thrallCooldownVarbit.getValue() == 1;
+    }
+
+    public static boolean canSummon() {
+        return Magic.Book.ARCEUUS.isCurrent()
+                && Rune.FIRE.getQuantity() >= 10
+                && Rune.BLOOD.getQuantity() >= 5
+                && Rune.COSMIC.getQuantity() >= 1
+                && Prayer.getPoints() > 6;
+    }
+
+    public void maintainThrall(EventDispatcher d) {
+        if (this.listener != null)
+            this.listener = new ThrallListener();
+        d.addListener(this.listener);
+    }
+
+    public void stopThrall(EventDispatcher d) {
+        if (this.listener != null)
+            d.removeListener(this.listener);
+    }
+
+    public void summon() {
+        if (!isCooldownActive()) {
+            DI.get().send(MenuAction.forInterfaceComponent(this.spell.getComponent(), 0));
+        }
+    }
+
+    private boolean isThrallSummoned() {
+        return false;
+    }
+
+    private class ThrallListener implements EngineListener {
+
+        @Override
+        public void onTickStart() {
+            if (canSummon() && !isThrallSummoned() && !isCooldownActive())
+                summon();
+        }
+
+    }
+
+}

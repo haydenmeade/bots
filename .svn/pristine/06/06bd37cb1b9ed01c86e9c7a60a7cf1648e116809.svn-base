@@ -1,0 +1,42 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Builder;
+import lombok.Getter;
+import org.jetbrains.annotations.Nullable;
+
+@Builder
+public class Location {
+    @Getter
+    private final String name;
+    @Getter
+    private final int[] pathRegions;
+    @Getter
+    private final TraverseMethod[] traverseMethods;
+    @Getter
+    private final TraverseOverride traverseOverride;
+    @Getter
+    private final boolean isBarrage;
+    @Getter
+    private final Area area;
+    @Getter
+    private final boolean isInSafeArea;
+    @Getter
+    private final @Nullable Coordinate cannonSpot;
+    private final @Nullable Coordinate traverseToTile;
+    @Getter
+    private final @Nullable Prayer prayer;
+
+    public Coordinate getTraverseToTile() {
+        if (this.traverseToTile != null) return traverseToTile;
+        if (getCannonSpot() != null) return getCannonSpot();
+        var a = getArea();
+        var c = a.getCenter();
+        return c;
+    }
+
+}

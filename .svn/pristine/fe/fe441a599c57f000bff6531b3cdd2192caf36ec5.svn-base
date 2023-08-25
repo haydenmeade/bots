@@ -1,0 +1,22 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import java.util.Map;
+
+public interface SlayerBot {
+
+    SlayerMonster getPreviousTask();
+
+    void setPreviousTask(SlayerMonster previousTask);
+
+    Map<Coordinate, Long> getDeathTiles();
+
+    default void timeCheckDeathTiles() {
+        for (var p :
+                getDeathTiles().entrySet()) {
+            if (p.getValue() - System.currentTimeMillis() > 10000)
+                getDeathTiles().remove(p.getKey(), p.getValue());
+        }
+    }
+}

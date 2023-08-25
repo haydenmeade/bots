@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public class SearchingLairState implements LoopState<KqState> {
+    private final kq bot;
+
+    public SearchingLairState(kq bot) {
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looking for the bug");
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        if (kq.getKq() != null) return KqState.FIGHTING;
+        return KqState.STARTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.SEARCHING_LAIR;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return kq.getKq() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+        // TODO move to spawn.
+        var n = Npcs.getLoaded().furthest();
+        if (n != null) {
+            util.moveTo(n.getPosition());
+            Execution.delayUntil(() -> kq.getKq() != null || !Players.getLocal().isMoving(), 5000, 6000);
+        }
+    }
+}

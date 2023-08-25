@@ -1,0 +1,64 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.LightSource;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.items;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class StartingState implements LoopState<MoleState> {
+    private final Mole bot;
+    private boolean started = false;
+
+    public StartingState(Mole m) {
+        this.bot = m;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        boolean needsRestock = Mole.doWeNeedToRestock();
+        if (needsRestock) {
+            return MoleState.RESTORING;
+        }
+        if (!Inventory.contains(items.spade)) {
+            return MoleState.RESTORING;
+        }
+        if (!Inventory.contains(Mole.falShield)) {
+            return MoleState.RESTORING;
+        }
+        if (MoleState.getSettings() != null &&
+                !MoleState.getSettings().light().equals(LightSource.None) &&
+                !Inventory.contains(MoleState.getSettings().light().getPattern())) {
+            return MoleState.RESTORING;
+        }
+        return MoleState.TRAVERSING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.0, 0.1);
+        started = true;
+    }
+}

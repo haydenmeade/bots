@@ -1,0 +1,59 @@
+package com.neck_flexed.scripts.slayer.turael.overrides;
+
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.TraverseOverride;
+import com.neck_flexed.scripts.slayer.turael.TuraelMonster;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+
+@Log4j2
+public class RatOverride implements TraverseOverride {
+    private Traverser overrideTraverser;
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        var pos = Players.getLocal().getServerPosition();
+        log.debug("Override web path rat");
+
+        if (pos.getContainingRegionId() == 12954) {
+            util.moveTo(TuraelMonster.Rats.getCannon());
+            Execution.delayUntil(() -> Objects.equals(Players.getLocal().getServerPosition(), TuraelMonster.Rats.getCannon()),
+                    util::playerMoving, 3000, 4000);
+            return true;
+        }
+        var manholeOn = new Coordinate(3237, 3458, 0);
+        var manhole = GameObjects.newQuery()
+                .on(manholeOn)
+                .names("Manhole")
+                .results()
+                .nearest();
+        if (manhole == null) {
+            if (this.overrideTraverser == null)
+                this.overrideTraverser = Traverser.webPathTraverser(new Coordinate(3237, 3457, 0));
+            overrideTraverser.executeLoop();
+            return true;
+        }
+        var def = manhole.getActiveDefinition();
+        if (def == null) return true;
+        var action = def.getActions().contains("Climb-down") ? "Climb-down" : "Open";
+        DirectInput.send(MenuAction.forGameObject(manhole, action));
+        var reg = Players.getLocal().getServerPosition().getContainingRegionId();
+        Execution.delayUntil(() ->
+                        reg != Players.getLocal().getServerPosition().getContainingRegionId()
+                                || !GameObjects.newQuery()
+                                .on(manholeOn)
+                                .names("Manhole")
+                                .actions("Climb-down")
+                                .results().isEmpty(),
+                util::playerAnimatingOrMoving, 3000, 4000);
+        return true;
+    }
+}

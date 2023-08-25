@@ -1,0 +1,70 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.SlayerLocation;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Builder
+@Log4j2
+public class Location {
+    @Getter
+    private final SlayerLocation location;
+    @Getter
+    private final int[] pathRegions;
+    @Getter
+    private final TraverseMethod[] traverseMethods;
+    @Getter
+    private final Callable<TraverseOverride> traverseOverride;
+    @Getter
+    private final Map<Pattern, Integer> traverseItems;
+    @Getter
+    private final boolean isBarrage;
+    private final Area area;
+    @Getter
+    private final boolean isInSafeArea;
+    @Getter
+    private final boolean needsFood;
+    @Getter
+    private final int food;
+    @Getter
+    private final @Nullable Coordinate cannonSpot;
+    private final @Nullable Coordinate traverseToTile;
+    @Getter
+    private final @Nullable Prayer prayer;
+    @Getter
+    private final @Nullable Predicate<SlayerBotImpl<?>> condition;
+
+    public Area getArea() {
+        if (area == null) {
+            var t = getTraverseToTile();
+            if (t == null) {
+                log.error("Unable to get area {}", this);
+                return Players.getLocal().getArea();
+            }
+            return t.getArea().grow(50, 50);
+        }
+        return area;
+    }
+
+    public Coordinate getTraverseToTile() {
+        if (this.traverseToTile != null) return traverseToTile;
+        if (getCannonSpot() != null) return getCannonSpot();
+        var a = getArea();
+        var c = a.getCenter();
+        return c;
+    }
+
+}

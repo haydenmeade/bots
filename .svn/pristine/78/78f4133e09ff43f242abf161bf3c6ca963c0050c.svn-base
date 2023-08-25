@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.RuneScape;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public class BreakHandlerState<T extends Enum> implements LoopState<T> {
+    private final BreakManager breakManager;
+    private final NeckBot bot;
+    private final T breakState;
+    private final T startState;
+
+    public BreakHandlerState(BreakManager breakManager,
+                             NeckBot bot,
+                             T breakState,
+                             T startState
+    ) {
+        this.breakManager = breakManager;
+        this.bot = bot;
+        this.breakState = breakState;
+        this.startState = startState;
+    }
+
+
+    @Override
+    public void activate(EventDispatcher d) {
+        if (!this.bot.isPaused())
+            this.bot.pause();
+        if (RuneScape.isLoggedIn())
+            RuneScape.logout();
+    }
+
+    @Override
+    public T deactivate(EventDispatcher d) {
+        this.bot.resume();
+        return startState;
+    }
+
+    @Override
+    public T get() {
+        return this.breakState;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !this.breakManager.breaking();
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.breakManager.breaking()) {
+            bot.updateStatusText(String.format("Breaking for another %s Minutes", this.breakManager.timeLeft()));
+        } else if (this.breakManager.stopBot()) {
+            bot.updateStatusText(String.format("Stopping"));
+            bot.stop("Reached stop condition");
+        }
+    }
+}

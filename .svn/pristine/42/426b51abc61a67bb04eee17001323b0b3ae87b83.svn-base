@@ -1,0 +1,123 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.Comparator;
+
+@Log4j2(topic = "Food")
+public enum Food {
+    Shark("Shark", 3, 20),
+    MantaRay("Manta ray", 3, 22),
+    TunaPotato("Tuna potato", 3, 22),
+    Karambwan("Cooked karambwan", 3, 18),
+    PotatoWithCheese("Potato with cheese", 3, 16),
+    Monkfish("Monkfish", 3, 16),
+    Bass("Bass", 3, 13),
+    Anglerfish("Anglerfish", 3, 22);
+
+    private final String name;
+    private final int tickDelay;
+    private final int heals;
+
+    Food(String s, int tickDelay, int heals) {
+        this.name = s;
+        this.tickDelay = tickDelay;
+        this.heals = heals;
+    }
+
+    public static boolean isFood(ItemDefinition s) {
+        if (s == null) return false;
+        return Arrays.stream(Food.values()).anyMatch(s1 -> s1.gameName().equals(s.getName()));
+    }
+
+    public static Food fromName(String name) {
+        return Arrays.stream(Food.values())
+                .filter(s1 -> !s1.gameName().equals(name)).findFirst().orElse(null);
+    }
+
+    public static boolean dropWorst() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        if (foods.isEmpty()) return false;
+        var minV = foods.stream().min(Comparator.comparingInt(
+                item -> {
+                    var d = item.getDefinition();
+                    if (d == null) return -1;
+                    var food = Food.fromName(d.getName());
+                    if (food == null) return -1;
+                    return food.getHeals();
+                })).orElse(null);
+        if (minV != null)
+            DirectInput.send(MenuAction.forSpriteItem(minV, "Drop"));
+        return true;
+    }
+
+    public static boolean dropAny() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        if (foods.isEmpty()) return false;
+        DirectInput.send(MenuAction.forSpriteItem(foods.first(), "Drop"));
+        return true;
+    }
+
+    public static Food getAny() {
+        var food = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results().first();
+        if (food == null || food.getDefinition() == null) return null;
+        return fromName(food.getDefinition().getName());
+    }
+
+    public static boolean eatAny() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        if (foods.isEmpty()) return false;
+        return util.consume(foods.first(), "Eat");
+    }
+
+    public static int countInventory() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        return foods.size();
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+
+    public String gameName() {
+        return name;
+    }
+
+    public boolean eat() {
+        return util.eat(this);
+    }
+
+    public int getTickDelay() {
+        return tickDelay;
+    }
+
+    public int getHeals() {
+        return this.heals;
+    }
+}

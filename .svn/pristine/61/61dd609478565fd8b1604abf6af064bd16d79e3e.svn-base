@@ -1,0 +1,8 @@
+package com.neck_flexed.scripts.sire;
+
+public enum CombatBoost {
+    Combat,
+    Combat_Divine,
+    Super_Set,
+    Super_Set_Divine,
+}

@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Antipoison;
+import com.neck_flexed.scripts.common.CombatBoost;
+import com.neck_flexed.scripts.common.Food;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup()
+public interface SireSettings extends Settings {
+
+
+    @Setting(key = "Phase1 Boost", title = "Phase1 boost potion", order = 1)
+    default Phase1Boost phase1Boost() {
+        return Phase1Boost.Ranging;
+    }
+
+    @Setting(key = "Region", title = "World Region", order = 0)
+    default WorldRegion worldRegion() {
+        return WorldRegion.AUSTRALIA;
+    }
+
+    @Setting(key = "Combat Boost Potion", title = "Combat boost potion", order = 2)
+    default CombatBoost combatBoost() {
+        return CombatBoost.Super_Set;
+    }
+
+
+    @Setting(key = "Antipoison", title = "Antipoison", order = 3)
+    default Antipoison antipoison() {
+        return Antipoison.ANTIPOISONPP;
+    }
+
+    @Setting(key = "Food", title = "Food", order = 4)
+    default Food food() {
+        return Food.Shark;
+    }
+
+    @Setting(key = "phase1Equipment", title = "Phase 1 Equipment (Ranged/Mage)", converter = EquipmentLoadout.SettingConverter.class, order = 6)
+    default EquipmentLoadout phase1Equipment() {
+        return null;
+    }
+
+    @Setting(key = "phase2Equipment", title = "Phase 2 Equipment (Melee)", converter = EquipmentLoadout.SettingConverter.class, order = 7)
+    default EquipmentLoadout phase2Equipment() {
+        return null;
+    }
+
+    @Setting(key = "defence lower spec", title = "Defence lowering spec Equipment (Melee)", converter = EquipmentLoadout.SettingConverter.class, order = 8)
+    default EquipmentLoadout specEquipment() {
+        return null;
+    }
+}

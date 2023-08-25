@@ -1,0 +1,79 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.util.calculations.Random;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+@Log4j2(topic = "BreakManager")
+public class BreakManager {
+
+    private final BreakSettings settings;
+    private ScheduledExecutorService executor;
+    private ScheduledFuture stopBotTask;
+    private long nextBreakIn;
+    private long breakStopIn;
+    private ScheduledFuture future;
+    private boolean breaking = false;
+    private boolean stopping = false;
+    private boolean initiated = false;
+
+    public BreakManager(BreakSettings settings) {
+        this.settings = settings;
+        this.executor = Executors.newScheduledThreadPool(1);
+        if (settings == null) return;
+        if (settings.enabled()) {
+            this.generate();
+        }
+        if (settings.stoppingEnabled()) {
+            this.stopBotTask = executor.schedule(this::stopBotFunc, this.settings.stopAfter(), TimeUnit.MINUTES);
+            log.debug(String.format("Stopping in %s minutes", this.settings.stopAfter()));
+        }
+    }
+
+    private void stopBotFunc() {
+        this.stopping = true;
+    }
+
+    private void startBreak() {
+        this.breaking = true;
+        initiated = false;
+    }
+
+    public long timeLeft() {
+        if (this.future == null) return 0;
+        return this.future.getDelay(TimeUnit.SECONDS);
+    }
+
+    public void initiateBreak() {
+        if (!initiated) {
+            initiated = true;
+            this.breakStopIn = Random.nextLong(this.settings.breakLengthMin(), this.settings.breakLengthMax());
+            log.debug(String.format("Initiate break for %s minutes", breakStopIn));
+            this.future = executor.schedule(this::endBreak, this.breakStopIn, TimeUnit.MINUTES);
+        }
+    }
+
+    private void endBreak() {
+        log.debug(String.format("End Break"));
+        this.breaking = false;
+        this.generate();
+    }
+
+    private void generate() {
+        this.nextBreakIn = Random.nextLong(settings.timeBetweenMin(), settings.timeBetweenMax());
+        log.debug(String.format("Next break in %s minutes", nextBreakIn));
+        this.future = executor.schedule(this::startBreak, this.nextBreakIn, TimeUnit.MINUTES);
+    }
+
+    public boolean breaking() {
+        return this.breaking;
+    }
+
+    public boolean stopBot() {
+        return this.stopping;
+    }
+}

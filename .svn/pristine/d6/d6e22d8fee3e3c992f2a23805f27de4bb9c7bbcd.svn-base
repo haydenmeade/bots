@@ -1,0 +1,405 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.neck_flexed.scripts.slayer.turael.TuraelMonster;
+import com.runemate.game.api.hybrid.Environment;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.Set;
+
+@RequiredArgsConstructor
+@Getter
+public class Monster implements SlayerMonster {
+
+    @Setter
+    private static com.neck_flexed.scripts.slayer.barrage.Monster DEBUG_BARRAGE_MONSTER = null;
+    private static Set<Monster> monsters;
+    @Setter
+    private static @Nullable SlayerMonster DEBUG_MONSTER = null;
+    private final Monsters monster;
+    private final String monsterName;
+    private final String[] superiorNames;
+    private final String[] alternatives;
+    private final int[] pathRegions;
+    private final Area area;
+    private final TraverseMethod[] traverseMethods;
+    private final @Nullable TraverseOverride traverseOverride;
+    private final @Nullable Coordinate traverseToTile;
+    private final @Nullable Coordinate cannon;
+    private final @Nullable Prayer prayer;
+    private final @Nullable SlayerFinishItem finishItem;
+    private final @Nullable SlayerProtectionItem protection;
+    private final boolean isInSafeArea;
+    private final boolean isLeafBladed;
+    private final boolean isBarrageMonster;
+
+    public static Set<Monster> getMonsters() {
+        if (Monster.monsters == null) {
+            Monster.monsters = buildMonsters();
+        }
+        return Monster.monsters;
+    }
+
+    public static Optional<SlayerMonster> getByEnum(Monsters monster) {
+        return getMonsters().stream()
+                .filter(m -> m.getMonster().equals(monster))
+                .map(m -> (SlayerMonster) m)
+                .findFirst();
+    }
+
+    private static Set<Monster> buildMonsters() {
+        return Set.of(
+                new MonsterBuilder(Monsters.AberrantSpectres)
+                        .setMonsterName("Aberrant spectres")
+                        .setSuperiorNames("Abhorrent spectre", "Deviant spectre")
+                        .setAlternatives("Aberrant spectre", "Deviant spectre")
+                        .setPathRegions(TraverseMethod.STRONGHOLD_REGIONS)
+                        .setArea(areas.Spectres)
+                        .setTraverseMethods(TraverseMethod.NIEVE_CAVE)
+                        .setPrayer(Prayer.PROTECT_FROM_MAGIC)
+                        .build(),
+
+                new MonsterBuilder(Monsters.AbyssalDemons)
+                        .setMonsterName("Abyssal demons")
+                        .setSuperiorNames("Greater abyssal demon")
+                        .setAlternatives("Abyssal demon", "Abyssal sire")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.AbyssalDemons)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setTraverseToTile(new Coordinate(1674, 10089, 0))
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .setIsBarrageMonster(true)
+                        .build(),
+                //    AdamantDragons("Adamant dragons",
+//            new String[]{"Adamant dragon"},
+//            ),
+                new MonsterBuilder(Monsters.Ankou)
+                        .setMonsterName("Ankou")
+                        .setAlternatives("Ankou", "Dark Ankou")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.Ankou)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                //    Aviansies("Aviansies",
+//            new String[]{"Aviansie","Kree'arra","Flight Kilisa","Flockleader Geerin","Wingman Skree","Reanimated aviansie"},
+//            ),
+//    Basilisks("Basilisks",
+//            new String[]{"Basilisk", "Basilisk Knight"},
+//            ),
+                new MonsterBuilder(Monsters.BlackDemons)
+                        .setMonsterName("Black demons")
+                        .setAlternatives("Black demon", "Demonic gorilla", "Balfrug Kreeyath", "Porazdir", "Skotizo")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.BlackDemon)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                new MonsterBuilder(Monsters.BlackDragons)
+                        .setMonsterName("Black dragons")
+                        .setAlternatives("Black dragon", "Baby black dragon", "King Black Dragon", "Brutal black dragon")
+                        .setPathRegions(11574, 11573, 11572, 11829, 11828, 11417, 11416, 11673, 11672)
+                        .setArea(areas.BabyBlackDragon)
+                        .setTraverseMethods(
+                                new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Taverley),
+                                new HouseLocationTraverse(House.Location.TAVERLEY),
+                                TeleportTraverse.FALADOR_TRAVERSE,
+                                new HousePortalTraverse(PortalNexusTeleport.Falador))
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+
+                new MonsterBuilder(Monsters.Bloodveld)
+                        .setMonsterName("Bloodveld")
+                        .setSuperiorNames("Insatiable Bloodveld", "Insatiable mutated Bloodveld")
+                        .setAlternatives("Bloodveld", "Mutated Bloodveld", "Reanimated Bloodveld")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.Bloodveld)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                //    BlueDragons("Blue dragons",
+//            new String[]{"Blue dragon","Baby blue dragon","Brutal blue dragon","Vorkath"},
+//            ),
+//    CaveHorrors("Cave horrors",
+//            new String[]{"Cave abomination"},
+//            new String[]{"Cave horror"},
+//            ),
+//    CaveKraken("Cave kraken",
+//            new String[]{"Cave kraken", "Kraken"},
+//            ),
+                new MonsterBuilder(Monsters.Dagannoth)
+                        .setMonsterName("Dagannoth")
+                        .setAlternatives("Dagannoth", "Dagannoth spawn", "Dagannoth fledgeling", "Reanimated dagannoth")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.Dagannoth)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                //    DarkBeasts("Dark beasts",
+//            new String[]{"Dark beast",},
+//            ),
+//    Drakes("Drakes",
+//            new String[]{"Drake",},
+//            ),
+                new MonsterBuilder(Monsters.DustDevils)
+                        .setMonsterName("Dust devils")
+                        .setSuperiorNames("Choke devil")
+                        .setAlternatives("Dust devil")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.DustDevil)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .setIsBarrageMonster(true)
+                        .build(),
+                //    Elves("Elves",
+//            new String[]{"Elf", "Elf warrior", "Reanimated elf", "Iorwerth Warrior"},
+//            ),
+                new MonsterBuilder(Monsters.FireGiants)
+                        .setMonsterName("Fire giants")
+                        .setAlternatives("Fire giant")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.FireGiant)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                //    FossilIslandWyverns("Fossil Island Wyverns",
+//            new String[]{"Fossil Island Wyvern", "Spitting wyvern", "Taloned wyvern", "Long-tailed wyvern", "Ancient Wyvern"},
+//            ),
+//    Gargoyles("Gargoyles",
+//            new String[]{"Gargoyle", "Grotesque Guardians"},
+//            ),
+                new MonsterBuilder(Monsters.GreaterDemons)
+                        .setMonsterName("Greater demons")
+                        .setAlternatives("Greater demon")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.GreaterDemon)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                new MonsterBuilder(Monsters.Hellhounds)
+                        .setMonsterName("Hellhounds")
+                        .setAlternatives("Hellhound", "Cerberus", "Skeleton Hellhound", "Greater Skeleton Hellhound")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.Hellhound)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+                //    IronDragons("Iron dragons",
+//            new String[]{"Iron dragon",},
+//            ),
+                new MonsterBuilder(Monsters.Kalphites)
+                        .setMonsterName("Kalphites")
+                        .setAlternatives("Kalphites", "Kalphite", "Kalphite Worker", "Kalphite Soldier")
+                        .setPathRegions(12848, 13104, 13204)
+                        .setArea(areas.Kalphites)
+                        .setTraverseMethods(new ItemTraverse(items.desertAmulet4, "Kalphite cave"), new FairyRingTraverse(FairyRing.BIQ))
+                        .setCannon(new Coordinate(3323, 9502, 0))
+                        .setIsInSafeArea(true)
+                        .build(),
+                new MonsterBuilder(Monsters.Kalphites_Lair)
+                        .setMonsterName("Kalphites_Lair")
+                        .setAlternatives("Kalphites", "Kalphite", "Kalphite Worker")
+                        .setPathRegions(KalphiteLairTraverse.LAIR_REGION_ID)
+                        .setArea(areas.Kalphites_Lair)
+                        .setTraverseMethods(new KalphiteLairTraverse())
+                        .setCannon(new Coordinate(3501, 9522, 2))
+                        .setIsInSafeArea(true)
+                        .build(),
+                new MonsterBuilder(Monsters.Kurask)
+                        .setMonsterName("Kurask")
+                        .setSuperiorNames("King kurask")
+                        .setAlternatives("Kurask")
+                        .setPathRegions(TraverseMethod.FREM_SLAYER_REGIONS)
+                        .setArea(areas.Kurask)
+                        .setTraverseMethods(TraverseMethod.FREM_SLAYER_TRAVERSES)
+                        .setTraverseOverride(new FremSlayerDungeonOverride())
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .setIsLeafBladed(true)
+                        .build(),
+                //    Lizardmen("Lizardmen",
+//            new String[]{"Lizardmen", "Lizardman brute", "Lizardman shaman"},
+//            ),
+                //    MinionsOfScabaras("Minions of Scabaras",
+//            new String[]{"Minions of Scabaras","Scarab","Scarab swarm","Locust rider","Scarab mage"},
+//            ),
+//    MithrilDragons("Mithril dragons",
+//            new String[]{"Mithril dragon",},
+//            ),
+//    MutatedZygomites("Mutated Zygomites",
+//            new String[]{"Mutated Zygomite", "Ancient Zygomite"},
+//            ),
+                new MonsterBuilder(Monsters.Nechryael)
+                        .setMonsterName("Nechryael")
+                        .setSuperiorNames("Nechryarch")
+                        .setAlternatives("Nechryael", "Greater Nechryael")
+                        .setPathRegions(TraverseMethod.CATACOMBS_REGIONS)
+                        .setArea(areas.Nechryael)
+                        .setTraverseMethods(TraverseMethod.CATACOMBS_TRAVERSES)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .setIsBarrageMonster(true)
+                        .build(),
+                //    RedDragons("Red dragons",
+//            new String[]{"Red dragon","Baby red dragon","brutal red dragon"},
+//            ),
+//    RuneDragons("Rune dragons",
+//            new String[]{"Rune dragon",},
+//            ),
+//    SkeletalWyverns("Skeletal Wyverns",
+//            new String[]{"Skeletal Wyvern",},
+//            ),
+//    SmokeDevils("Smoke devils",
+//            new String[]{"Smoke devil", "Thermonuclear smoke devil"},
+//            ),
+                //    SpiritualCreatures("Spiritual creatures",
+//            new String[]{"Spiritual creature","Spiritual ranger","Spiritual warrior","Spiritual mage"},
+//            ),
+//    SteelDragons("Steel dragons",
+//            new String[]{"Steel dragon",},
+//            ),
+                new MonsterBuilder(Monsters.Suqah)
+                        .setMonsterName("Suqahs")
+                        .setAlternatives("Suqah")
+                        .setPathRegions(8253, 8509, 8252, 8508)
+                        .setArea(areas.Suqah)
+                        .setTraverseMethods(new HousePortalTraverse(PortalNexusTeleport.LunarIsle), new TeleportTraverse(Magic.Lunar.MOONCLAN_TELEPORT, 69, Rune.EARTH, Rune.ASTRAL, Rune.LAW))
+                        .setPrayer(Prayer.PROTECT_FROM_MAGIC)
+                        .setCannon(new Coordinate(2119, 3943, 0))
+                        .build(),
+                new MonsterBuilder(Monsters.Trolls)
+                        .setMonsterName("Trolls")
+                        .setAlternatives("Troll", "Mountain troll", "Ice troll", "Ice troll female", "Ice troll runt", "Ice troll male", "Reanimated troll")
+                        .setPathRegions(11321, 11577)
+                        .setArea(areas.Troll)
+                        .setTraverseMethods(
+                                new HousePortalTraverse(PortalNexusTeleport.TrollStronghold),
+                                new TeleportTraverse(Magic.TROLLHEIM_TELEPORT, 61, Rune.FIRE, Rune.LAW)
+                        )
+                        .setCannon(null)
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .build(),
+//                new MonsterBuilder(Monsters.Trolls_Ice)
+//                        .setMonsterName("Trolls")
+//                        .setAlternatives("Troll", "Mountain troll", "Ice troll", "Ice troll female", "Ice troll runt", "Ice troll male", "Reanimated troll")
+//                        .setPathRegions(9531, 9532, 10553, 10297, 10809, 10552, 10808, 11064)
+//                        .setArea(areas.IceTroll)
+//                        .setTraverseMethods(
+//                                // TODO
+//                                //new ItemTraverse("Enchanted Lyre", "TODO"),
+//                                //new ItemTraverse("Frem Boots", "TODO"),
+//                                new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Rellekka),
+//                                new HouseLocationTraverse(House.Location.RELLEKKA),
+//                                new FairyRingTraverse(FairyRing.AJR)
+//                        )
+//                        .setCannon(new Coordinate(0, 0, 0))
+//                        .setPrayer(Prayer.PROTECT_FROM_MISSILES)
+//                        .build(),
+                new MonsterBuilder(Monsters.Turoth)
+                        .setMonsterName("Turoth")
+                        .setSuperiorNames("Spiked Turoth")
+                        .setAlternatives("Turoth")
+                        .setPathRegions(TraverseMethod.FREM_SLAYER_REGIONS)
+                        .setArea(areas.Turoth)
+                        .setTraverseMethods(TraverseMethod.FREM_SLAYER_TRAVERSES)
+                        .setTraverseOverride(new FremSlayerDungeonOverride())
+                        .setPrayer(Prayer.PROTECT_FROM_MELEE)
+                        .setIsLeafBladed(true)
+                        .build()
+                //    TzHaar("TzHaar",
+//            new String[]{"TzHaar"},
+//            ),
+//    Vampyres("Vampyres",
+//            new String[]{"Vampyre","Feral Vampyre","Vampyre Juvinate","Vyrewatch","Vyrewatch Sentinel"},
+//            ),
+//    Waterfiends("Waterfiends",
+//            new String[]{"Waterfiend"},
+//            ),
+//    Wyrms("Wyrms",
+//            new String[]{"Wyrms"},
+//            ),
+
+        );
+    }
+
+    static Optional<SlayerMonster> fromSlayerTaskFallbackToTurael() {
+        var m = Monster.fromSlayerTask();
+        if (m.isPresent()) return m;
+        return TuraelMonster.fromSlayerTask();
+    }
+
+    static Optional<SlayerMonster> fromSlayerTask() {
+        if (Monster.DEBUG_MONSTER != null && Environment.isDevMode()) {
+            return Optional.of(Monster.DEBUG_MONSTER);
+        }
+
+        var task = SlayerTask.getCurrent();
+        if (task == null) return Optional.empty();
+        if (task.equalsIgnoreCase("Kalphite")) {
+            if (SlayerTask.getLocation() == null)
+                return getByEnum(Monsters.Kalphites);
+            if (SlayerTask.getLocation().equalsIgnoreCase("kalphite lair")) {
+                return getByEnum(Monsters.Kalphites_Lair);
+            }
+            return getByEnum(Monsters.Kalphites);
+        }
+        return getMonsters().stream()
+                .filter(m -> Arrays.stream(m.getAllNames()).anyMatch(n -> n.equalsIgnoreCase(task)))
+                .map(m -> (SlayerMonster) m)
+                .findFirst();
+    }
+
+    public static Optional<com.neck_flexed.scripts.slayer.barrage.Monster> barrageFromSlayerTask() {
+        if (DEBUG_BARRAGE_MONSTER != null && Environment.isDevMode()) {
+            return Optional.of(DEBUG_BARRAGE_MONSTER);
+        }
+        var monsterOpt = fromSlayerTask();
+        if (monsterOpt.isEmpty()) return Optional.empty();
+
+        var monster = (Monster) monsterOpt.get();
+
+        switch (monster.getMonster()) {
+            case DustDevils:
+                return Optional.of(com.neck_flexed.scripts.slayer.barrage.Monster.DustDevil);
+            case Nechryael:
+                return Optional.of(com.neck_flexed.scripts.slayer.barrage.Monster.Nechryael);
+            case AbyssalDemons:
+                return Optional.of(com.neck_flexed.scripts.slayer.barrage.Monster.AbyssalDemon);
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Loadout getLoadout(Loadouts loadouts, boolean canBarrage) {
+        if (isBarrageMonster() && canBarrage) {
+            return loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT);
+        } else if (isLeafBladed) {
+            return loadouts.getForName(SlayerLoadout.LEAF_LOADOUT);
+        }
+        return loadouts.getForName(SlayerLoadout.MELEE_LOADOUT);
+    }
+
+    @Override
+    public String toString() {
+        return this.monsterName;
+    }
+
+    public Coordinate getTraverseToTile() {
+        if (this.traverseToTile != null) return traverseToTile;
+        return SlayerMonster.super.getTraverseToTile();
+    }
+}

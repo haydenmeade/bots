@@ -1,0 +1,81 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.loot.LootSettings;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+public class LootState extends BaseState<SlayerState> {
+    private final NeckBot<?, SlayerState> bot;
+    private final Area.Rectangular area;
+    private final SlayerBot slayerBot;
+    private final LootSettings lootSettings;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(NeckBot<?, SlayerState> bot, LootSettings lootSettings) {
+        super(SlayerState.LOOTING);
+        this.bot = bot;
+        this.slayerBot = (SlayerBot) bot;
+        this.lootSettings = lootSettings;
+        this.area = getLootArea(slayerBot);
+        slayerBot.getDeathTiles().clear();
+    }
+
+    private static Area.Rectangular getLootArea(SlayerBot bot) {
+        if (bot.getDeathTiles().isEmpty()) return Players.getLocal().getServerPosition().getArea();
+        var tiles = bot.getDeathTiles().toArray(new Coordinate[0]);
+        if (tiles.length == 1) return new Area.Rectangular(tiles[0]).grow(2, 2);
+        var a = Area.polygonal(tiles).toRectangular().grow(2, 2);
+        if (a.getHeight() > 50 || a.getWidth() > 50) return null;
+        return a;
+    }
+
+    public static boolean anyAvailableLoot(SlayerBot bot, LootSettings settings) {
+        if (bot.getDeathTiles().isEmpty()) return false;
+        return Loot.getGroundItemToLoot(getLootArea(bot), settings) != null;
+    }
+
+    @Override
+    public void activate() {
+        super.activate();
+        bot.updateStatus("Looting");
+        Loot.waitForLoot(
+                area,
+                Pattern.compile(".*"),
+                3000
+        );
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        if (this.result.equals(Loot.LootResult.Full))
+            bot.forceState(SlayerState.RESTORING);
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(area
+                , lootSettings
+                , new Pattern[0]
+        );
+
+    }
+}

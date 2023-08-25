@@ -1,0 +1,79 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import static com.neck_flexed.scripts.sire.sireBot.abyssalNexus;
+import static com.neck_flexed.scripts.sire.sireBot.castleWars;
+
+@Log4j2(topic = "StartingTask")
+public class StartingState implements LoopState<SireState> {
+    private final com.neck_flexed.scripts.sire.sireBot sireBot;
+    private boolean done = false;
+
+    public StartingState(sireBot sireBot) {
+        this.sireBot = sireBot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        sireBot.updateStatus(String.format("Starting"));
+    }
+
+    @Override
+    public SireState deactivate(EventDispatcher d) {
+        var p = Players.getLocal();
+        if (p == null) return SireState.STARTING;
+        if (Bank.isOpen()) return SireState.RESTOCKING;
+        boolean needsRestock = this.sireBot.doWeNeedToRestock();
+        if (castleWars.contains(p)) {
+            return needsRestock ? SireState.RESTOCKING : SireState.TRAVERSING;
+        }
+        if (House.isInside()) {
+            return needsRestock || !u.isRestored() ? SireState.RESTORING : SireState.TRAVERSING;
+        }
+        if (this.sireBot.sireListener.init()) {
+            if (u.needToHop())
+                return SireState.HOPPING;
+            return !this.sireBot.sireListener.getPhase().equals(Phase.Phase0) ?
+                    SireState.FIGHTING :
+                    needsRestock ?
+                            SireState.RESTORING :
+                            SireState.FIGHTING;
+        }
+        if (abyssalNexus.contains(p)) {
+            return needsRestock || !u.isRestored() ? SireState.RESTORING : SireState.TRAVERSING;
+        }
+        return needsRestock || !u.isRestored() ? SireState.RESTORING : SireState.TRAVERSING;
+    }
+
+    @Override
+    public SireState get() {
+        return SireState.STARTING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.1, 0.1);
+        if (util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        this.done = true;
+    }
+}

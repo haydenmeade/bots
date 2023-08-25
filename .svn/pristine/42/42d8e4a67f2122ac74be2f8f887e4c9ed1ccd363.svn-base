@@ -1,0 +1,81 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Optional;
+
+@Log4j2(topic = "Attacker")
+
+public class Attacker implements EngineListener, PlayerListener, NpcListener {
+
+    public static int killCount = 0;
+
+    public static Optional<Npc> getAggressiveLizard() {
+        var aggressive = Npcs.getLoaded(lizard.LIZ).stream().
+                filter(npc -> npc.getTarget().equals(Players.getLocal()) && npc.getPosition().isReachable()).
+                findFirst();
+
+        if (aggressive.isPresent()) {
+            return aggressive;
+        }
+        var nearest = Npcs.getLoaded(lizard.LIZ).nearest();
+        if (nearest.getPosition().isReachable()) {
+            return Optional.of(nearest);
+        }
+        return null;
+    }
+
+    @Override
+    public void onNpcDeath(DeathEvent event) {
+        if (lizard.areaCentre.contains(event.getPosition())) {
+            killCount += 1;
+            log.debug(String.format("Kills: %d", killCount));
+        }
+
+    }
+
+    private void attack(Npc npc) {
+        if (BotState.getBotState() != BotState.FIGHTING) {
+            return;
+        }
+        if (BotState.getLastAction() == Action.ATTACK && Players.getLocal().getTarget() != null) {
+            log.debug("already attacking");
+            return;
+        }
+        int weaponTick = 2;
+        try {
+            log.debug(String.format("attacking: %s", npc.toString()));
+            if (SpecialAttack.getEnergy() > 50 && Equipment.getItemIn(Equipment.Slot.WEAPON).getDefinition().getName() == "Toxic blowpipe") {
+                log.debug("Speccing");
+                var component = (InterfaceComponent) Interfaces.newQuery().containers(new int[]{160}).types(new InterfaceComponent.Type[]{InterfaceComponent.Type.CONTAINER}).actions(new String[]{"Use"}).names(new String[]{"Special Attack"}).grandchildren(false).results().first();
+                DirectInput.send(MenuAction.forInterfaceComponent(component, "Use"));
+            }
+            DirectInput.send(MenuAction.forNpc(npc, "Attack"));
+            BotState.addToTicksUntilAttack(weaponTick);
+            BotState.setLastAction(Action.ATTACK);
+        } catch (Exception e) {
+            log.error(e);
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        if (BotState.getTicksUntilAttack() > 0) {
+            return;
+        }
+        getAggressiveLizard().ifPresent(npc -> attack(npc));
+    }
+}

@@ -1,0 +1,111 @@
+package com.neck_flexed.scripts.common.state;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.location.navigation.Landmark;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.script.Execution;
+import com.runemate.ui.setting.open.Settings;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public abstract class RestockState<TSettings extends Settings, TState extends Enum<TState>> extends BaseState<TState> {
+    protected final NeckBot<TSettings, TState> bot;
+    protected final TState restockState;
+    protected String error = null;
+    private boolean done;
+    private Path path;
+    private Map<Pattern, Integer>[] withdraw;
+    private Pattern[] except;
+
+    public RestockState(NeckBot<TSettings, TState> bot, TState restockState
+    ) {
+        super(restockState);
+        this.bot = bot;
+        this.restockState = restockState;
+    }
+
+    protected abstract Map<Pattern, Integer>[] getWithdraw();
+
+    protected abstract Pattern[] getExcept();
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Restocking"));
+        if (this.bot.prayerFlicker != null) {
+            this.bot.prayerFlicker.disable();
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Bank.isOpen()) {
+            walkToBankAndOpen();
+            return;
+        }
+        // bank open
+        if (this.withdraw == null) {
+            this.withdraw = getWithdraw();
+        }
+        if (this.except == null) {
+            this.except = getExcept();
+        }
+        if (NeckBank.doBankLoop(bot, except, withdraw)) {
+            Bank.close();
+            this.done = true;
+        }
+    }
+
+    private void walkToBankAndOpen() {
+        Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 500);
+        var booth = Banks.getLoadedBankBooths().nearest();
+        var chest = Banks.getLoadedBankChests().nearest();
+        var b = booth != null
+                ? booth
+                : chest != null
+                ? chest
+                : Banks.getLoaded().nearest();
+
+        if (b == null || b.getPosition() == null) {
+            if (path == null) {
+                this.path = WebPath.buildTo(Landmark.BANK);
+            }
+            if (path != null) {
+                path.step();
+            } else {
+                error = "Could not generate path to bank";
+            }
+            return;
+        }
+
+        DirectInput.sendMovement(b.getPosition());
+        if (!Execution.delayUntil(() -> Bank.open(b), util::playerMoving, 3000, 4000)) {
+            if (path == null) {
+                this.path = WebPath.buildTo(Landmark.BANK);
+            }
+            if (path != null) {
+                path.step();
+            } else {
+                error = "Could not generate path to bank";
+            }
+        }
+    }
+}

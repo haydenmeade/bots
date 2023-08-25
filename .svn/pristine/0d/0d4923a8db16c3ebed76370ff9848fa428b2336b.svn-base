@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.RestockState<MoleSettings, MoleState> {
+    public RestockState(Mole bot) {
+        super(bot, MoleState.TRAVERSING, MoleState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+                NeckBank.getBoostsNeeded(bot.settings().boostAmount(), false, bot.settings().boost()),
+                NeckBank.toMap(bot.settings().staminaAmount(), items.stamina4Dose),
+                NeckBank.toMap(1
+                        , items.spadeP
+                        , Mole.falShield
+                        , bot.settings().light().getPattern()
+                ),
+                bot.settings().RestoreAndBankStrategy().equals(RestoreAndBankStrategy.RingOfDueling)
+                        ? NeckBank.toMap(1, items.ringOfDueling)
+                        : Collections.emptyMap(),
+                NeckBank.toMap(2, bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                        items.houseTab, items.spade, items.dwarvenRock, items.locatorOrb,
+                }),
+                new Pattern[]{Mole.falShield, bot.settings().light().getPattern(), items.imbuedHeart, items.ringOfDueling, items.runePouch, items.constructionCape,},
+                util.toItemList(bot.settings().equipment()),
+                util.toItemList(bot.settings().specEquipment())
+        );
+    }
+}

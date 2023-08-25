@@ -1,0 +1,66 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.Loot;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootTask")
+public class LootTask extends LeafTask {
+    public static final Area lootArea = Area.rectangular(new Coordinate(2964, 4779, 0), new Coordinate(2976, 4771, 0));
+    public static List<String> ignoreLoot = Arrays.asList(
+            "Steel arrow",
+            "Fiendish ashes",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Chilli potato",
+            "Air talisman",
+            "Body talisman",
+            "Earth talisman",
+            "Fire talisman",
+            "Mind talisman",
+            "Water talisman",
+            "Cosmic talisman",
+            "Chaos talisman",
+            "Nature talisman");
+
+
+    @Override
+    public void execute() {
+        sire.updateStatus("Looting");
+        SireState.setActivePrayers();
+        u.equipPhase1();
+        var ignoreLootCpy = new ArrayList<String>(ignoreLoot);
+        if (!SireState.getSettings().lootAshes()) {
+            ignoreLootCpy.add("Abyssal ashes");
+        }
+        var r = Loot.doLoop(lootArea,
+                ignoreLootCpy,
+                new Food[]{SireState.getSettings().food()},
+                new Pattern[]{SireState.getSettings().antipoison().pattern()}
+        );
+        if (r.equals(Loot.LootResult.NotDone)) return;
+
+        SireState.resetKill();
+        if (!util.hasSlayerTask()) {
+            sire.updateStatus("Finished slayer task");
+            Traverse.breakHouseTab();
+            SireState.setPaused(true);
+            SireState.setBotState(SireState.STOPPING);
+        } else if (SireState.needsBankAfterKill() || r.equals(Loot.LootResult.Full)) {
+            SireState.setBotState(SireState.RESTORING);
+        } else {
+            SireState.setBotState(SireState.FIGHTING);
+        }
+
+    }
+}

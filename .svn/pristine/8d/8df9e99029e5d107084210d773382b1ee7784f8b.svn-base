@@ -1,0 +1,117 @@
+package com.neck_flexed.scripts.common;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class items {
+    public static final String houseTab = "Teleport to house";
+    public static final String pharaohSceptre = "Pharaoh’s Sceptre";
+    public static final String spectralSpiritShield = "Spectral spirit shield";
+    public static final String keyMasterTeleport = "Key master teleport";
+    public static final String xericsTalisman = "Xeric's talisman";
+    public static final String wildySword4 = "Wilderness sword 4";
+    public static final String desertAmulet4 = "Desert amulet 4";
+    public static final String fremBoots4 = "Fremennik sea boots 4";
+    public static final Pattern stamina4Dose = Pattern.compile("Stamina potion\\(4\\)");
+    public static final Pattern wildySword = Pattern.compile("Wilderness sword.*");
+    public static final Pattern prayer4Dose = Pattern.compile("Prayer potion\\(4\\)");
+    public static final Pattern constructionCape = Pattern.compile("Construct\\. cape.*");
+    public static final Pattern bonecrusher = Pattern.compile("Bonecrusher");
+    public static final Pattern herbSack = Pattern.compile("Open herb sack");
+    public static final Pattern radasBlessing = Pattern.compile("Rada.*");
+    public static final Pattern argdougneCloak = Pattern.compile("Ardougne cloak.*");
+    public static final Pattern questCape = Pattern.compile("Quest point cape.*");
+    public static final String rope = "Rope";
+    public static final String conCapeTelePoh = "Tele to POH";
+    public static final Pattern runePouch = Pattern.compile("(?:(?:Divine rune)|(?:Rune)) pouch.*");
+    public static final Pattern staminaPotions = Pattern.compile("Stamina potion.*");
+    public static final String spade = "Spade";
+    public static final String wildPie = "Wild pie";
+    public static final String wildPieHalf = "Half a wild pie";
+    public static final String ashSanctifier = "Ash sanctifier";
+    public static final Pattern spadeP = Pattern.compile("Spade");
+    public static final Pattern dramenStaff = Pattern.compile("(?:(?:Dramen)|(?:Lunar)) staff");
+    public static final String locatorOrb = "Locator orb";
+    public static final String dwarvenRock = "Dwarven rock cake";
+    public static final List<Integer> rangedBoosts = Arrays.asList(
+            23742, // divine
+            23739,
+            23736,
+            23733,
+            173, // ranged
+            171,
+            169,
+            2444);
+    public static final List<Integer> combatBoosts = Arrays.asList(
+            23694, //1 dose divine
+            23691, //2 dose divine
+            23688, //3 dose divine
+            23685,  //4 dose divine
+            12701, //1 dose
+            12699, //2 dose
+            12697, //3 dose
+            12695  //4 dose
+    );
+    public static final List<Integer> attackBoosts = Arrays.asList(
+            23706, //1 dose divine
+            23703, //2 dose divine
+            23700, //3 dose divine
+            23697,  //4 dose divine
+            149, //1 dose
+            147, //2 dose
+            145, //3 dose
+            2436 //4 dose
+    );
+    public static final List<Integer> strengthBoosts = Arrays.asList(
+            23718, //1 dose divine
+            23715, //2 dose divine
+            23712, //3 dose divine
+            23709,  //4 dose divine
+            161, //1 dose
+            159, //2 dose
+            157, //3 dose
+            2440 //4 dose
+    );
+    public static final List<Integer> defenceBoosts = Arrays.asList(
+            23730, //1 dose divine
+            23727, //2 dose divine
+            23724, //3 dose divine
+            23721,  //4 dose divine
+            167, //1 dose
+            165, //2 dose
+            163, //3 dose
+            2442 //4 dose
+    );
+    public static final List<Integer> prayerRestores = Arrays.asList(
+            143,//1 dose prayer
+            141,//2 dose prayer
+            139,//3 dose prayer
+            2434,//4 dose prayer
+            3030,//1 dose super restore
+            3028,//2 dose super restore
+            3026,//3 dose super restore
+            3024 //4 dose super restore
+    );
+    public static final List<Integer> antiPoisonPP = Arrays.asList(
+            5958,
+            5956,
+            5954,
+            5952
+    );
+    public static final List<Pattern> antiPoisonPPattern = Arrays.asList(
+            Pattern.compile("Superantipoison.*"),
+            Pattern.compile("Antipoison.*")
+    );
+    public static final Pattern imbuedHeart = Pattern.compile("(?:(?:Imbued)|(?:Saturated)) heart");
+    public static final Pattern ringOfDueling = Pattern.compile("Ring of dueling.*");
+    public static final Pattern iceCooler = Pattern.compile("^Ice cooler$");
+    public static final Pattern ringOfTheElements = Pattern.compile("Ring of the elements.*");
+    public static final Pattern digsitePendant = Pattern.compile("Digsite pendant.*");
+    public static final Pattern slayerRing = Pattern.compile("Slayer ring.*");
+    public static final String invigorate = "Invigorate";
+    public static final String braceletOfSlaughter = "Bracelet of slaughter";
+    public static final Pattern skullSceptre = Pattern.compile("Skull sceptre.*");
+
+
+}

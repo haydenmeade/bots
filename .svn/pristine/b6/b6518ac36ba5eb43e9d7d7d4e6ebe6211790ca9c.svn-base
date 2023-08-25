@@ -1,0 +1,7 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.script.framework.LoopingBot;
+
+public abstract class NeckBot extends LoopingBot {
+    public abstract void updateStatusText(String s);
+}

@@ -1,0 +1,115 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class SlayerStateManager extends StateManager<bot, SlayerState> {
+    public SlayerStateManager(bot bot) {
+        super(bot);
+    }
+
+    @Override
+    public SlayerState getNextState(SlayerState initiator) {
+        var p = Players.getLocal();
+        if (p == null) return SlayerState.STARTING;
+        var task = SlayerTask.getCurrent();
+        var monster = Monster.fromSlayerTaskFallbackToTurael();
+        var settings = bot.settings();
+        var barrageMonster = Monster.barrageFromSlayerTask();
+
+        // ** COMBAT:
+        switch (initiator) {
+            case BARRAGING:
+            case FIGHTING:
+                return SlayerState.LOOTING;
+            case LOOTING:
+                if (!SlayerTask.hasTask()) {
+                    return SlayerState.GET_NEW_TASK;
+                } else if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot() || Inventory.isFull()) {
+                    return SlayerState.RESTORING;
+                } else if (barrageMonster.isPresent()) {
+                    return SlayerState.LURING;
+                } else {
+                    return SlayerState.FIGHTING;
+                }
+            case STACKING:
+                return SlayerState.BARRAGING;
+            case LURING:
+                return SlayerState.STACKING;
+            case RESTORING:
+                if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+                    return SlayerState.BREAKING;
+                break;
+            case GET_NEW_TASK:
+                // get master task
+                return SlayerState.GET_MASTER_TASK;
+        }
+
+
+        if (SlayerTask.hasTask()) {
+            // Unhandled task
+            if (monster.isEmpty() || SlayerUtil.doesTaskMatch(task, bot.settings().skipTaskList(), bot.settings().stopOnAnyBoss())) {
+                if (!settings.skipTasks()) {
+                    var msg = String.format("Stopping due to unhandled task: %s", task);
+                    bot.updateStatus(msg);
+                    Execution.delay(3000);
+                    bot.stop(msg);
+                    return SlayerState.BREAKING;
+                } else if (SlayerUtil.doesTaskMatch(task, bot.settings().stopOnTasks(), bot.settings().stopOnAnyBoss())) {
+                    var msg = String.format("Got Task we wanted: %s %s from %s", SlayerTask.getCount(), task, bot.settings().master());
+                    log.info(msg);
+                    bot.updateStatus(msg);
+                    ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+                    Execution.delay(3000);
+                    bot.stop(msg);
+                    return SlayerState.BREAKING;
+                } else if (settings.skipTasksWithTurael()) {
+                    // turael skip
+                    return SlayerState.GET_TURAEL_TASK;
+                } else {
+                    return SlayerState.SKIP_TASK;
+                }
+            } else {
+                var monsterInstance = monster.get();
+                if (bot.barrageTasksAvailable()
+                        && barrageMonster.isPresent()) {
+                    if (barrageMonster.get().getArea().contains(p)) {
+                        if (util.anyOtherPlayersWithin(barrageMonster.get().getArea()))
+                            return SlayerState.HOPPING;
+                        return SlayerState.LURING;
+                    }
+                } else if (monsterInstance.getArea().contains(p)) {
+                    if (util.anyOtherPlayersWithin(monsterInstance.getArea())
+                            && Players.getLocal().getHealthGauge() == null)
+                        return SlayerState.HOPPING;
+                    return SlayerState.FIGHTING;
+                }
+            }
+        }
+        if (Bank.isOpen()) return SlayerState.RESTOCKING;
+
+        // has valid task, not in area yet:
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return SlayerState.RESTOCKING;
+            return SlayerState.RESTORING;
+        }
+
+        // need new task -> go to master and get a task
+        if (!SlayerTask.hasTask()) {
+            return SlayerState.GET_NEW_TASK;
+        }
+
+        return SlayerState.TRAVERSING;
+    }
+}

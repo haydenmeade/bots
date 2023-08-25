@@ -1,0 +1,74 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Players;
+
+public class BarrageStateManager extends StateManager<com.neck_flexed.scripts.slayer.barrage.bot, SlayerState> {
+    private final BarrageListener barrageListener;
+
+    public BarrageStateManager(bot bot, BarrageListener barrageListener) {
+        super(bot);
+
+        this.barrageListener = barrageListener;
+    }
+
+    @Override
+    public SlayerState getNextState(SlayerState initiator) {
+        var p = Players.getLocal();
+        if (p == null) return SlayerState.STARTING;
+        bot.setLoadoutOverriders();
+        switch (initiator) {
+            case STACKING:
+                return SlayerState.BARRAGING;
+            case LURING:
+                return SlayerState.STACKING;
+            case LOOTING:
+                if (!SlayerTask.hasTask()) {
+                    return SlayerState.RESTORING;
+                }
+                if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot() || Loot.cantLootMore(bot.getCannon().isCannonPlaced() ? 4 : 0)) {
+                    return SlayerState.RESTORING;
+                } else {
+                    return SlayerState.LURING;
+                }
+            case BARRAGING:
+                return SlayerState.LOOTING;
+            case RESTORING:
+                if (!bot.settings().spell().canCast()) {
+                    bot.updateStatus("Ran out of runes.");
+                    bot.stop("Ran out of runes.");
+                    return SlayerState.STARTING;
+                }
+                if (!SlayerTask.hasTask()) {
+                    bot.updateStatus("end slayer task");
+                    bot.stop("end slayer task");
+                    return SlayerState.STARTING;
+                }
+                if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+                    return SlayerState.BREAKING;
+                return SlayerState.RESTOCKING;
+        }
+
+        var monster = bot.settings().monster();
+        var loc = monster.getMonster().getLocation(bot);
+        if (loc.getArea().contains(Players.getLocal())) {
+            if (util.anyOtherPlayersWithin(loc.getArea()))
+                return SlayerState.HOPPING;
+            return SlayerState.LURING;
+        }
+
+        if (Bank.isOpen()) return SlayerState.RESTOCKING;
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (initiator != SlayerState.RESTOCKING && needsRestock) {
+            if (util.isFullyRestored())
+                return SlayerState.RESTOCKING;
+            return SlayerState.RESTORING;
+        }
+        return SlayerState.TRAVERSING;
+    }
+}

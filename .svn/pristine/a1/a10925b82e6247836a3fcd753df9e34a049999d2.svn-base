@@ -1,0 +1,111 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.GroundItemQueryBuilder;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.List;
+
+@Log4j2(topic = "LootState")
+public class LootState implements LoopState<MoleState> {
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Big bones",
+            "Steel arrow",
+            "Iron arrow",
+            "Shark",
+            "Mithril bar",
+            "Oyster pearls",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final MoleListener moleListener;
+    private final Mole bot;
+    private boolean fullUp = false;
+
+    public LootState(MoleListener moleListener, Mole bot) {
+        this.moleListener = moleListener;
+        this.bot = bot;
+    }
+
+    public static boolean restoreHitpoints() {
+        if (util.consume(MoleState.getFood(), "Eat")) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Mole.updateStatus("Looting");
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        bot.resetKill();
+        if (Mole.doWeNeedToRestock() || fullUp) {
+            return MoleState.RESTORING;
+        } else {
+            return MoleState.SEARCHING;
+        }
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return getGroundItemToLoot(this.moleListener.getDeadTile()) == null || fullUp;
+    }
+
+    private @Nullable GroundItem getGroundItemToLoot(Coordinate c) {
+        var area = Area.rectangular(c, c).grow(1, 1);
+        return new GroundItemQueryBuilder().
+                within(area).
+                filter(groundItem -> !ignoreLoot.contains(groundItem.getDefinition().getName())).
+                results().nearest();
+    }
+
+    @Override
+    public void executeLoop() {
+        var c = this.moleListener.getDeadTile();
+        if (!Execution.delayUntil(() -> getGroundItemToLoot(c) != null || MoleState.isPaused(),
+                10000)) {
+            log.debug("no loot? must be someone else's kill?");
+            return;
+        }
+        var gi = getGroundItemToLoot(c);
+        if (gi == null) return;
+        var p = gi.getPosition();
+        var id = gi.getId();
+        Mole.updateStatus(String.format("Looting: %s", gi));
+        if (Inventory.getUsedSlots() >= 28 && !util.itemStacksAndInInvent((gi))) {
+            if (!restoreHitpoints()) {
+                log.debug("full");
+                fullUp = true;
+            } else {
+                Execution.delay(1200, 1800);
+            }
+        }
+        util.take(gi);
+
+        Execution.delayUntil(() -> new GroundItemQueryBuilder().on(p).ids(id).results().isEmpty(), 600, 700);
+    }
+}

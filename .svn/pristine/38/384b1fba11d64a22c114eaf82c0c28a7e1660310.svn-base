@@ -1,0 +1,51 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.slayer.bot</main-class>
+    <name>Necks Slayer [BETA]</name>
+    <tag-line>Neck 'em</tag-line>
+    <description>Slays Monsters</description>
+    <access>public</access>
+    <price>0.03</price>
+    <version>0.0.17</version>
+    <internal-id>NeckSlayer</internal-id>
+    <open-source>true</open-source>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+        <category>MAGIC</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.*</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>slayer</tag>
+        <tag>barrage</tag>
+        <tag>smoke devil</tag>
+        <tag>skeletal wyvern</tag>
+        <tag>wyvern</tag>
+        <tag>adamant dragon</tag>
+        <tag>rune dragon</tag>
+        <tag>iron dragon</tag>
+        <tag>steel dragon</tag>
+        <tag>dragons</tag>
+        <tag>burst</tag>
+        <tag>nechryael</tag>
+        <tag>abyssal</tag>
+        <tag>abyssal demon</tag>
+        <tag>demons</tag>
+        <tag>jelly</tag>
+        <tag>dust devil</tag>
+        <tag>devils</tag>
+        <tag>nech</tag>
+        <tag>duradel</tag>
+        <tag>nieve</tag>
+        <tag>neck</tag>
+        <tag>magic</tag>
+        <tag>melee</tag>
+    </tags>
+</manifest>

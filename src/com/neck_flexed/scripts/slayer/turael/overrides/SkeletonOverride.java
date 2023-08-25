@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.slayer.turael.overrides;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class SkeletonOverride implements TraverseOverride {
+    private Traverser overrideTraverser;
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        var pos = Players.getLocal().getServerPosition();
+        if (pos.getContainingRegionId() == 13464) return false;
+        log.debug("Override web path skele");
+        var winchOn = new Coordinate(3352, 3417, 0);
+        var winch = GameObjects.newQuery()
+                .on(winchOn)
+                .names("Winch")
+                .results()
+                .nearest();
+        if (winch == null) {
+            if (this.overrideTraverser == null)
+                this.overrideTraverser = Traverser.webPathTraverser(new Coordinate(3352, 3416, 0));
+            overrideTraverser.executeLoop();
+            return true;
+        }
+        var rope = Inventory.getItems("Rope").first();
+        if (rope == null) {
+            log.error("No rope");
+            return true;
+        }
+        var reg = Players.getLocal().getServerPosition().getContainingRegionId();
+        bot.di.sendItemUseOn(rope, winch);
+        Execution.delayUntil(() -> reg != Players.getLocal().getServerPosition().getContainingRegionId(),
+                util::playerMoving, 5000, 6000);
+        return true;
+    }
+}

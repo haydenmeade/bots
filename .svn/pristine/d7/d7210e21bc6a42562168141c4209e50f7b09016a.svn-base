@@ -1,0 +1,67 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.Spell;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@RequiredArgsConstructor
+@Getter
+public enum TeleportSpellInfo {
+    BATTLEFRONT(Magic.Arceuus.BATTLEFRONT_TELEPORT, 23, Map.of(Rune.EARTH, 1, Rune.FIRE, 1, Rune.LAW, 1)),
+    LASSAR(Magic.Ancient.LASSAR_TELEPORT, 72, Map.of(Rune.WATER, 4, Rune.LAW, 2)),
+    VARROCK(Magic.VARROCK_TELEPORT, 35, Map.of(Rune.AIR, 3, Rune.FIRE, 1, Rune.LAW, 1)),
+    LUMBRIDGE(Magic.LUMBRIDGE_TELEPORT, 31, Map.of(Rune.LAW, 1, Rune.EARTH, 1, Rune.AIR, 3)),
+    FALADOR(Magic.FALADOR_TELEPORT, 37, Map.of(Rune.LAW, 1, Rune.WATER, 1, Rune.AIR, 3)),
+    WATERBIRTH(Magic.Lunar.WATERBIRTH_TELEPORT, 72, Map.of(Rune.WATER, 1, Rune.ASTRAL, 1, Rune.LAW, 1)),
+    MOONCLAN(Magic.Lunar.MOONCLAN_TELEPORT, 69, Map.of(Rune.EARTH, 1, Rune.ASTRAL, 1, Rune.LAW, 1)),
+    ARDOUGNE(Magic.ARDOUGNE_TELEPORT, 51, Map.of(Rune.WATER, 2, Rune.LAW, 2)),
+    KOUREND(Magic.KOUREND_CASTLE_TELEPORT, 69, Map.of(Rune.FIRE, 1, Rune.WATER, 1, Rune.LAW, 2, Rune.SOUL, 2)),
+    HOUSE(Magic.TELEPORT_TO_HOUSE, 40, Map.of(Rune.LAW, 1, Rune.EARTH, 1, Rune.AIR, 1));
+
+    private final Spell spell;
+    private final int level;
+    private final Map<Rune, Integer> runes;
+
+    public static boolean canSwap() {
+        return Magic.Book.LUNAR.isCurrent() && Skill.MAGIC.getCurrentLevel() >= 96
+                && Rune.ASTRAL.getQuantity() >= 3 && Rune.COSMIC.getQuantity() >= 2 && Rune.LAW.getQuantity() >= 1;
+    }
+
+    public boolean canCast() {
+        return canCast(util.inventoryEquipmentSource());
+    }
+
+    public boolean canCast(Collection<SpriteItem> items) {
+        var arr = new ArrayList<>(items);
+        var hasRunes = runes.entrySet().stream().allMatch((kv) -> kv.getKey().getQuantity(arr) >= kv.getValue());
+        var spellBookActive = getBook().isCurrent();
+        return hasRunes && Skill.MAGIC.getCurrentLevel() >= level && (spellBookActive || canSwap());
+    }
+
+    public boolean hasTeleportTab() {
+        return hasTeleportTab(util.inventoryEquipmentBankSource());
+    }
+
+    public boolean hasTeleportTab(Collection<SpriteItem> items) {
+        return Items.contains(items, getTeleportTab());
+    }
+
+    public Pattern getTeleportTab() {
+        return Pattern.compile("^" + this.spell.name().replaceAll("_", " ") + "$", Pattern.CASE_INSENSITIVE);
+    }
+
+    public Magic.Book getBook() {
+        return (Magic.Book) spell.getSpellBook();
+    }
+
+}

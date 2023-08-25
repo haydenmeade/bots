@@ -1,0 +1,67 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+    private final Mole bot;
+
+    private boolean isDharok;
+
+    public Consumeables(Mole bot, boolean isDharok) {
+        this.bot = bot;
+        this.isDharok = isDharok;
+    }
+
+    public void setDharok(boolean isDharok) {
+        this.isDharok = isDharok;
+    }
+
+    public boolean restoreHitpoints() {
+        return Food.eatAny();
+    }
+
+
+    private void checkAndConsume() {
+        if (MoleState.isPaused()) return;
+        if (Health.getCurrentPercent() < 30 && !this.isDharok) {
+            if (!restoreHitpoints()) {
+                this.bot.forceState(MoleState.RESTORING);
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!util.restorePrayer()) {
+                this.bot.forceState(MoleState.RESTORING);
+            }
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.error("death", event);
+        Mole.updateStatus("dead");
+        bot.stop("DEAD");
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

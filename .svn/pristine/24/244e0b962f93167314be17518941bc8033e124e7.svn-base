@@ -1,0 +1,185 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootingState extends BaseState<DkState> {
+
+    public static final List<String> alchables = Arrays.asList(
+            "Air battlestaff",
+            "Water battlestaff",
+            "Earth battlestaff",
+            "Skeletal top",
+            "Skeletal bottoms",
+            "Runite limbs",
+            "Archer helm",
+            "Red d'hide vambraces",
+            "Rune battleaxe",
+            "Rune 2h sword",
+            "Fremennik blade",
+            "Fremennik shield",
+            "Fremennik helm",
+            "Battlestaff",
+            "Mithril warhammer",
+            "Adamant axe",
+            "Steel platebody",
+            "Mithril pickaxe",
+            "Adamant platebody",
+            "Rune axe",
+            "Mithril 2h sword",
+            "Ring of life",
+            "Rock-shell plate",
+            "Rock-shell legs",
+            "Spined body",
+            "Spined chaps"
+    );
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Dagannoth hide",
+            "Nature rune",
+            "Coins",
+            "Air rune",
+            "Tooth half of key",
+            "Loop half of key",
+            "Earth rune",
+            "Law rune",
+            "Pure essence",
+            "Mithril knife",
+            "Uncut diamond",
+            "Steel kiteshield",
+            "Adamant dart",
+            "Iron knife",
+            "Rune thrownaxe",
+            "Runite bolts",
+            "Belladonna seed",
+            "Poison ivy seed",
+            "Cactus seed",
+            "Irit seed",
+            "Avantoe seed",
+            "Kwuarm seed",
+            "Cadantine seed",
+            "Lantadyme seed",
+            "Snape grass seed",
+            "Potato cactus seed",
+            "Dwarf weed seed",
+            "Torstol seed",
+            "Steel knife",
+            "Adamantite bar",
+            "Oyster pearls",
+            "Mud rune",
+            "Ensouled dagannoth head",
+            "Antifire potion(2)",
+            "Prayer potion(2)",
+            "Restore potion(2)",
+            "Super attack(2)",
+            "Super strength(2)",
+            "Super defence(2)",
+            "Zamorak brew(2)",
+            "Opal bolt tips",
+            "Feather",
+            "Grimy ranarr weed",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Mithril ore",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Maple logs",
+            "Toadflax seed",
+            "Uncut emerald",
+            "Air talisman",
+            "Body talisman",
+            "Earth talisman",
+            "Fire talisman",
+            "Mind talisman",
+            "Water talisman",
+            "Cosmic talisman",
+            "Chaos talisman",
+            "Nature talisman");
+
+    public static final Pattern[] mustLoot = util.toPatternArray(
+            "Berserker ring",
+            "Warrior ring",
+            "Seers ring",
+            "Archers ring",
+            "Dragon axe",
+            "Mud battlestaff",
+            "Seercull"
+    );
+    private static final List<String> ignoreWithAlchabes = util.joinLists(ignoreLoot, alchables);
+    private final dk bot;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootingState(dk bot) {
+        super(DkState.LOOTING);
+        this.bot = bot;
+    }
+
+
+    public static Loot.LootResult lootIt(dk bot) {
+        return lootIt(bot, 400);
+    }
+
+    public static Loot.LootResult lootIt(dk bot, int timeout) {
+        return Loot.doLoop(
+                null
+                , bot.settings()
+                , new Pattern[0]
+                , mustLoot
+                , bot.settings().boostMelee().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boostMelee().patternAny()
+                // filter unnoted dag bones witno bury bones
+                , g -> g.getDefinition() != null && "Dagannoth bones".equals(g.getDefinition().getName()) && !g.getDefinition().isNoted() && !bot.settings().buryBones()
+                , timeout
+                , 2800
+        );
+    }
+
+    private static Pattern[] getCurrentIgnoreList(String neverLootSetting) {
+        var l = util.canAlch() ? ignoreLoot : ignoreWithAlchabes;
+        return util.concatenate(
+                util.parseCsvRegexString(neverLootSetting),
+                util.toPatternArray(l)
+        );
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Looting");
+    }
+
+    @Override
+    public void deactivate() {
+        if (result.equals(Loot.LootResult.Full)) {
+            log.debug("deactivate full or breaking");
+            bot.forceState(DkState.RESTORING);
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        if (bot.isSlayerTaskDone()) return !Objects.equals(this.result, Loot.LootResult.NotDone);
+
+        return King.getNearestKing() != null || !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = lootIt(this.bot);
+    }
+}

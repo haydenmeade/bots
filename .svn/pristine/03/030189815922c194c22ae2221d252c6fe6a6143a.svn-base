@@ -1,0 +1,193 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Loot;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "FightTask")
+public class FightTask extends LeafTask {
+    private final int specCost;
+    private final boolean specEnabled;
+
+    public FightTask(int specCost, boolean specEnabled) {
+        this.specCost = specCost;
+        this.specEnabled = specEnabled;
+    }
+
+
+    @Override
+    public void execute() {
+        if (!sire.fightArea.contains(Players.getLocal())) {
+            log.debug("not in fight area");
+            SireState.resetKill();
+            SireState.setBotState(SireState.getInitialState());
+            return;
+        }
+        if (SireState.get() != SireState.FIGHTING) return;
+        var fs = SireState.getRawFightState() == SireState.getFightState() ?
+                SireState.getRawFightState() :
+                SireState.getRawFightState() == FightState.Phase3_1 &&
+                        SireState.getFightState() == FightState.Phase2 ?
+                        FightState.Phase3_1 :
+                        SireState.getRawFightState() == FightState.Phase3_2 &&
+                                SireState.getFightState() == FightState.Phase3_1 ?
+                                FightState.Phase3_2 :
+                                SireState.getFightState();
+        var settings = SireState.getSettings();
+        if (fs == null) return;
+        var isFirstKill = u.hasSpec() || settings.fightStrategy().equals(FightStrategy.RestoreEveryTrip);
+        log.debug(String.format("execute: %s", fs));
+        var s = u.getSire();
+        if (s != null) {
+            log.debug(String.format("SIRE ID: %d,", s.getId()));
+            log.debug(String.format("SIRE ANIM ID: %d,", s.getAnimationId()));
+        }
+        var debugString = String.format("Phase: %s", fs);
+        sire.updateStatus(debugString);
+        switch (fs) {
+            case Phase0:
+                log.debug("phase 0 starting");
+
+                u.equipPhase1();
+                util.boostIfNeeded(util.getCombatStyle(settings.phase1Equipment()));
+                SireState.setActivePrayers(util.getBoostPrayersA(util.getCurrentCombatStyle()));
+
+                // wake up.
+                if (!Execution.delayUntil(() -> u.getSire() != null && u.getSire().getId() != sire.SireId_Phase0,
+                        600, 1200)) {
+                    if (u.getSire() == null) {
+                        util.moveTo(Phase2.tile1);
+                        Execution.delay(606, 705);
+                        return;
+                    }
+                    u.attackSire();
+                }
+                // goto phase 1.
+                SireState.setFightState(FightState.Phase1);
+                log.debug("phase 0 done");
+                break;
+            case Phase1:
+                log.debug("phase 1 starting");
+                u.equipPhase1();
+                SireState.setActivePrayers(util.getBoostPrayersA(util.getCurrentCombatStyle()));
+                util.boostIfNeeded(util.getCombatStyle(settings.phase1Equipment()));
+
+                var target = isFirstKill ? -1 : 2;
+                u.killRespiratory();
+                if (!isFirstKill && SireState.getRespiratoryKilled() == target) {
+                    // restore and run back;
+                    sire.updateStatus(String.format("Restoring and running back"));
+                    SireState.setActivePrayers();
+                    SireState.setFightState(FightState.Phase1);
+                    SireState.setBotState(SireState.RESTORING);
+                    return;
+                }
+                if (SireState.getRespiratoryKilled() == target && u.getSire() == null) {
+                    util.moveTo(Phase2.tile1);
+                } else {
+                    s = u.getSire();
+                    if (s != null)
+                        if (s.getId() == sire.SireId_Phase2 || s.getId() == sire.SireId_Phase2or3_Walk)
+                            SireState.setFightState(FightState.Phase2);
+                }
+                log.debug("phase 1 done");
+                break;
+            case Phase2:
+                log.debug("phase 2 starting");
+                if (SireState.getRawFightState() == FightState.Phase1)
+                    SireState.setFightState(FightState.Phase2);
+
+                u.equipPhase2();
+                util.boostIfNeeded(util.getCombatStyle(settings.phase2Equipment()));
+                var prayers2 = util.getBoostPrayers(util.getCurrentCombatStyle());
+                prayers2.add(Prayer.PROTECT_FROM_MELEE);
+                SireState.setActivePrayers(prayers2.toArray(new Prayer[0]));
+                if (!Players.getLocal().getPosition().equals(Phase2.tile1)) {
+                    util.moveTo(Phase2.tile1);
+                }
+                if (u.getSire() != null &&
+                        u.getSire().getId() != sire.SireId_Phase2or3_Walk) {
+                    var f = new Phase2Fighter(specCost, specEnabled);
+                    u.addListener(f);
+                    Execution.delayUntil(() -> f.done() || SireState.isPaused(), 120000);
+                    u.removeListener(f);
+                    if (SireState.isPaused()) return;
+                    SireState.setFightState(FightState.Phase3_1);
+                    log.debug("phase 2 done, prewalking for phase 3");
+                }
+                log.debug("phase 2 done");
+                break;
+            case Phase3_1:
+                log.debug("phase 3.1 starting");
+                // spam click to phase 3.1
+                if (u.getSire().getId() == sire.SireId_Phase2or3_Walk &&
+                        !Phase3.tile1.equals(Players.getLocal().getPosition())) {
+                    util.moveTo(Phase3.tile1);
+                    u.equipPhase2();
+                    util.eatIfHpAllows(settings.food());
+                    var prayers31 = util.getBoostPrayers(util.getCurrentCombatStyle());
+                    prayers31.add(Prayer.PROTECT_FROM_MISSILES);
+                    SireState.setActivePrayers(prayers31.toArray(new Prayer[0]));
+                    Execution.delay(300, 610);
+                    return;
+                }
+                if (u.getSire().getId() != sire.SireId_Phase3_1) return;
+                var f31 = new Phase31Fighter();
+                u.addListener(f31);
+                Execution.delayUntil(() -> f31.done() || SireState.isPaused(), 120000);
+                u.removeListener(f31);
+                SireState.setFightState(FightState.Phase3_2);
+                SireState.setPhase32SafeTile(Phase3.getMoveToTile(Players.getLocal().getPosition()));
+                log.debug("phase 3.1 finished, prewalking for phase 3.2");
+                break;
+            case Phase3_2:
+                log.debug("phase 3.2 starting");
+                var m = SireState.getPhase32SafeTile();
+                // spam click escape explosion.
+                if (u.getSire().getId() != sire.SireId_Phase3_2 &&
+                        u.getSire().getAnimationId() == Phase3.explosionAnim &&
+                        !m.equals(Players.getLocal().getPosition())) {
+                    util.moveTo(m);
+                    util.eatIfHpAllows(settings.food());
+                    var prayers = util.getBoostPrayers(util.getCurrentCombatStyle());
+                    prayers.add(Prayer.PROTECT_FROM_MISSILES);
+                    SireState.setActivePrayers(prayers.toArray(new Prayer[0]));
+                    u.equipPhase2();
+                    return;
+                }
+                var f32 = new Phase32Fighter();
+                u.addListener(f32);
+                Execution.delayUntil(() -> f32.done() || SireState.isPaused(), 120000);
+                u.removeListener(f32);
+                if (SireState.isPaused()) return;
+                SireState.setBotState(SireState.LOOTING);
+                SireState.resetKill();
+                SireState.setFightState(FightState.Dead);
+                SireState.setSireKilled(SireState.getSireKilled() + 1);
+                log.debug("phase 3.2 done, waiting for loot");
+
+                Loot.waitForLoot(LootTask.lootArea, Pattern.compile("Abyssal ashes"), 10000);
+                break;
+            case Dead:
+                log.debug("dead fight state");
+                if (u.getSire() != null) {
+                    SireState.setFightState(FightState.Phase0);
+                } else {
+                    util.moveTo(Phase2.tile1);
+                    Execution.delay(606, 705);
+                }
+            default:
+        }
+        log.debug("loop fight task");
+
+    }
+
+
+}
+

@@ -1,0 +1,69 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.Loadout;
+import com.neck_flexed.scripts.common.Loadouts;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "EnterLairState")
+public class EnterLairState implements LoopState<HydraState> {
+
+    private final Loadouts loadouts;
+    private final com.neck_flexed.scripts.hydra.bot bot;
+    private HydraListener hydraListener;
+    private PrayerFlicker prayerFlicker;
+
+    public EnterLairState(HydraListener hydraListener, com.neck_flexed.scripts.hydra.bot bot, PrayerFlicker prayerFlicker) {
+        this.hydraListener = hydraListener;
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+        this.loadouts = bot.loadouts;
+    }
+
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Entering boss room");
+        this.hydraListener.reset();
+    }
+
+    @Override
+    public HydraState deactivate(EventDispatcher d) {
+        return HydraState.FIGHTING;
+    }
+
+    @Override
+    public HydraState get() {
+        return HydraState.ENTERING_LAIR;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return com.neck_flexed.scripts.hydra.bot.inBossRoom();
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.loadouts.getEquipped() == null) {
+            this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getForRole(Loadout.LoadoutRole.Combat));
+            this.loadouts.equip(this.loadouts.getEquipped(), true);
+        }
+        var d = com.neck_flexed.scripts.hydra.bot.getDoor();
+        if (d != null) {
+            DirectInput.send(MenuAction.forGameObject(d, "Quick-open"));
+            //hydraListener.init();
+            Execution.delayUntil(com.neck_flexed.scripts.hydra.bot::inBossRoom, 1200, 1800);
+        }
+    }
+}

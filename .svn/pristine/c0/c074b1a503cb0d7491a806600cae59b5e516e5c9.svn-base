@@ -1,0 +1,38 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+
+import java.util.Map;
+import java.util.Objects;
+
+public interface SlayerBot {
+
+    SlayerMonster getPreviousTask();
+
+    void setPreviousTask(SlayerMonster previousTask);
+
+    Map<Coordinate, Long> getDeathTiles();
+
+    default void timeCheckDeathTiles() {
+        for (var p :
+                getDeathTiles().entrySet()) {
+            if (p.getValue() - System.currentTimeMillis() > 10000)
+                getDeathTiles().remove(p.getKey(), p.getValue());
+        }
+    }
+
+    default void handleNpcDeath(SlayerMonster monster, Npc npc, Npc currentTarget) {
+        if (!monster.isMonster(npc)) return;
+        if (Objects.equals(npc, currentTarget)
+                || npc.getTarget() == null
+                || Objects.equals(Players.getLocal(), npc.getTarget())) {
+            var pos = npc.getServerPosition();
+            if (pos.isReachable())
+                getDeathTiles().put(pos, System.currentTimeMillis());
+        }
+    }
+
+    void taskCompleted();
+}

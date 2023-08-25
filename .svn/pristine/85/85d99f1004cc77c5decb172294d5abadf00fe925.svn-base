@@ -1,0 +1,77 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class StartingState implements LoopState<TuraelState> {
+    private final com.neck_flexed.scripts.turael.bot bot;
+    private boolean started = false;
+
+    public StartingState(com.neck_flexed.scripts.turael.bot m) {
+        this.bot = m;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        var monster = Monster.fromSlayerTask();
+        if (monster.isPresent()) {
+            // has turael task
+            if (monster.get().getArea().contains(Players.getLocal())) {
+                if (util.anyOtherPlayersWithin(monster.get().getArea()))
+                    return TuraelState.HOPPING;
+                return TuraelState.FIGHTING;
+            }
+        } else {
+            return TuraelState.GET_NEW_TASK;
+        }
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return TuraelState.RESTOCKING;
+            return TuraelState.RESTORING;
+        }
+        return TuraelState.TRAVERSING;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        //Monster.setDEBUG_MONSTER(bot.settings().debugMonster());
+        // Monster.setDEBUG_MONSTER(Monster.Kalphites_Lair);
+        Camera.setZoom(0.0, 0.1);
+        if (!util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        if (bot.getInventory() == null) {
+            var inv = NeckInventory.createInventory();
+            log.debug("Initializing inventory: " + inv);
+            bot.setInventory(inv);
+        }
+        started = true;
+    }
+}

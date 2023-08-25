@@ -1,0 +1,192 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import static com.neck_flexed.scripts.slayer.barrage.areas.ABYSSAL_DEMON;
+import static com.neck_flexed.scripts.slayer.barrage.areas.NECH;
+
+public class areas {
+    public static Area Spectres = new Area.Rectangular(new Coordinate(2439, 9797, 0), new Coordinate(2474, 9771, 0));
+    public static Area AbyssalDemons = ABYSSAL_DEMON;
+    public static Area Nechryael = NECH;
+    public static Area BlackDemon = new Area.Rectangular(new Coordinate(1714, 10095, 0), new Coordinate(1725, 10077, 0));
+    public static Area Bloodveld = new Area.Rectangular(new Coordinate(1683, 10022, 0), new Coordinate(1698, 10007, 0));
+    public static Area DustDevil = new Area.Rectangular(new Coordinate(1707, 10037, 0), new Coordinate(1721, 10025, 0));
+    public static Area GreaterDemon = new Area.Rectangular(new Coordinate(1682, 10106, 0), new Coordinate(1725, 10092, 0));
+    public static Area Hellhound = new Area.Polygonal(
+            new Coordinate(1641, 10075, 0),
+            new Coordinate(1641, 10073, 0),
+            new Coordinate(1642, 10070, 0),
+            new Coordinate(1640, 10065, 0),
+            new Coordinate(1637, 10065, 0),
+            new Coordinate(1636, 10059, 0),
+            new Coordinate(1639, 10055, 0),
+            new Coordinate(1641, 10055, 0),
+            new Coordinate(1651, 10056, 0),
+            new Coordinate(1654, 10060, 0),
+            new Coordinate(1654, 10067, 0),
+            new Coordinate(1644, 10076, 0)
+    );
+    public static Area FireGiant = new Area.Polygonal(
+            new Coordinate(1616, 10052, 0),
+            new Coordinate(1616, 10061, 0),
+            new Coordinate(1617, 10063, 0),
+            new Coordinate(1619, 10063, 0),
+            new Coordinate(1623, 10067, 0),
+            new Coordinate(1628, 10067, 0),
+            new Coordinate(1630, 10069, 0),
+            new Coordinate(1633, 10069, 0),
+            new Coordinate(1635, 10070, 0),
+            new Coordinate(1639, 10070, 0),
+            new Coordinate(1640, 10066, 0),
+            new Coordinate(1635, 10062, 0),
+            new Coordinate(1636, 10057, 0),
+            new Coordinate(1635, 10051, 0),
+            new Coordinate(1633, 10047, 0),
+            new Coordinate(1628, 10045, 0),
+            new Coordinate(1619, 10047, 0)
+    );
+    public static Area Dagannoth = new Area.Polygonal(
+            new Coordinate(1674, 10006, 0),
+            new Coordinate(1667, 10006, 0),
+            new Coordinate(1657, 10004, 0),
+            new Coordinate(1657, 10000, 0),
+            new Coordinate(1653, 9998, 0),
+            new Coordinate(1653, 9995, 0),
+            new Coordinate(1657, 9994, 0),
+            new Coordinate(1660, 9993, 0),
+            new Coordinate(1662, 9993, 0),
+            new Coordinate(1661, 9989, 0),
+            new Coordinate(1663, 9987, 0),
+            new Coordinate(1666, 9987, 0),
+            new Coordinate(1676, 9992, 0),
+            new Coordinate(1681, 9994, 0),
+            new Coordinate(1679, 10001, 0)
+    );
+    public static Area Ankou = new Area.Polygonal(
+            new Coordinate(1648, 10000, 0),
+            new Coordinate(1647, 10001, 0),
+            new Coordinate(1643, 10001, 0),
+            new Coordinate(1637, 9999, 0),
+            new Coordinate(1633, 9998, 0),
+            new Coordinate(1633, 9990, 0),
+            new Coordinate(1636, 9988, 0),
+            new Coordinate(1639, 9988, 0),
+            new Coordinate(1643, 9989, 0),
+            new Coordinate(1645, 9991, 0),
+            new Coordinate(1647, 9994, 0),
+            new Coordinate(1649, 9994, 0),
+            new Coordinate(1650, 9995, 0),
+            new Coordinate(1651, 9995, 0),
+            new Coordinate(1652, 9998, 0),
+            new Coordinate(1650, 10000, 0)
+    );
+
+    public static Area Banshees = new Area.Polygonal(
+            new Coordinate(3432, 3540, 0),
+            new Coordinate(3434, 3533, 0),
+            new Coordinate(3438, 3534, 0),
+            new Coordinate(3442, 3534, 0),
+            new Coordinate(3445, 3531, 0),
+            new Coordinate(3448, 3531, 0),
+            new Coordinate(3451, 3535, 0),
+            new Coordinate(3451, 3538, 0),
+            new Coordinate(3448, 3541, 0),
+            new Coordinate(3444, 3544, 0),
+            new Coordinate(3437, 3544, 0),
+            new Coordinate(3437, 3540, 0)
+    );
+    public static Area Bats = new Area.Polygonal(
+            new Coordinate(3334, 3485, 0),
+            new Coordinate(3334, 3471, 0),
+            new Coordinate(3347, 3470, 0),
+            new Coordinate(3357, 3481, 0),
+            new Coordinate(3378, 3471, 0),
+            new Coordinate(3375, 3478, 0),
+            new Coordinate(3372, 3490, 0),
+            new Coordinate(3363, 3496, 0),
+            new Coordinate(3347, 3499, 0)
+    );
+    public static Area Bears = new Area.Rectangular(new Coordinate(2688, 3319, 0), new Coordinate(2716, 3354, 0));
+    public static Area Birds = new Area.Rectangular(new Coordinate(3163, 3362, 0), new Coordinate(3184, 3351, 0));
+    public static Area CaveBugs = new Area.Rectangular(new Coordinate(2709, 5243, 0), new Coordinate(2719, 5223, 0));
+    public static Area CaveCrawlers = new Area.Rectangular(new Coordinate(2780, 10005, 0), new Coordinate(2809, 9989, 0));
+    public static Area CaveSlime = new Area.Rectangular(new Coordinate(2722, 5239, 0), new Coordinate(2736, 5231, 0));
+    public static Area Cows = new Area.Rectangular(new Coordinate(3247, 3291, 0), new Coordinate(3265, 3255, 0));
+    public static Area CrawlingHands = new Area.Polygonal(
+            new Coordinate(3406, 3575, 0),
+            new Coordinate(3409, 3578, 0),
+            new Coordinate(3412, 3578, 0),
+            new Coordinate(3415, 3576, 0),
+            new Coordinate(3419, 3576, 0),
+            new Coordinate(3420, 3577, 0),
+            new Coordinate(3423, 3577, 0),
+            new Coordinate(3425, 3576, 0),
+            new Coordinate(3425, 3562, 0),
+            new Coordinate(3416, 3562, 0),
+            new Coordinate(3416, 3568, 0),
+            new Coordinate(3409, 3568, 0),
+            new Coordinate(3406, 3571, 0)
+    );
+    public static Area Dogs = new Area.Polygonal(
+            new Coordinate(3377, 2955, 0),
+            new Coordinate(3365, 2947, 0),
+            new Coordinate(3359, 2922, 0),
+            new Coordinate(3340, 2921, 0),
+            new Coordinate(3342, 2880, 0),
+            new Coordinate(3392, 2881, 0),
+            new Coordinate(3391, 2955, 0)
+    );
+    public static Area Dwarves = new Area.Rectangular(new Coordinate(2859, 9882, 0), new Coordinate(2871, 9869, 0));
+    public static Area Ghosts = new Area.Rectangular(new Coordinate(1684, 10068, 0), new Coordinate(1701, 10057, 0));
+    public static Area Goblins = new Area.Rectangular(new Coordinate(3138, 3310, 0), new Coordinate(3152, 3294, 0));
+    public static Area Icefiends = new Area.Rectangular(new Coordinate(2998, 3487, 0), new Coordinate(3017, 3466, 0));
+    public static Area Kalphites = new Area.Polygonal(
+            new Coordinate(3314, 9500, 0),
+            new Coordinate(3315, 9504, 0),
+            new Coordinate(3318, 9515, 0),
+            new Coordinate(3328, 9515, 0),
+            new Coordinate(3336, 9507, 0),
+            new Coordinate(3335, 9500, 0),
+            new Coordinate(3328, 9493, 0),
+            new Coordinate(3323, 9490, 0),
+            new Coordinate(3315, 9494, 0)
+    );
+    public static Area Lizards = new Area.Polygonal(
+            new Coordinate(3382, 3081, 0),
+            new Coordinate(3376, 3065, 0),
+            new Coordinate(3392, 3036, 0),
+            new Coordinate(3371, 3016, 0),
+            new Coordinate(3375, 3009, 0),
+            new Coordinate(3434, 3008, 0),
+            new Coordinate(3430, 3081, 0)
+    );
+    public static Area Minotaurs = new Area.Polygonal(
+            new Coordinate(1870, 5217, 0),
+            new Coordinate(1870, 5218, 0),
+            new Coordinate(1873, 5223, 0),
+            new Coordinate(1877, 5222, 0),
+            new Coordinate(1880, 5222, 0),
+            new Coordinate(1883, 5221, 0),
+            new Coordinate(1883, 5215, 0),
+            new Coordinate(1876, 5208, 0),
+            new Coordinate(1873, 5208, 0)
+    );
+    public static Area Monkeys = new Area.Rectangular(new Coordinate(2786, 3006, 0), new Coordinate(2808, 2987, 0));
+    public static Area Rats = new Area.Rectangular(new Coordinate(3228, 9872, 0), new Coordinate(3252, 9862, 0));
+    public static Area Scorpions = new Area.Rectangular(new Coordinate(3295, 3314, 0), new Coordinate(3304, 3276, 0));
+    public static Area Skeletons = new Area.Rectangular(new Coordinate(3358, 9772, 0), new Coordinate(3391, 9735, 0));
+    public static Area Sourhogs = new Area.Rectangular(new Coordinate(3150, 9704, 0), new Coordinate(3184, 9670, 0));
+    public static Area Spiders = new Area.Rectangular(new Coordinate(3153, 3260, 0), new Coordinate(3180, 3235, 0));
+    public static Area Wolves = new Area.Rectangular(new Coordinate(2835, 3509, 0), new Coordinate(2862, 3488, 0));
+    public static Area Zombies = new Area.Rectangular(new Coordinate(3609, 3531, 0), new Coordinate(3633, 3524, 0));
+    public static Area Kalphites_Lair = new Area.Rectangular(new Coordinate(3479, 9532, 2), new Coordinate(3516, 9507, 2));
+    public static Area Kurask = new Area.Rectangular(new Coordinate(2688, 10008, 0), new Coordinate(2708, 9990, 0));
+    public static Area Suqah = new Area.Rectangular(new Coordinate(2108, 3951, 0), new Coordinate(2142, 3930, 0));
+    public static Area IceTroll = new Area.Rectangular(new Coordinate(2389, 3875, 0), new Coordinate(2422, 3846, 0));
+    public static Area Troll = new Area.Rectangular(new Coordinate(2840, 3686, 0), new Coordinate(2858, 3668, 0));
+    public static Area Turoth = new Area.Rectangular(new Coordinate(2710, 10015, 0), new Coordinate(2733, 9988, 0));
+    public static Area BabyBlackDragon = new Area.Rectangular(new Coordinate(2866, 9823, 1), new Coordinate(2851, 9830, 1));
+    ;
+}

@@ -1,0 +1,352 @@
+package com.neck_flexed.scripts.sire;
+
+
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.Varps;
+import com.runemate.game.api.hybrid.local.hud.interfaces.*;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.ui.DefaultUI;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.EventListener;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+@Log4j2(topic = "util")
+public class u {
+    /**
+     * Number of slayer creatures remaining on the assigned task
+     */
+    public static final int SLAYER_TASK_SIZE = 394;
+
+    public static final String imbuedHeart = "Imbued heart";
+    public static final String saturatedHeart = "Saturated heart";
+    public static final String invigorate = "Invigorate";
+
+    public static boolean hasSlayerTask() {
+        var v = Varps.getAt(SLAYER_TASK_SIZE);
+        return v != null && v.getValue() > 0;
+    }
+
+    public static void moveTo(Coordinate c) {
+        if (c == null) return;
+        log.debug(String.format("MoveTo: %s", c.toString()));
+        DirectInput.sendMovement(c);
+        SireState.setLastClick(Action.Move);
+    }
+
+    public static void activateSpec() {
+        if (SpecialAttack.isActivated()) return;
+        var component = (InterfaceComponent) Interfaces.newQuery().containers(new int[]{160}).types(new InterfaceComponent.Type[]{InterfaceComponent.Type.CONTAINER}).actions(new String[]{"Use"}).names(new String[]{"Special Attack"}).grandchildren(false).results().first();
+        DirectInput.send(MenuAction.forInterfaceComponent(component, "Use"));
+    }
+
+    public static void equipRanged() {
+        equip(SireState.getSettings().phase1Equipment());
+        //equip(rangedStuff);
+    }
+
+    public static void equipDramen() {
+        var item = Inventory.getItems(Traverse.dramenStaff, Traverse.lunarStaff).first();
+        if (item != null)
+            DirectInput.send(MenuAction.forSpriteItem(item, "Wield"));
+        Execution.delay(1200, 1400);
+    }
+
+    public static void equip(EquipmentLoadout l) {
+        if (l == null) {
+            log.debug("null loadout");
+            return;
+        }
+        for (EnumMap.Entry<Equipment.Slot, Pattern> a : l.entrySet()) {
+            equip(a.getValue(), a.getKey());
+            Execution.delay(15, 35);
+        }
+    }
+
+    public static void equip(Pattern p, Equipment.Slot s) {
+        var item = Inventory.getItems(p).first();
+        if (item != null) {
+            if (s == Equipment.Slot.WEAPON || s == Equipment.Slot.SHIELD) {
+                DirectInput.send(MenuAction.forSpriteItem(item, "Wield"));
+            } else {
+                DirectInput.send(MenuAction.forSpriteItem(item, "Wear"));
+            }
+        }
+    }
+
+    public static void equip(@NotNull List<String> rangedStuff) {
+        for (String name :
+                rangedStuff) {
+            var item = Inventory.getItems(name).first();
+            if (item != null) {
+                if (item.getDefinition().getEquipmentSlot() == Equipment.Slot.WEAPON ||
+                        item.getDefinition().getEquipmentSlot() == Equipment.Slot.SHIELD) {
+                    DirectInput.send(MenuAction.forSpriteItem(item, "Wield"));
+                } else {
+                    DirectInput.send(MenuAction.forSpriteItem(item, "Wear"));
+                }
+                Execution.delay(15, 35);
+            }
+        }
+    }
+
+    public static void equipMelee() {
+        equip(SireState.getSettings().phase2Equipment());
+    }
+
+    public static void equipSpec() {
+        equip(SireState.getSettings().specEquipment());
+    }
+
+
+    public static Pattern[] concatenate(Pattern[]... arrays) {
+        return Stream.of(arrays)
+                .flatMap(Stream::of)        // or, use `Arrays::stream`
+                .toArray(Pattern[]::new);
+    }
+
+    public static Integer[] concatenate(List<Integer>... arrays) {
+        int size = 0;
+        for (List<Integer> a : arrays)
+            size += a.size();
+        Integer[] res = new Integer[size];
+        int destPos = 0;
+        for (int i = 0; i < arrays.length; i++) {
+            if (i > 0) destPos += arrays[i - 1].size();
+            int length = arrays[i].size();
+            System.arraycopy(arrays[i], 0, res, destPos, length);
+        }
+
+        return res;
+    }
+
+    public static String[] concatenate(String[]... arrays) {
+        return Stream.of(arrays)
+                .flatMap(Stream::of)        // or, use `Arrays::stream`
+                .toArray(String[]::new);
+    }
+
+    public static void attackSire() {
+        var s = getSire();
+        if (s == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(s, "Attack"));
+        SireState.setLastClick(Action.Attack);
+    }
+
+    public static void stunSire() {
+        log.debug("stunning");
+        sire.updateStatus(String.format("stunning sire"));
+        if (getSire() == null) {
+            log.debug("moving in range");
+            while (getSire() == null) {
+                moveTo(new Coordinate(2969, 4781));
+                Execution.delay(600, 1800);
+                if (!sire.fightArea.contains(Players.getLocal())) {
+                    throw new RuntimeException("where are we");
+                }
+            }
+
+        }
+
+        var s = getSire();
+        var mxp = Skill.MAGIC.getExperience();
+
+        DirectInput.sendSpellCastOn(Magic.Ancient.SHADOW_BARRAGE, s);
+        SireState.startStunTimer();
+        while (!Execution.delayUntil(() -> Skill.MAGIC.getExperience() > mxp || SireState.getFightState() != FightState.Phase1, 2000)) {
+            if (SireState.getFightState() != FightState.Phase1)
+                return;
+            DirectInput.sendSpellCastOn(Magic.Ancient.SHADOW_BARRAGE, s);
+            SireState.startStunTimer();
+        }
+    }
+
+    public static @Nullable Coordinate attackClosestRespiratory() {
+        log.debug("attackClosestRespiratory");
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearest();
+        if (nearestResp != null && sire.fightArea.contains(nearestResp)) {
+            log.debug("sending attack input on respiratory");
+            DirectInput.send(MenuAction.forNpc(nearestResp, "Attack"));
+            return nearestResp.getPosition();
+        } else {
+            var p = Players.getLocal().getPosition();
+            if (sire.leftSide.distanceTo(p) < sire.rightSide.distanceTo(p)) {
+                // move right.
+                moveTo(new Coordinate(2973, 4776));
+
+            } else {
+                // move left.
+                moveTo(new Coordinate(2966, 4775));
+            }
+            if (Execution.delayUntil(() -> Npcs.getLoaded(sire.RespId).nearest() != null ||
+                    (getSire() != null && getSire().getId() != sire.SireId_Phase1_Stunned), 5000)) {
+                var nearestResp2 = Npcs.getLoaded(sire.RespId).nearest();
+                if (nearestResp2 == null) {
+                    SireState.setRespiratoryKilled(SireState.getRespiratoryKilled() + 1);
+                    return null;
+                }
+                DirectInput.send(MenuAction.forNpc(nearestResp2, "Attack"));
+                return nearestResp2.getPosition();
+            }
+            return null;
+        }
+    }
+
+
+    public static int getAliveRespiratory() {
+        return 4 - SireState.getRespiratoryKilled();
+    }
+
+    public static boolean isRespDead(Coordinate c) {
+        if (c == null) return true;
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearestTo(c);
+        if (nearestResp == null) return true;
+        if (c.distanceTo(nearestResp) > 2) return true;
+        return false;
+    }
+
+    public static void waitUntilRespiratoryDead(Coordinate c) {
+        if (c == null) {
+            log.debug("null waitUntilRespiratoryDead");
+            return;
+        }
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearestTo(c);
+        if (nearestResp == null) {
+            log.debug("null nearestResp waitUntilRespiratoryDead");
+            return;
+        }
+        if (c.equals(nearestResp.getPosition())) {
+            log.debug("waiting until resp dead");
+            if (Execution.delayUntil(() -> isRespDead(c) || !SireState.isStunned(), 4800, 6800))
+                if (isRespDead(c)) {
+                    SireState.setRespiratoryKilled(SireState.getRespiratoryKilled() + 1);
+                }
+        }
+    }
+
+    public static boolean hasSpec() {
+        return SpecialAttack.getEnergy() == 100;
+    }
+
+    public static boolean isRestored() {
+        return !Health.isPoisoned() &&
+                Health.getCurrentPercent() == 100 &&
+                Prayer.getMaximumPoints() == Prayer.getPoints() &&
+                hasSpec();
+    }
+
+    public static Npc getSire() {
+        return Npcs.getLoaded(sire.Sire).nearest();
+    }
+
+    public static Prayer getRangedBoostPrayer() {
+        if (SireState.getSettings() == null || SireState.getSettings().isPhase1RangedSetup())
+            return Prayer.RIGOUR.isActivatable() ? Prayer.RIGOUR :
+                    Prayer.EAGLE_EYE.isActivatable() ? Prayer.EAGLE_EYE :
+                            Prayer.HAWK_EYE;
+        else
+            return Prayer.AUGURY.isActivatable() ? Prayer.AUGURY :
+                    Prayer.MYSTIC_MIGHT.isActivatable() ? Prayer.MYSTIC_MIGHT :
+                            Prayer.MYSTIC_LORE;
+    }
+
+    public static void killThisManyRespiratory(int target) {
+        log.debug(String.format("killing %d resp", target));
+        while (SireState.getRespiratoryKilled() < target &&
+                SireState.getFightState() == FightState.Phase1) {
+            log.debug(String.format("resp dead: %d", 4 - getAliveRespiratory()));
+            if (!SireState.isStunned()) {
+                stunSire();
+            }
+            sire.updateStatus(String.format("resp dead: %d / %d", 4 - getAliveRespiratory(), target));
+            var c = attackClosestRespiratory();
+            waitUntilRespiratoryDead(c);
+        }
+    }
+
+    public static void addListener(EventListener l) {
+        if (!SireState.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            SireState.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public static void removeListener(EventListener l) {
+        SireState.getEventDispatcher().removeListener(l);
+    }
+
+    public static boolean needToHop() {
+        return Players.getLoaded().stream().count() > 1;
+    }
+
+    public static Pattern[] toItemList(EquipmentLoadout l) {
+        Pattern ret[] = {};
+        if (l == null) return ret;
+        return l.entrySet().stream().map(e -> e.getValue()).toArray(Pattern[]::new);
+    }
+
+    public static Pattern[] toPatternArray(String[] strings) {
+        return Arrays.stream(strings).map(s -> Pattern.compile(s)).toArray(Pattern[]::new);
+    }
+
+    public static void removeFightListeners() {
+        for (EventListener l :
+                SireState.getEventDispatcher().getListeners()) {
+            if (l.getClass().getName().equals(Phase2Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase31Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase32Fighter.class.getName())) {
+                SireState.getEventDispatcher().removeListener(l);
+            }
+        }
+    }
+
+    public static void updateItemFilter() {
+        var s = SireState.getSettings();
+        if (s == null) return;
+
+        Pattern[] x = u.concatenate(
+                Consumeables.antiPoisonPPattern.toArray(new Pattern[0]),
+                u.toPatternArray(new String[]{Traverse.houseTab, Traverse.dramenStaff, Traverse.lunarStaff,
+                        SireState.getFood()}),
+                u.toItemList(SireState.getSettings().phase1Equipment()),
+                u.toItemList(SireState.getSettings().phase2Equipment()),
+                u.toItemList(SireState.getSettings().specEquipment())
+        );
+        Integer[] supplies = u.concatenate(
+                Consumeables.rangedBoosts,
+                Consumeables.prayerRestores,
+                Consumeables.antiPoisonPP,
+                Consumeables.attackBoosts,
+                Consumeables.strengthBoosts,
+                Consumeables.defenceBoosts,
+                Consumeables.combatBoosts
+        );
+        DefaultUI.setItemEventFilter(SireState.getBot(),
+                (e -> {
+                    var n = e.getItem().getDefinition().getName();
+                    var r1 = !Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                    if (!r1) return false;
+                    var id = e.getItem().getId();
+                    var r2 = !Arrays.stream(supplies).anyMatch(i -> i == id);
+                    if (!r2) return false;
+                    return true;
+                }));
+    }
+}

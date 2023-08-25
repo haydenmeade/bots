@@ -1,0 +1,47 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+
+public class StartingState extends BaseState<DkState> {
+    private final dk bot;
+    private final Loadouts loadouts;
+    private boolean started = false;
+
+    public StartingState(dk m, Loadouts loadouts) {
+        super(m, DkState.STARTING);
+        this.bot = m;
+        this.loadouts = loadouts;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Starting");
+        if (bot.settings().fightStrategy().equals(FightStrategy.PrayFlickOnly)) {
+            bot.updateStatus("Prayer flick only");
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (bot.settings().fightStrategy().equals(FightStrategy.PrayFlickOnly)) {
+            return;
+        }
+        Camera.setZoom(0.1, 0.1);
+        if (util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        started = true;
+    }
+}

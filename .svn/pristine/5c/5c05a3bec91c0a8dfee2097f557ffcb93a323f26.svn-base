@@ -1,0 +1,27 @@
+package com.neck_flexed.scripts.common;
+
+public enum Action {
+    Attack("Attack"),
+    Alch("Alch"),
+    Consume("Consumeables"),
+    Loot("Loot"),
+    Move("Move"),
+    Spec("Spec"),
+    Equip("Equip"),
+    None("None");
+    private static Action action;
+    private String actionName;
+
+    private Action(String action) {
+        this.actionName = action;
+
+    }
+
+    public static void set(Action a) {
+        action = a;
+    }
+
+    public static Action get() {
+        return action;
+    }
+}

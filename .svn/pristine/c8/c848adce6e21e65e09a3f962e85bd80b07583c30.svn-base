@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState implements LoopState<CerbState> {
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Unholy symbol",
+            "Summer pie",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final CerbListener cerbListener;
+    private final cerb bot;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(CerbListener cerbListener, cerb bot) {
+        this.cerbListener = cerbListener;
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        cerb.updateStatus("Looting");
+        if (cerbListener.getDeadArea() == null) return;
+        util.moveTo(cerbListener.getDeadArea().getCenter());
+        Loot.waitForLoot(cerbListener.getDeadArea(), Pattern.compile(".*"), 1200);
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        bot.resetKill();
+
+        if (!util.hasSlayerTask()) {
+            cerb.updateStatus("Finished slayer task");
+            if (Inventory.contains(items.houseTab)) {
+                util.breakHouseTab();
+            } else {
+                util.teleToHouse();
+            }
+            bot.stop("Slayer task completed");
+        }
+
+        if (cerb.doWeNeedToRestock() || result.equals(Loot.LootResult.Full)) {
+            return CerbState.RESTORING;
+        } else {
+            return CerbState.POST_LOOT_WAITING;
+        }
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !this.result.equals(Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(
+                this.cerbListener.getDeadArea()
+                , ignoreLoot
+                , new Food[]{CerbState.getSettings().food()}
+                , CerbState.getSettings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : CerbState.getSettings().boost().patternAny()
+                , 5000
+        );
+    }
+}

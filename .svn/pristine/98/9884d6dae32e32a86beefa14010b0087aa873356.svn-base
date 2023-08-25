@@ -1,0 +1,273 @@
+package com.neck_flexed.scripts.common.loot;
+
+import com.neck_flexed.scripts.common.DI;
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.Junk;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GroundItems;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Loot")
+public class Loot {
+    public static final Pattern IRONMAN_LOOT = Pattern.compile("^You're a.*Iron.*man, so you can't take items that.*have dropped.$", Pattern.CASE_INSENSITIVE);
+    public static final Map<Coordinate, Long> BLACKLISTED_TILES = new HashMap<>();
+    private static final Pattern ASHES_PATTERN = Pattern.compile("(?:Fiendish ashes|Vile ashes|Malicious ashes|Abyssal ashes|Infernal ashes)");
+    private static final Pattern BONES_PATTERN = Pattern.compile("(?:Bones|Wolf bones|Burnt bones|Monkey bones|Bat bones|Big bones|Jogre bones|Zogre bones|Shaikahan bones|Babydragon bones|Wyrm bones|Wyvern bones|Dragon bones|Drake bones|Fayrg bones|Lava dragon bones|Raurg bones|Hydra bones|Dagannoth bones|Ourg bones|Superior dragon bones)");
+
+    public static void waitForLoot(Area area, Pattern alwaysDrops, int timeout) {
+        Area area2 = area == null ? null : area.toRectangular().grow(2, 2);
+        var giCount = getInitialGroundItems(area2, alwaysDrops);
+        if (!Execution.delayUntil(() -> {
+            var q = GroundItems.newQuery();
+            if (area2 != null) {
+                q = q.within(area2);
+            }
+            return q.names(alwaysDrops).results().size() != giCount;
+        }, timeout)) {
+            log.debug("no loot? must be someone else's kill?");
+        }
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    int delay) {
+        return doLoop(area, lootSettings, new Pattern[0], null, delay, 650);
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    Pattern[] suppliesCanDrop) {
+        return doLoop(area, lootSettings, suppliesCanDrop, null, 800, 800);
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    Pattern[] suppliesCanDrop,
+                                    Predicate<GroundItem> customFilter) {
+        return doLoop(area, lootSettings, suppliesCanDrop, customFilter, 800, 800);
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    Pattern[] ignoreList,
+                                    Pattern[] mustLoot,
+                                    Pattern[] suppliesCanDrop
+    ) {
+        return doLoop(area, lootSettings, ignoreList, mustLoot, suppliesCanDrop, null, 800, 800);
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    Pattern[] suppliesCanDrop,
+                                    @Nullable Predicate<GroundItem> customFilter,
+                                    int timeout,
+                                    int delayPickup) {
+        return doLoop(area, lootSettings, new Pattern[0], new Pattern[0], suppliesCanDrop, customFilter, timeout, delayPickup);
+    }
+
+    private static void timeCheckBlackTiles() {
+        for (var p : BLACKLISTED_TILES.entrySet()) {
+            if (p.getValue() - System.currentTimeMillis() > 10000)
+                BLACKLISTED_TILES.remove(p.getKey(), p.getValue());
+        }
+    }
+
+    public static LootResult doLoop(Area area,
+                                    LootSettings lootSettings,
+                                    Pattern[] ignoreListIn,
+                                    Pattern[] mustLootIn,
+                                    Pattern[] suppliesCanDrop,
+                                    @Nullable Predicate<GroundItem> customFilter,
+                                    int timeout,
+                                    int delayPickup
+    ) {
+
+        var minAlchValue = lootSettings.minAlchValue();
+        Pattern[] mustLoot = util.concatenate(mustLootIn, util.parseCsvRegexString(lootSettings.alwaysLoot()));
+        var ignoreList = util.concatenate(ignoreListIn, util.parseCsvRegexString(lootSettings.neverLoot()));
+        var onlyLootNoted = util.parseCsvRegexString(lootSettings.onlyLootNoted());
+
+        var area2 = area == null ? null : area.toRectangular().grow(2, 2);
+        var gi = getGroundItemToLoot(area2, onlyLootNoted, ignoreList, customFilter, minAlchValue, mustLoot);
+        if (gi == null) {
+            if (Execution.delayUntil(() -> getGroundItemToLoot(area2, onlyLootNoted, ignoreList, customFilter, minAlchValue, mustLoot) != null, timeout))
+                return LootResult.NotDone;
+            return LootResult.Done;
+        }
+        timeCheckBlackTiles();
+        var p = gi.getPosition();
+        if (p == null) return LootResult.NotDone;
+        var id = gi.getId();
+        log.info(String.format("Looting: %s", gi));
+        if (Inventory.isFull() && !util.itemStacksAndInInvent((gi))) {
+            if (!tryToEmptySlotForLoot(suppliesCanDrop)) {
+                log.info("Invent full");
+                return LootResult.Full;
+            }
+        }
+        util.take(gi);
+        Execution.delayUntil(() -> GroundItems.newQuery().on(p).ids(id).results().isEmpty(), util::playerMoving, delayPickup, delayPickup + 100);
+        return LootResult.NotDone;
+    }
+
+    private static boolean tryToEmptySlotForLoot(Pattern[] suppliesCanDrop) {
+        var ate = Food.eatAny();
+        if (ate) return true;
+        var dropItem = Inventory.newQuery().names(suppliesCanDrop).unnoted().results().first();
+        if (dropItem != null) {
+            if (dropItem.interact("Drink"))
+                return true;
+        }
+        return false;
+    }
+
+    public static @Nullable GroundItem getGroundItemToLoot(Area area,
+                                                           LootSettings settings
+    ) {
+        log.debug("LOOT AREA: {}", area);
+        var minAlchValue = settings.minAlchValue();
+        Pattern[] mustLoot = util.parseCsvRegexString(settings.alwaysLoot());
+        var ignoreList = util.parseCsvRegexString(settings.neverLoot());
+        var onlyLootNoted = util.parseCsvRegexString(settings.onlyLootNoted());
+        return getGroundItemToLoot(area, onlyLootNoted, ignoreList, null, minAlchValue, mustLoot);
+    }
+
+    public static @Nullable GroundItem getGroundItemToLoot(Area area,
+                                                           Pattern[] onlyLootNoted,
+                                                           Pattern[] ignoreLoot,
+                                                           @Nullable Predicate<GroundItem> customFilter,
+                                                           int minAlchValue,
+                                                           Pattern[] mustLoot) {
+        var inventFull = Inventory.isFull();
+        var q = GroundItems.newQuery();
+        if (area != null) {
+            q = q.within(area);
+        }
+        return q.filter(shouldLoot(ignoreLoot, onlyLootNoted, customFilter, minAlchValue, inventFull, mustLoot)).results().nearest();
+    }
+
+    @NotNull
+    private static Predicate<GroundItem> shouldLoot(Pattern[] ignoreLoot,
+                                                    Pattern[] onlyLootNoted,
+                                                    Predicate<GroundItem> customFilter,
+                                                    int minAlchValue,
+                                                    boolean inventFull,
+                                                    Pattern[] mustLoot) {
+        // return false to filter out
+        return groundItem -> {
+            var def = groundItem.getDefinition();
+            if (def == null) return true;
+            var name = def.getName();
+            var pos = groundItem.getPosition();
+
+            if (BLACKLISTED_TILES.containsKey(pos)) {
+                return false;
+            }
+
+            var isFood = Food.isFood(def);
+            if (isFood) {
+                var isFoodAndWeHaveSpace = !inventFull;
+                if (isFoodAndWeHaveSpace) return true;
+                var isFoodAndWeCanEat = Health.getCurrentPercent() < 100;
+                if (isFoodAndWeCanEat) return true;
+                return false;
+            }
+            if (mustLoot != null && mustLoot.length != 0 && Arrays.stream(mustLoot).anyMatch(util.checkPatternArrayAgainst(name))) {
+                return true;
+            }
+            var isStackable = def.isNoted() || def.stacks();
+            if (isStackable && Arrays.stream(onlyLootNoted).anyMatch(util.checkPatternArrayAgainst(name))) {
+                return true;
+            }
+
+            var isCoinsUnderValue = name.equals("Coins") && groundItem.getQuantity() < minAlchValue;
+            if (isCoinsUnderValue)
+                return false;
+            var isInIgnored = Arrays.stream(ignoreLoot).anyMatch(util.checkPatternArrayAgainst(name));
+            if (isInIgnored)
+                return false;
+            var isJunk = Junk.junkList.stream().anyMatch(util.checkPatternArrayAgainst(name));
+            if (isJunk)
+                return false;
+            var isUnderAlchValue = def.isTradeable() && def.getHighLevelAlchemyValue() < minAlchValue;
+            if (isUnderAlchValue)
+                return false;
+            var customFilterHit = customFilter != null && customFilter.test(groundItem);
+            if (customFilterHit)
+                return false;
+
+            return true;
+        };
+    }
+
+    private static int getInitialGroundItems(Area area, Pattern alwaysDrops) {
+        var q = GroundItems.newQuery();
+        if (area != null) {
+            q = q.within(area);
+        }
+        return q.names(alwaysDrops).results().size();
+    }
+
+    public static boolean cantLootMore() {
+        return cantLootMore(0);
+    }
+
+    public static boolean cantLootMore(int extraSpotsNeeded) {
+        return Inventory.getEmptySlots() <= extraSpotsNeeded && Food.getAny() == null;
+    }
+
+    public static void dumpSettings(LootSettings settings) {
+        if (settings == null) return;
+        var minAlchValue = settings.minAlchValue();
+        Pattern[] mustLoot = util.parseCsvRegexString(settings.alwaysLoot());
+        var ignoreList = util.parseCsvRegexString(settings.neverLoot());
+        var onlyLootNoted = util.parseCsvRegexString(settings.onlyLootNoted());
+
+        log.debug("Loot min alch value: {}", minAlchValue);
+        log.debug("Loot mustLoot: {}", Arrays.toString(mustLoot));
+        log.debug("Loot never: {}", Arrays.toString(ignoreList));
+        log.debug("Loot only noted: {}", Arrays.toString(onlyLootNoted));
+    }
+
+    public static void buryBonesScatterAshes(DI di) {
+        var bone = Inventory.newQuery()
+                .names(BONES_PATTERN)
+                .unnoted()
+                .actions("Bury")
+                .results()
+                .first();
+        if (bone != null) {
+            di.send(MenuAction.forSpriteItem(bone, "Bury"));
+        }
+        var ashes = Inventory.newQuery()
+                .names(ASHES_PATTERN)
+                .unnoted()
+                .actions("Scatter")
+                .results()
+                .first();
+        if (ashes != null) {
+            di.send(MenuAction.forSpriteItem(ashes, "Scatter"));
+        }
+    }
+
+    public static enum LootResult {
+        NotDone,
+        Done,
+        Full,
+    }
+}

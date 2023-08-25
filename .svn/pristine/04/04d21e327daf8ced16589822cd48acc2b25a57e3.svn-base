@@ -1,0 +1,55 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.RestockState<KqSettings, KqState> {
+    public RestockState(kq bot) {
+        super(bot, KqState.TRAVERSING, KqState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+
+                NeckBank.getBoostsNeeded(1,
+                        false,
+                        bot.settings().phase1Boost(),
+                        bot.settings().phase2Boost()
+                ),
+                NeckBank.toMap(1, bot.settings().Antipoison().pattern(), items.staminaPotions),
+                bot.settings().bankAndRestoreMethod().equals(BankAndRestoreMethod.Ferox)
+                        ? NeckBank.toMap(1, items.ringOfDueling)
+                        : Collections.emptyMap(),
+                NeckBank.dramenStaffIfNoAchievementDiary(),
+                bot.settings().traverseMethod().equals(TraverseMethod.ArdyCloakFairyRing)
+                        ? NeckBank.toMap(1, items.argdougneCloak)
+                        : Collections.emptyMap(),
+                !AchievementDiary.DESERT.isHardComplete()
+                        ? NeckBank.toMap(2, items.rope)
+                        : Collections.emptyMap(),
+                NeckBank.toMap(0, bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                        items.houseTab, items.spade, items.rope,
+                }),
+                new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape, items.argdougneCloak, items.dramenStaff,},
+                util.toItemList(bot.settings().phase1Equipment()),
+                util.toItemList(bot.settings().phase2Equipment()),
+                util.toItemList(bot.settings().specEquipment())
+        );
+    }
+}

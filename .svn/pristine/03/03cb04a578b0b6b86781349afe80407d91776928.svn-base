@@ -1,0 +1,242 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.Region;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Kq")
+public class kq extends NeckBot<KqSettings, KqState> {
+    public static final String name = "Kalphite Queen";
+    public static final int IdPhase1 = 963;
+    public static final int IdPhase2 = 965;
+    public static final Area tunnels = Area.rectangular(new Coordinate(3454, 9533, 2), new Coordinate(3523, 9470, 2));
+    public static final Area aboveGroundDesert = Area.rectangular(new Coordinate(3212, 3120), new Coordinate(3267, 3076));
+    public static final Coordinate crackUseTile = new Coordinate(3501, 9483, 2);
+    public static final Area lairEntryArea = Area.rectangular(new Coordinate(3501, 9505, 2), new Coordinate(3517, 9491, 2));
+    private static final int lairRegionId = 13972;
+
+    private KqListener kqListener;
+    private PrayerFlicker prayerFlicker;
+    private Consumeables consumeables;
+    private CombatStyle phase1CombatStyle;
+    private CombatStyle phase2CombatStyle;
+    private Prayer[] phase1Prayers;
+    private Prayer[] phase2Prayers;
+    private Integer specEnergy;
+    @SettingsProvider(updatable = true)
+    private KqSettings settings;
+
+    public static boolean isInLair() {
+        var p = Players.getLocal().getPosition();
+        return (!isInTunnels() && p.getContainingRegionId() == lairRegionId)
+                || (Region.isInstanced() && Arrays.stream(Region.getLoadedRegionIds()).anyMatch(i -> i == lairRegionId));
+    }
+
+    public static boolean atLairEntrance() {
+        return Players.getLocal().getPosition().equals(crackUseTile) || lairEntryArea.contains(Players.getLocal());
+    }
+
+    public static @Nullable Npc getKq() {
+        return new NpcQueryBuilder().names(name).results().first();
+    }
+
+    public static void attack() {
+        var m = getKq();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static boolean isAboveGround() {
+        return Players.getLocal().getPosition().getContainingRegionId() == 12848;
+    }
+
+    public static boolean canUseCreviceShortcut() {
+        try {
+            return AchievementDiary.DESERT.isEliteComplete() && Skill.AGILITY.getCurrentLevel() >= 86;
+        } catch (Exception e) {
+            log.error("canUseCreviceShortcut", e);
+        }
+        return false;
+    }
+
+    public static boolean isInTunnels() {
+        return tunnels.contains(Players.getLocal());
+    }
+
+    public List<Prayer> getPrayersRequired(KqPhase phase) {
+        var p = new ArrayList<Prayer>();
+        if (settings() == null) return p;
+        if (phase == KqPhase.Phase1)
+            p.addAll(util.getBoostPrayers(util.getCombatStyle(settings().phase1Equipment())));
+        else
+            p.addAll(util.getBoostPrayers(util.getCombatStyle(settings().phase2Equipment())));
+        p.add(Prayer.PROTECT_FROM_MAGIC);
+        return p;
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().phase1Boost();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        var boost2 = settings().phase2Boost();
+        if (boost2 != Boost.None && Inventory.getItems(boost2.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Food.countInventory() < settings().minFood()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Kq KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public KqSettings settings() {
+        return settings;
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    @Override
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.kqListener.reset();
+    }
+
+    @Override
+    protected void initFromSettings(KqSettings settings) {
+        this.updateItemFilter(
+                util.concatenate(
+                        util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                                settings.food().gameName()}),
+                        new Pattern[]{items.staminaPotions, items.ringOfDueling},
+                        util.toItemList(settings.phase1Equipment()),
+                        util.toItemList(settings.phase2Equipment()),
+                        util.toItemList(settings.specEquipment())
+                )
+        );
+        this.phase1CombatStyle = util.getCombatStyle(settings.phase1Equipment());
+        this.phase2CombatStyle = util.getCombatStyle(settings.phase2Equipment());
+        this.phase1Prayers = this.getPrayersRequired(KqPhase.Phase1).toArray(new Prayer[0]);
+        this.phase2Prayers = this.getPrayersRequired(KqPhase.Phase2).toArray(new Prayer[0]);
+        this.breakManager = new BreakManager(settings);
+        if (settings.specEquipment() != null
+                && !settings.specEquipment().isEmpty()
+                && settings.specEquipment().getDefinition(Equipment.Slot.WEAPON) != null) {
+            this.specEnergy = SpecialAttackCost.getCost(settings.specEquipment().getDefinition(Equipment.Slot.WEAPON).getId());
+        } else {
+            this.specEnergy = 50;
+        }
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{kqListener, prayerFlicker, consumeables};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        kqListener = new KqListener(this);
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this, 42, KqState.RESTORING);
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings());
+        this.setLoopDelay(10, 25);
+
+        resetKill();
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: DirectInput (Start with 2 ropes in inventory if no ropes on KQ tunnels)\n" +
+                        "HouseBank: Requires house teleport, ornate pool, fairy ring, dramen staff, and jewellery box\n" +
+                        "AND Start with house teleport runes / tablets in inventory\n" +
+                        "FeroxBankRestore/ArdyCloak: Requires dueling rings, Ardy cloak, dramen staff"
+        ));
+
+
+    }
+
+    protected LoopState<KqState> getState(KqState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case SEARCHING_LAIR:
+                return new SearchingLairState(this);
+            case FIGHTING:
+                return new FightState(this.kqListener, this.prayerFlicker, this,
+                        phase1Prayers, phase2Prayers, phase1CombatStyle, phase2CombatStyle, this.specEnergy);
+            case LOOTING:
+                return new LootState(this.kqListener, this, breakManager);
+            case POST_LOOT_WAITING:
+                return new PostLootWaiting(this, this.prayerFlicker);
+            case RESTORING:
+                return new RestoreState(this, prayerFlicker, breakManager, kqListener);
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), KqState.STARTING, KqState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case ENTERING_LAIR:
+                return new EnterLairState(this, kqListener);
+            case WALK_UNDER:
+                return new WalkUnderState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, KqState.BREAKING, KqState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<KqState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected KqState getBreakStateEnum() {
+        return KqState.BREAKING;
+    }
+
+    @Override
+    protected KqState getStartStateEnum() {
+        return KqState.STARTING;
+    }
+
+
+}

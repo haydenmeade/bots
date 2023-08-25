@@ -1,0 +1,68 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+@Log4j2(topic = "CerbListener")
+public class CerbListener implements NpcListener, EngineListener {
+    private boolean isDead = false;
+    private Area deadArea;
+
+    @Override
+    public void onTickStart() {
+        var c = cerb.getCerb();
+        if (c != null) {
+            log.debug(String.format("Cerb ID %s", c.getId()));
+            log.debug(String.format("Cerb ANIM ID %s", c.getAnimationId()));
+            if (c.getAnimationId() == 4495) {
+                CerbState.setCerbKilled(CerbState.getCerbKilled() + 1);
+                log.debug(String.format("DEAD on: %s", c.getPosition()));
+                this.deadArea = c.getArea();
+                this.isDead = true;
+
+            }
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        log.debug(event);
+    }
+
+    public int getId(Locatable o) {
+        var identifiable = (Identifiable) o;
+        return (o == null) ? 0 : identifiable.getId();
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        log.debug(event);
+        if (event.getEntityType() == EntityEvent.EntityType.NPC) {
+            if (getId(event.getSource()) == cerb.Id) {
+                log.debug(String.format("DEAD on: %s", event.getSource().getPosition()));
+            }
+        }
+    }
+
+    public boolean isDead() {
+        return isDead;
+    }
+
+    public void reset() {
+        log.debug("reset");
+        isDead = false;
+        deadArea = null;
+    }
+
+    public Area getDeadArea() {
+        return deadArea;
+    }
+}

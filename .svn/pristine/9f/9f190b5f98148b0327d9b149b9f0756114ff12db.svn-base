@@ -1,0 +1,121 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerUtil;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.InterfaceComponentQueryBuilder;
+import com.runemate.game.api.script.Execution;
+import org.jetbrains.annotations.Nullable;
+
+public class SkipTaskState extends BaseState<SlayerState> {
+    private static final int CONTAINER_ID = 426;
+    private final com.neck_flexed.scripts.slayer.bot bot;
+    private final Traverser traverser;
+    private boolean done;
+
+    public SkipTaskState(com.neck_flexed.scripts.slayer.bot bot) {
+        super(SlayerState.SKIP_TASK);
+        this.bot = bot;
+        this.traverser = new Traverser(
+                bot,
+                bot.getHouseConfig(),
+                bot.settings().master().getLocation(),
+                bot.settings().master().getPathRegions(),
+                this::overrideWebPath,
+                bot.settings().master().getTraverses()
+        );
+    }
+
+    @Nullable
+    private static InterfaceComponent getButton(String action) {
+        return new InterfaceComponentQueryBuilder()
+                .containers(CONTAINER_ID)
+                .types(InterfaceComponent.Type.SPRITE, InterfaceComponent.Type.BOX)
+                .actions(action)
+                .results()
+                .first();
+    }
+
+    private static boolean clickButton(String action) {
+        var taskTabButton = getButton(action);
+        if (taskTabButton != null) {
+            taskTabButton.interact(action);
+            Execution.delay(200, 400);
+            return true;
+        }
+        Execution.delay(200, 400);
+        return false;
+    }
+
+    private Boolean overrideWebPath(Coordinate coordinate) {
+        return null;
+    }
+
+    @Override
+    public void activate() {
+        super.activate();
+        bot.updateStatus("Skipping slayer task");
+        if (SlayerUtil.getSlayerPoints() < 30) {
+            var msg = "Ran out of slayer points to skip with";
+            bot.updateStatus(msg);
+            Execution.delay(5000, 6000);
+            bot.stop(msg);
+        }
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        this.done = (SlayerUtil.getSlayerPoints() < 30 || !SlayerTask.hasTask())
+                && InterfaceContainers.getAt(CONTAINER_ID) == null;
+        if (done) return;
+        var master = bot.settings().master().getNpc();
+        if (master == null) {
+            traverser.executeLoop();
+            return;
+        }
+        if (SlayerTask.hasTask()) {
+            this.skipTask(master);
+            return;
+        }
+        var container = InterfaceContainers.getAt(CONTAINER_ID);
+        if (container != null) {
+            clickButton("Close");
+            Execution.delayUntil(() -> InterfaceContainers.getAt(CONTAINER_ID) == null, 1200);
+        }
+    }
+
+    private void skipTask(Npc master) {
+        var container = InterfaceContainers.getAt(CONTAINER_ID);
+        if (container == null) {
+            DirectInput.send(MenuAction.forNpc(master, "Rewards"));
+            Execution.delayUntil(
+                    () -> InterfaceContainers.getAt(CONTAINER_ID) != null,
+                    util::playerMoving, 3000, 4000);
+            return;
+        }
+
+        if (clickButton("Confirm")) return;
+
+        if (clickButton("Tasks")) return;
+
+        clickButton("Cancel");
+    }
+}

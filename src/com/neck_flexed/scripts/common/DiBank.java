@@ -1,0 +1,348 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.input.direct.MenuOpcode;
+import com.runemate.game.api.hybrid.local.hud.interfaces.*;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.hybrid.util.Regex;
+import com.runemate.game.api.script.Execution;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.ArrayUtils;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Log4j2
+@RequiredArgsConstructor
+public class DiBank {
+    private final DI di;
+    private final int BANK_CONTAINER = 12;
+    private final Pattern DEPOSIT_ALL_PATTERN = Regex.getPattern("^Deposit[- ]All$");
+    private final Pattern DEPOSIT_X_PATTERN = Regex.getPattern("^Deposit[- ]X$");
+    private final Pattern DEPOSIT_NUMBER_PATTERN = Regex.getPattern("^Deposit[- ](\\d+)$");
+
+    public static boolean hasAction(SpriteItem item, String s) {
+        if (item == null) return false;
+        var c = getSpriteItemComponent(item);
+        if (c == null) return false;
+        var actions = c.getRawActions();
+        if (actions == null) return false;
+        return Arrays.asList(actions).contains(s);
+    }
+
+    @Nullable
+    public static InterfaceComponent getSpriteItemComponent(@NonNull SpriteItem item) {
+        //TODO other origin implementations
+        switch (item.getOrigin()) {
+            case INVENTORY:
+                if (Bank.isOpen()) {
+                    return Interfaces.getAt(15, 3, item.getIndex());
+                }
+                return Interfaces.getAt(149, 0, item.getIndex());
+            case BANK:
+                return Interfaces.getAt(12, 13, item.getIndex());
+            case EQUIPMENT:
+                return Equipment.Slot.resolve(item.getIndex()).getComponent();
+            default:
+                log.warn("MenuAction currently does not support item origin {}", item.getOrigin());
+                return null;
+        }
+    }
+
+    public boolean openMainTab() {
+        if (Bank.getCurrentTab() == 0) {
+            return true;
+        } else {
+            InterfaceComponent first = Interfaces.newQuery().containers(12).types(InterfaceComponent.Type.SPRITE).actions("View all items").results().first();
+            if (first != null && first.isVisible()) {
+                var ma = MenuAction.forInterfaceComponent(first, "View all items");
+                if (ma != null && di.send(ma))
+                    return Execution.delayUntil(() -> Bank.getCurrentTab() == 0, 700);
+            }
+        }
+        return false;
+    }
+
+    private String getAction(SpriteItem item, int amount, boolean withdraw) {
+        String action = withdraw ? "Withdraw" : "Deposit";
+        if (amount == 0) {
+            action += "-All";
+        } else if (amount == 1) {
+            action += "-1";
+        } else if (amount == 5) {
+            action += "-5";
+        } else if (amount == 10) {
+            action += "-10";
+        } else if (withdraw && amount >= item.getQuantity()) {
+            action += "-All";
+        } else if (!withdraw && amount >= Inventory.getQuantity(item.getId())) {
+            action += "-All";
+        } else {
+            if (hasAction(item, action + "-" + amount)) {
+                action += "-" + amount;
+            } else {
+                action += "-X";
+            }
+        }
+        return action;
+    }
+
+    public boolean setWithdrawMode(Bank.WithdrawMode mode) {
+        if (Bank.getWithdrawMode() == mode) {
+            return true;
+        }
+
+        InterfaceComponent component;
+        if (mode == Bank.WithdrawMode.NOTE) {
+            component = Interfaces.getAt(12, 24);
+        } else if (mode == Bank.WithdrawMode.ITEM) {
+            component = Interfaces.getAt(12, 22);
+        } else {
+            throw new IllegalStateException("Unrecognised mode: " + mode);
+        }
+
+        return component != null && di.interact(component, 0);
+    }
+
+    public boolean setCustomQuantity(int quantity) {
+        if (Bank.getExactDefaultQuantity() == quantity) {
+            return true;
+        }
+
+        var action = MenuAction.builder()
+                .param0(-1)
+                .param1(786466)
+                .opcode(MenuOpcode.CC_OP.getId())
+                .identifier(2)
+                .build();
+
+        if (!di.send(action)) return false;
+        if (Execution.delayUntil(InputDialog::isOpen, 600)) {
+            return Keyboard.type(String.valueOf(quantity), true);
+        }
+
+        return false;
+    }
+
+    public boolean depositInventory() {
+        var component = Interfaces.getAt(12, 42);
+        return component != null && di.interact(component, "Deposit inventory");
+    }
+
+    public boolean depositEquipment() {
+        var component = Interfaces.getAt(12, 44);
+        return component != null && di.interact(component, "Deposit worn items");
+    }
+
+    public boolean withdraw(@NonNull SpriteItem item, int quantity) {
+        var action = getAction(item, quantity, true);
+        var component = getSpriteItemComponent(item);
+        if (component == null) {
+            log.warn("Unable to find component of {}", item);
+            return false;
+        }
+
+        var actions = component.getRawActions();
+        var actionIndex = ArrayUtils.indexOf(actions, action);
+        if (actionIndex == -1) {
+            log.info("Unable to resolve index of action {}", action);
+            return false;
+        }
+
+        var menu = MenuAction.builder()
+                .identifier(actionIndex + 1)
+                .opcode((actionIndex > 4 ? MenuOpcode.CC_OP_LOW_PRIORITY : MenuOpcode.CC_OP).getId())
+                .param0(item.getIndex())
+                .param1(component.getId())
+                .itemId(item.getId())
+                .build();
+
+        if (!di.send(menu)) return false;
+        if ("Withdraw-X".equals(action)) {
+            if (Execution.delayUntil(InputDialog::isOpen, 600)) {
+                return InputDialog.enterAmount(quantity, true);
+            }
+        }
+        return true;
+    }
+
+    public boolean deposit(@NonNull SpriteItem item, int quantity) {
+        var action = getAction(item, quantity, false);
+        var component = getSpriteItemComponent(item);
+        if (component == null) {
+            log.warn("Unable to find component of {}", item);
+            return false;
+        }
+
+        var actions = component.getRawActions();
+        var actionIndex = ArrayUtils.indexOf(actions, action);
+        if (actionIndex == -1) {
+            log.info("Unable to resolve index of action {}", action);
+            return false;
+        }
+
+        var menu = MenuAction.builder()
+                .identifier(actionIndex + 1)
+                .opcode((actionIndex > 4 ? MenuOpcode.CC_OP_LOW_PRIORITY : MenuOpcode.CC_OP).getId())
+                .param0(item.getIndex())
+                .param1(component.getId())
+                .itemId(item.getId())
+                .build();
+
+        if (!di.send(menu)) return false;
+        if ("Deposit-X".equals(action)) {
+            if (Execution.delayUntil(InputDialog::isOpen, 600)) {
+                return InputDialog.enterAmount(quantity, true);
+            }
+        }
+        return true;
+    }
+
+    public boolean interact(@NonNull SpriteItem item, @NonNull String action) {
+        var component = getSpriteItemComponent(item);
+        if (component == null) {
+            log.warn("Unable to find component of {}", item);
+            return false;
+        }
+
+        var actions = component.getRawActions();
+        var actionIndex = ArrayUtils.indexOf(actions, action);
+        if (actionIndex == -1) {
+            log.info("Unable to resolve index of action {}", action);
+            return false;
+        }
+
+        var menu = MenuAction.builder()
+                .identifier(actionIndex + 1)
+                .opcode((actionIndex > 4 ? MenuOpcode.CC_OP_LOW_PRIORITY : MenuOpcode.CC_OP).getId())
+                .param0(item.getIndex())
+                .param1(component.getId())
+                .itemId(item.getId())
+                .build();
+
+        return di.send(menu);
+    }
+
+    public boolean interact(@NonNull SpriteItem item, @NonNull Pattern pattern) {
+        var component = getSpriteItemComponent(item);
+        if (component == null) {
+            log.warn("Unable to find component of {}", item);
+            return false;
+        }
+
+        var actions = component.getRawActions();
+        if (actions == null) {
+            log.info("Component {} has no actions", component);
+            return false;
+        }
+
+        var action = Arrays.stream(actions).filter(a -> a != null && pattern.matcher(a).find()).findFirst().orElse(null);
+        if (action == null) {
+            log.warn("Unable to find action match pattern {} in {}", pattern.pattern(), actions);
+            return false;
+        }
+
+        var actionIndex = ArrayUtils.indexOf(actions, action);
+        if (actionIndex == -1) {
+            log.info("Unable to resolve index of action {}", action);
+            return false;
+        }
+
+        var menu = MenuAction.builder()
+                .identifier(actionIndex + 1)
+                .opcode((actionIndex > 4 ? MenuOpcode.CC_OP_LOW_PRIORITY : MenuOpcode.CC_OP).getId())
+                .param0(item.getIndex())
+                .param1(component.getId())
+                .itemId(item.getId())
+                .build();
+
+        return di.send(menu);
+    }
+
+    public boolean close() {
+        var component = Interfaces.getAt(12, 2, 11);
+        return component != null && di.interact(component, "Close");
+    }
+
+    public boolean depositAllExcept(final Pattern... names) {
+        return depositAllExcept(Items.getNamePredicate(names));
+    }
+
+    public boolean depositAllExcept(final String... names) {
+        return depositAllExcept(item -> {
+            final ItemDefinition definition = item.getDefinition();
+            if (definition != null) {
+                final String itemName = definition.getName();
+                for (final String name : names) {
+                    if (Objects.equals(name, itemName)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+    }
+
+    public boolean depositAllExcept(final int... ids) {
+        return depositAllExcept(item -> {
+            final int itemId = item.getId();
+            for (final int id : ids) {
+                if (itemId == id) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Deposits all of the items except those that match the exclusions filter.
+     * If exclusions is null, it redirects to the depositInventory() method.
+     *
+     * @return true if ALL of the items that don't match the filter are deposited successfully.
+     */
+    public boolean depositAllExcept(final Predicate<SpriteItem> exclusion) {
+        if (exclusion == null || !Inventory.containsAnyOf(exclusion)) {
+            return depositInventory();
+        }
+        boolean result = true;
+        for (final SpriteItem item : Inventory.getItems()) {
+            //verify that it wasn't already deposited
+            if (item.isValid() && !exclusion.test(item) && !deposit(item.getId(), 0)) {
+                result = false;
+            }
+        }
+        return result;
+    }
+
+    public boolean deposit(final String name, final int amount) {
+        return deposit(Items.getNamePredicate(name), amount);
+    }
+
+    public boolean deposit(final int id, final int amount) {
+        return deposit(spriteItem -> spriteItem.getId() == id, amount);
+    }
+
+    /**
+     * Deposits the first item that matches the specified filter.
+     * If amount is equal to 0 it will deposit all of the item.
+     * If amount is equal to -1 it will deposit all of the item
+     */
+    public boolean deposit(final Predicate<SpriteItem> filter, final int amount) {
+        final SpriteItem item = Inventory.getItems(filter).first();
+        return item != null && deposit(item, amount);
+    }
+
+    public boolean deposit(final Pattern name, final int amount) {
+        final SpriteItem item = Inventory.getItems(name).first();
+        return item != null && deposit(item, amount);
+    }
+
+}

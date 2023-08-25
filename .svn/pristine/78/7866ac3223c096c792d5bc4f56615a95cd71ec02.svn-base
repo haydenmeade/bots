@@ -1,0 +1,66 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup(group = "House")
+public interface HouseSettings extends Settings {
+
+    String HOUSE = "House";
+
+    @Setting(key = "House1", title = "House has ornate pool", order = 1, section = HOUSE)
+    default boolean hasOrnatePool() {
+        return true;
+    }
+
+    @Setting(key = "House2", title = "House has ornate jewellery box", order = 2, section = HOUSE)
+    default boolean hasOrnateJewelleryBox() {
+        return true;
+    }
+
+    @Setting(key = "House3", title = "House has fairy ring", order = 3, section = HOUSE)
+    default boolean hasHouseFairyRing() {
+        return true;
+    }
+
+    @Setting(key = "House4", title = "House has mounted digsite pendant", order = 4, section = HOUSE)
+    default boolean hasHouseMountedDigsite() {
+        return true;
+    }
+
+    @Setting(key = "House5", title = "House has mounted Xeric's talisman", order = 5, section = HOUSE)
+    default boolean hasMountedXerics() {
+        return true;
+    }
+
+    @Setting(key = "House6", title = "House portal: Draynor Manor", order = 6, section = HOUSE)
+    default boolean hasPortalDraynor() {
+        return true;
+    }
+
+    @Setting(key = "House7", title = "House portal: Senntisten", order = 7, section = HOUSE)
+    default boolean hasPortalSenntisten() {
+        return true;
+    }
+
+    @Setting(key = "House8", title = "House portal: Ardougne", order = 8, section = HOUSE)
+    default boolean hasPortalArdougne() {
+        return true;
+    }
+
+    @Setting(key = "House9", title = "House portal: Lumbridge", order = 9, section = HOUSE)
+    default boolean hasPortalLumbridge() {
+        return true;
+    }
+
+    @Setting(key = "House10", title = "House portal: KourendCastle", order = 10, section = HOUSE)
+    default boolean hasPortalKourendCastle() {
+        return true;
+    }
+
+    @Setting(key = "House11", title = "House portal: Varrock", order = 11, section = HOUSE)
+    default boolean hasPortalVarrock() {
+        return true;
+    }
+}

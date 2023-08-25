@@ -1,0 +1,65 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+
+    public static boolean restoreHitpoints() {
+        return util.eat(SireState.getSettings().food());
+    }
+
+
+    private static void checkAndConsume() {
+        if (SireState.isPaused()) return;
+        if (Health.getCurrent() < 30) {
+            if (!restoreHitpoints()) {
+                if (SireState.get() != SireState.RESTORING) {
+                    Traverse.breakHouseTab();
+                    log.warn("Emergency teleport");
+                }
+                SireState.setBotState(SireState.RESTORING);
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!util.restorePrayer()) {
+                SireState.setBotState(SireState.RESTORING);
+            }
+        }
+        if (Health.isPoisoned()) {
+            if (!util.curePoison())
+                SireState.setBotState(SireState.RESTORING);
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.info("death");
+        sire.updateStatus("dead");
+        SireState.setPaused(true);
+        SireState.setBotState(SireState.STOPPING);
+        ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Died, whoops...");
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

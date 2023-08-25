@@ -1,0 +1,59 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.Food;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup()
+public interface CerbSettings extends Settings {
+
+
+    @Setting(key = "Region", title = "World Region", order = 0)
+    default WorldRegion worldRegion() {
+        return WorldRegion.AUSTRALIA;
+    }
+
+    @Setting(key = "Boost", title = "Boost", order = 1)
+    default Boost boost() {
+        return Boost.Combat;
+    }
+
+    @Setting(key = "BoostCount", title = "Stat Boost Amount", order = 2)
+    default int boostAmount() {
+        return 4;
+    }
+
+    @Setting(key = "Food", title = "Food", order = 3)
+    default Food food() {
+        return Food.Shark;
+    }
+
+    @Setting(key = "FightStrategy", title = "Fight Strategy", order = 4, description = "Method to fight Cerberus (Only flinch in beta)")
+    default FightStrategy fightStrategy() {
+        return FightStrategy.Flinch;
+    }
+
+    @Setting(key = "BankMethod", title = "BankMethod", order = 5, description = "Method to restore and bank, only house ornate pool and castlewars jewellery box in beta")
+    default RestoreAndBankMethod restoreAndBankStrategy() {
+        return RestoreAndBankMethod.House;
+    }
+
+    @Setting(key = "TraverseStrategy", title = "TraverseStrategy", order = 5, description = "Method to traverse to cerberus. Only taverly house supported for beta")
+    default TraverseStrategy traverseStrategy() {
+        return TraverseStrategy.TaverlyHouse;
+    }
+
+    @Setting(key = "Equipment", title = "Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 5)
+    default EquipmentLoadout equipment() {
+        return null;
+    }
+
+    @Setting(key = "Spec", title = "Spec Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 8)
+    default EquipmentLoadout specEquipment() {
+        return null;
+    }
+}

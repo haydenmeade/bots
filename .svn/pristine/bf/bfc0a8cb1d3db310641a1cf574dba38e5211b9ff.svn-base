@@ -1,0 +1,328 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.LoopingBot;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Mole")
+public class Mole extends LoopingBot implements SettingsListener {
+    public static final String Mole = "Giant Mole";
+    public static final Pattern falShield = Pattern.compile("Falador shield.*");
+    public static final int MoleId = 5779;
+    public static final int MoleHillId = 12202;
+    public static final Area lair = Area.rectangular(new Coordinate(1787, 5246), new Coordinate(1730, 5131));
+    public static final Coordinate entryTile = new Coordinate(2996, 3377);
+    private static final Area park = Area.rectangular(new Coordinate(2985, 3383), new Coordinate(3015, 3362));
+    private static final int moleLairReg1 = 6993;
+    private static final int moleLairReg2 = 6992;
+    public static Coordinate centreLair = new Coordinate(1761, 5188);
+    @SettingsProvider(updatable = true)
+    private MoleSettings settings;
+    private MoleListener moleListener;
+    private PrayerFlicker prayerFlicker;
+    private boolean isDharoks = false;
+    private LoopState<MoleState> currentState;
+    private Consumeables consumeables;
+    private MoleState forcedState = null;
+
+    public static boolean isInLair() {
+        var r = Players.getLocal().getPosition().getContainingRegionId();
+        return r == moleLairReg1 || r == moleLairReg2;
+    }
+
+
+    public static @Nullable Npc getMole() {
+        return new NpcQueryBuilder().ids(MoleId).results().first();
+
+    }
+
+
+    public static void attack() {
+        var m = getMole();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+
+    public static void updateStatus(String s) {
+        var debugString = String.format("%s - Mole KC: %d", s, MoleState.getMoleKilled());
+        log.debug(debugString);
+        DefaultUI.setStatus(debugString);
+    }
+
+    public static void addListener(EventListener l) {
+        log.debug(String.format("Add listener %s", l.getClass().getName()));
+        if (!MoleState.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            MoleState.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public static void removeListener(EventListener l) {
+        log.debug(String.format("Remove listener %s", l.getClass().getName()));
+        MoleState.getEventDispatcher().removeListener(l);
+    }
+
+
+    public static boolean inFaladorPark() {
+        return park.contains(Players.getLocal());
+    }
+
+    public static boolean doWeNeedToRestock() {
+        if (MoleState.getSettings() == null) return false;
+        var boost = MoleState.getSettings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (MoleState.getSettings().staminaAmount() > 0 && Inventory.getItems(items.staminaPotions).isEmpty()) {
+            return true;
+        }
+        if (Health.getCurrentPercent() < 50 && Inventory.getItems(MoleState.getSettings().food().gameName()).isEmpty()) {
+            return true;
+        }
+        if (!Inventory.contains(items.spade)) {
+            return true;
+        }
+        if (!Inventory.contains(falShield)) {
+            return true;
+        }
+        if (MoleState.getSettings() != null &&
+                !MoleState.getSettings().light().equals(LightSource.None) &&
+                !Inventory.contains(MoleState.getSettings().light().getPattern())) {
+            return true;
+        }
+        return false;
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.moleListener.reset();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        var isPaused = MoleState.getSettings() == null;
+        MoleState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            this.forceState(MoleState.STARTING);
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        MoleState.setPaused(true);
+        log.debug(String.format("paused"));
+        removeListener(prayerFlicker);
+        removeListener(consumeables);
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        moleListener = new MoleListener();
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this, isDharoks);
+        MoleState.setBot(this);
+        this.getEventDispatcher().addListener(this);
+        MoleState.setPaused(true);
+        MoleState.setEventDispatcher(this.getEventDispatcher());
+
+        this.setLoopDelay(10, 25);
+        addListener(moleListener);
+        resetKill();
+        DefaultUI.addPanel(0, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: Falador Hard\n" +
+                        "HouseBank: Requires house teleport runes, ornate pool, and jewellery box\n" +
+                        "FeroxBank: Requires dueling ring, falador teleport runes\n" +
+                        "Alching: Requires alch runes\n" +
+                        "Should detect and reduce health when using Dharok's and rock cake / locator orb in invent. Will probably kill you if using divine pots (untested).\n"
+        ));
+
+    }
+
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        MoleState.setSettings(settings);
+        if (!MoleState.isPaused())
+            Prayer.setQuickPrayers(this.getQuickPrayers());
+        if (MoleState.getSettings() != null && MoleState.getSettings().equipment() != null) {
+            isDharoks = util.isDharoks(MoleState.getSettings().equipment());
+            consumeables.setDharok(isDharoks);
+        }
+        updateItemFilter();
+    }
+
+    public void updateItemFilter() {
+        log.debug("updating item filter");
+        try {
+
+            var s = MoleState.getSettings();
+            if (s == null) return;
+
+            Pattern[] x = util.concatenate(
+                    util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                            MoleState.getFood()}),
+                    new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling},
+                    util.toItemList(MoleState.getSettings().equipment()),
+                    util.toItemList(MoleState.getSettings().specEquipment())
+            );
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(MoleState.getBot(),
+                    (e -> {
+                        if (currentState != null && currentState.get() == MoleState.RESTOCKING) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+
+    @Override
+    public void onSettingsConfirmed() {
+        var isPaused = this.isPaused();
+        log.debug(String.format("settings confirmed %s, isPaused %s", settings.toString(), isPaused));
+        MoleState.setSettings(settings);
+        updateItemFilter();
+        MoleState.setPaused(isPaused);
+        addListener(new AlchListener("Adamant longsword",
+                "Mithril platebody",
+                "Amulet of strength",
+                "Mithril axe",
+                "Mithril battleaxe"));
+        if (!isPaused) {
+            Prayer.setQuickPrayers(this.getQuickPrayers());
+            resetKill();
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+        if (MoleState.getSettings() != null && MoleState.getSettings().equipment() != null) {
+            isDharoks = util.isDharoks(MoleState.getSettings().equipment());
+            consumeables.setDharok(isDharoks);
+        }
+        if (!AchievementDiary.FALADOR.isHardComplete()) {
+            ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires Falador Hard Diary to work correctly.");
+        }
+    }
+
+    public List<Prayer> getQuickPrayers() {
+        if (MoleState.getSettings() == null) return new ArrayList<Prayer>();
+        var p = util.getBoostPrayers(MoleState.getSettings().style());
+        p.add(Prayer.PROTECT_FROM_MELEE);
+        if (isDharoks) {
+            p.add(Prayer.RAPID_HEAL);
+        }
+        return p;
+    }
+
+    private LoopState<MoleState> getState(MoleState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState();
+            case FIGHTING:
+                return new FightState(this.moleListener, this.prayerFlicker, this.isDharoks);
+            case SEARCHING:
+                return new SearchState(this.moleListener);
+            case LOOTING:
+                return new LootState(this.moleListener, this);
+            case RESTORING:
+                return new RestoreState();
+            case HOPPING:
+                return new HoppingState();
+            case RESTOCKING:
+                return new RestockState();
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    public void onLoop() {
+        if (MoleState.isPaused()) return;
+        if (MoleState.getSettings() == null) return;
+        if (currentState == null) {
+            this.currentState = new StartingState(this);
+        }
+        if (currentState.fatalError() != null && !currentState.fatalError().isEmpty()) {
+            log.error(String.format("Fatal error from %s: %s", currentState.get(), currentState.fatalError()));
+            updateStatus(String.format("STOPPING during %s, error: %s", currentState.fatalError(), currentState.get()));
+            this.stop(currentState.fatalError());
+            return;
+        }
+        if (currentState.done() || forcedState != null) {
+            var tState = currentState.deactivate(this.getEventDispatcher());
+            var newState = forcedState == null ? tState : forcedState;
+            var newStateImpl = this.getState(newState);
+            newStateImpl.activate(this.getEventDispatcher());
+            var oldState = this.currentState;
+            this.currentState = newStateImpl;
+            if (forcedState != null) {
+                log.debug(String.format("FORCE change state from %s to %s", oldState.get(), newState));
+                forcedState = null;
+            } else {
+                log.debug(String.format("Change state from %s to %s", oldState.get(), newState));
+            }
+        }
+        currentState.executeLoop();
+    }
+
+
+    public void forceState(MoleState moleState) {
+        this.forcedState = moleState;
+    }
+}

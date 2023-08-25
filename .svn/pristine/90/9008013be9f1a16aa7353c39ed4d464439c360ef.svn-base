@@ -1,0 +1,21 @@
+package com.neck_flexed.scripts.common;
+
+import java.util.regex.Pattern;
+
+public enum LightSource {
+    None(""),
+    KandarinHeadgear("Kandarin headgear.*"),
+    FiremakingSkillcape("Firemaking cape.*"),
+    BrumaTorch("Bruma torch"),
+    BullseyeLantern("Bullseye lantern");
+
+    private final Pattern pattern;
+
+    LightSource(String s) {
+        this.pattern = Pattern.compile(s);
+    }
+
+    public Pattern getPattern() {
+        return pattern;
+    }
+}

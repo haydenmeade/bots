@@ -1,0 +1,862 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.input.direct.MenuOpcode;
+import com.runemate.game.api.hybrid.local.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.*;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.queries.GameObjectQueryBuilder;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.ControlPanelTab;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.awt.event.KeyEvent;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+@Log4j2(topic = "commonUtil")
+public class util {
+    public static final Area castleWars = Area.rectangular(new Coordinate(2433, 3099), new Coordinate(2447, 3080));
+    public static final Area ardyCloakTele = Area.rectangular(new Coordinate(2594, 3246, 0), new Coordinate(2664, 3204, 0));
+
+    /**
+     * Number of slayer creatures remaining on the assigned task
+     */
+    public static final int SLAYER_TASK_SIZE = 394;
+    public static final int RestoreAnimId = 7305;
+    public static final int jb_interface_id = 590;
+    public static final Area ferox = Area.rectangular(new Coordinate(3120, 3646), new Coordinate(3155, 3617));
+    private static final Pattern TOGGLE_ACTION = Pattern.compile("^(Dea|A)ctivate$");
+    private static final Area questCapeTele = new Area.Rectangular(new Coordinate(2718, 3358, 0), new Coordinate(2748, 3335, 0));
+
+    public static boolean isVengeanceActive() {
+        var v = Varbits.load(VarbitID.VENGEANCE_ACTIVE.getId());
+        if (v == null) return true;
+        return v.getValue() == 1;
+    }
+
+    public static boolean isVengeanceOnCooldown() {
+        var v = Varbits.load(VarbitID.VENGEANCE_COOLDOWN.getId());
+        if (v == null) return false;
+        return v.getValue() == 1;
+    }
+
+    public static boolean anyOtherPlayersWithin(Area a) {
+        var local = Players.getLocal();
+        if (local == null) return false;
+        var q = Players.newQuery();
+        if (a != null) q = q.within(a);
+        return !q.filter(p -> !Objects.equals(p, local)).results().isEmpty();
+    }
+
+    public static boolean canCastVengeance() {
+        return Magic.Book.LUNAR.isCurrent()
+                && Rune.EARTH.getQuantity() >= 10
+                && Rune.ASTRAL.getQuantity() >= 4
+                && Rune.DEATH.getQuantity() >= 2
+                && !isVengeanceActive()
+                && !isVengeanceOnCooldown();
+    }
+
+    public static boolean xericsTo(Xeric dest) {
+        var talisman = Inventory.getItems(items.xericsTalisman).first();
+        if (talisman == null) {
+            return false;
+        }
+        if (!talisman.interact("Rub")) return false;
+        if (!Execution.delayUntil(() -> InterfaceContainers.getAt(187) != null, 1000, 2000))
+            return false;
+        Keyboard.pressKey(dest.getKey());
+        return Execution.delayUntil(() -> InterfaceContainers.getAt(187) == null, 1000, 2000);
+    }
+
+    public static boolean ArdyCloakFairyRingTo(FairyRing destination) {
+        if (!AchievementDiary.LUMBRIDGE.isEliteComplete()) {
+            if (Equipment.getItems(items.dramenStaff).isEmpty()) {
+                util.equipDramen();
+                if (!Execution.delayUntil(() -> Equipment.getItems(items.dramenStaff).isEmpty(), 1200))
+                    return false;
+            }
+        }
+
+        var fairyRing = FairyRing.getNearestObject();
+        if (fairyRing == null) {
+            Execution.delay(600, 700);
+            var path = WebPath.buildTo(new Coordinate(2656, 3230, 0));
+            if (path != null) {
+                path.step();
+            } else {
+                log.error("Could not generate path to ardougne fairy ring");
+            }
+            return false;
+        }
+
+        var cp = Players.getLocal().getPosition() == null ? 0 : Players.getLocal().getPosition().getContainingRegionId();
+        Callable<Boolean> check = () -> cp != Players.getLocal().getPosition().getContainingRegionId();
+
+        if (destination.isPreviousDestination()) {
+            log.debug("fairy ring to last destination");
+            var patternLastDest = Pattern.compile(".*ast-destination \\(" + destination.name() + "\\)");
+            DirectInput.send(MenuAction.forGameObject(fairyRing, patternLastDest));
+            return Execution.delayUntil(check, 3500, 4500);
+        } else if (FairyRing.isConfigurationOpen()) {
+            if (!destination.select()) {
+                Execution.delay(1000, 2400);
+                return false;
+            }
+            return Execution.delayUntil(check, 3500, 4500);
+        } else {
+            log.debug("fairy ring configure");
+            if (fairyRing.getActiveDefinition().getActions().contains("Configure"))
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Configure"));
+            else
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Ring-configure"));
+            Execution.delayUntil(FairyRing::isConfigurationOpen, 2000, 3000);
+        }
+        return false;
+    }
+
+    public static boolean FairyRingTo(FairyRing destination) {
+        if (!AchievementDiary.LUMBRIDGE.isEliteComplete()) {
+            if (Equipment.getItems(items.dramenStaff).isEmpty()) {
+                util.equipDramen();
+                if (!Execution.delayUntil(() -> Equipment.getItems(items.dramenStaff).isEmpty(), 1200))
+                    return false;
+            }
+        }
+
+        var fairyRing = FairyRing.getNearestObject();
+        if (fairyRing == null) {
+            return false;
+        }
+
+        var cp = Players.getLocal().getPosition() == null ? 0 : Players.getLocal().getPosition().getContainingRegionId();
+        Callable<Boolean> check = () -> cp != Players.getLocal().getPosition().getContainingRegionId();
+
+        if (destination.isPreviousDestination()) {
+            log.debug("fairy ring to last destination");
+            var patternLastDest = Pattern.compile(".*ast-destination \\(" + destination.name() + "\\)");
+            DirectInput.send(MenuAction.forGameObject(fairyRing, patternLastDest));
+            return Execution.delayUntil(check, 3500, 4500);
+        } else if (FairyRing.isConfigurationOpen()) {
+            if (!destination.select()) {
+                Execution.delay(1000, 2400);
+                return false;
+            }
+            return Execution.delayUntil(check, 3500, 4500);
+        } else {
+            log.debug("fairy ring configure");
+            if (fairyRing.getActiveDefinition().getActions().contains("Configure"))
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Configure"));
+            else
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Ring-configure"));
+            Execution.delayUntil(() -> FairyRing.isConfigurationOpen(), 2000, 3000);
+        }
+        return false;
+    }
+
+    public static boolean questCapeTele() {
+        var cl = Inventory.contains(items.questCape)
+                ? Inventory.getItems(items.questCape).first()
+                : Equipment.getItems(items.questCape).first();
+        if (cl == null) {
+            log.error("no quest cape");
+            return false;
+        }
+        if (cl.interact("Teleport"))
+            return Execution.delayUntil(() -> questCapeTele.contains(Players.getLocal()), util::playerAnimating, 5000, 6000);
+        return false;
+    }
+
+    public static boolean ardyCloakTele() {
+        var cl = Inventory.contains(items.argdougneCloak)
+                ? Inventory.getItems(items.argdougneCloak).first()
+                : Equipment.getItems(items.argdougneCloak).first();
+        if (cl == null) {
+            log.error("no ardy cloak");
+            return false;
+        }
+        if (cl.interact("Monastery Teleport"))
+            return Execution.delayUntil(() -> ardyCloakTele.contains(Players.getLocal()), util::playerAnimating, 5000, 6000);
+        return false;
+    }
+
+    public static void attack(Npc npc) {
+        if (npc == null) return;
+        log.debug(String.format("attack %s", npc));
+        DirectInput.send(MenuAction.forNpc(npc, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static boolean hasSlayerTask() {
+        var v = Varps.getAt(SLAYER_TASK_SIZE);
+        return v != null && v.getValue() > 0;
+    }
+
+    public static void activateSpec() {
+        if (SpecialAttack.isActivated()) return;
+        var component = (InterfaceComponent) Interfaces.newQuery().containers(new int[]{160}).types(
+                        new InterfaceComponent.Type[]{InterfaceComponent.Type.CONTAINER}).
+                actions(new String[]{"Use"}).
+                names(new String[]{"Special Attack"}).
+                grandchildren(false).results().first();
+        if (component == null) {
+            log.debug("no special attack component");
+            return;
+        }
+        DirectInput.send(MenuAction.forInterfaceComponent(component, "Use"));
+    }
+
+    public static void equipDramen() {
+        var item = Inventory.getItems(items.dramenStaff).first();
+        if (item != null)
+            DirectInput.send(MenuAction.forSpriteItem(item, "Wield"));
+        Execution.delay(1200, 1400);
+    }
+
+    public static void equip(EquipmentLoadout l) {
+        if (l == null) {
+            log.debug("null loadout");
+            return;
+        }
+        for (EnumMap.Entry<Equipment.Slot, Pattern> a : l.entrySet()) {
+            equip(a.getValue(), a.getKey());
+        }
+    }
+
+    public static void equip(SpriteItem item) {
+        if (item == null) return;
+        var def = item.getDefinition();
+        if (def == null) return;
+        var action = def.getInventoryActions().contains("Wield") ? "Wield" : "Wear";
+        DirectInput.send(MenuAction.forSpriteItem(item, action));
+    }
+
+    public static void equip(String p, Equipment.Slot s) {
+        var item = Inventory.getItems(p).first();
+        equip(item);
+    }
+
+    public static void equip(Pattern p, Equipment.Slot s) {
+        var item = Inventory.getItems(p).first();
+        equip(item);
+    }
+
+    public static Pattern[] concatenate(Pattern[]... arrays) {
+        return Stream.of(arrays)
+                .flatMap(Stream::of)        // or, use `Arrays::stream`
+                .toArray(Pattern[]::new);
+    }
+
+    public static <T> List<T> joinLists(List<T>... lists) {
+        return Arrays.stream(lists).flatMap(Collection::stream).collect(Collectors.toList());
+    }
+
+    public static <T> List<T> join(T[] arr, T... elems) {
+        var pArr = new ArrayList<T>(List.of(arr));
+        for (var elem : elems) {
+            if (elem != null)
+                pArr.add(elem);
+        }
+        return new ArrayList<>(pArr);
+    }
+
+    public static Prayer[] joinPrayers(Prayer[] boost, Prayer protection) {
+        var pArr = new ArrayList<Prayer>(List.of(boost));
+        if (protection != null)
+            pArr.add(protection);
+        return pArr.toArray(Prayer[]::new);
+    }
+
+    public static String[] concatenate(String[]... arrays) {
+        return Stream.of(arrays)
+                .flatMap(Stream::of)        // or, use `Arrays::stream`
+                .toArray(String[]::new);
+    }
+
+    public static Pattern[] toItemList(EquipmentLoadout l) {
+        Pattern ret[] = {};
+        if (l == null) return ret;
+        return l.entrySet().stream().map(e -> e.getValue()).toArray(Pattern[]::new);
+    }
+
+    public static Pattern[] toPatternArray(String[] strings) {
+        return Arrays.stream(strings).map(s -> Pattern.compile(s)).toArray(Pattern[]::new);
+    }
+
+    public static Prayer[] getBoostPrayersA(CombatStyle style) {
+        return getBoostPrayers(style).toArray(new Prayer[0]);
+    }
+
+    public static List<Prayer> getBoostPrayers(CombatStyle style) {
+        var l = new ArrayList<Prayer>();
+        if (style == CombatStyle.Magic)
+            l.add(getMagicBoostPrayer());
+        else if (style == CombatStyle.Ranged)
+            l.add(getRangedBoostPrayer());
+        else {
+            l.addAll(getMeleeBoostPrayers());
+        }
+        return l;
+
+    }
+
+    public static List<Prayer> getMeleeBoostPrayers() {
+        var l = new ArrayList<Prayer>();
+        if (Prayer.PIETY.isActivatable())
+            l.add(Prayer.PIETY);
+        else if (Prayer.CHIVALRY.isActivatable())
+            l.add(Prayer.CHIVALRY);
+        else {
+            l.add(Prayer.STEEL_SKIN);
+            l.add(Prayer.ULTIMATE_STRENGTH);
+            l.add(Prayer.INCREDIBLE_REFLEXES);
+        }
+        return l;
+    }
+
+    public static Prayer getMagicBoostPrayer() {
+        return Prayer.AUGURY.isActivatable() ? Prayer.AUGURY :
+                Prayer.MYSTIC_MIGHT.isActivatable() ? Prayer.MYSTIC_MIGHT :
+                        Prayer.MYSTIC_LORE;
+    }
+
+    public static Prayer getRangedBoostPrayer() {
+        return Prayer.RIGOUR.isActivatable() ? Prayer.RIGOUR :
+                Prayer.EAGLE_EYE.isActivatable() ? Prayer.EAGLE_EYE :
+                        Prayer.HAWK_EYE;
+    }
+
+    public static void teleToHouse() {
+        if (!House.isInside()) {
+            if (Inventory.contains(items.houseTab)) {
+                log.debug("break house tab");
+                var item = Inventory.getItems(items.houseTab).first();
+                if (item != null)
+                    DirectInput.send(MenuAction.forSpriteItem(item, "Inside"));
+            } else if (Inventory.contains(items.constructionCape) || Equipment.contains(items.constructionCape)) {
+                log.debug("con cape tele");
+                var item = Inventory.contains(items.constructionCape)
+                        ? Inventory.getItems(items.constructionCape).first()
+                        : Equipment.getItems(items.constructionCape).first();
+                if (item != null)
+                    DirectInput.send(MenuAction.forSpriteItem(item, items.conCapeTelePoh));
+            } else {
+                log.debug("tele to house");
+                if (!Magic.TELEPORT_TO_HOUSE.activate()) {
+                    log.debug("tele to house spell failed");
+                    return;
+                }
+            }
+            if (!Execution.delayUntil(House::isInside, util::playerAnimating, 6000)) {
+                log.debug("unable to tele to house");
+            }
+        }
+        Action.set(Action.None);
+    }
+
+    public static boolean playerMoving() {
+        var p = Players.getLocal();
+        if (p == null) return false;
+        return p.isMoving();
+    }
+
+    public static boolean playerAnimating() {
+        var p = Players.getLocal();
+        if (p == null) return true;
+        return p.getAnimationId() != AnimationID.IDLE;
+    }
+
+    public static LocatableEntityQueryResults<GameObject> getPools() {
+        return (LocatableEntityQueryResults) GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Ornate pool of Rejuvenation"}).actions(new String[]{"Drink"}).results();
+    }
+
+    public static CombatStyle getCombatStyle(@NotNull EquipmentLoadout l) {
+        var def = l.getDefinition(Equipment.Slot.WEAPON);
+        return getCombatStyle(def);
+    }
+
+    public static boolean canAlch() {
+        return Magic.Book.STANDARD.isCurrent() &&
+                Rune.FIRE.getQuantity() > 5 && Rune.NATURE.getQuantity() > 1;
+    }
+
+    public static CombatStyle getCombatStyle(ItemDefinition weapon) {
+        if (weapon == null) return CombatStyle.Melee;
+        var a = weapon.getAttribute(434);
+        if (a != null && a.isInteger()) {
+            var intVal = a.getAsInteger();
+            if (intVal != null) {
+                switch (intVal) {
+                    case 4:
+                        return CombatStyle.Ranged;
+                    case 6:
+                        return CombatStyle.Magic;
+                    default:
+                }
+            }
+        }
+        var name = weapon.getName().toLowerCase();
+        var isStaff = name.contains("staff") || name.contains("sceptre") || name.contains("wand");
+        if (isStaff)
+            return CombatStyle.Magic;
+        var isBow = name.startsWith("crystal bow");
+        if (isBow)
+            return CombatStyle.Ranged;
+        return CombatStyle.Melee;
+    }
+
+    public static CombatStyle getCurrentCombatStyle() {
+        var w = Equipment.getItemIn(Equipment.Slot.WEAPON);
+        if (w == null) return CombatStyle.Melee;
+        return getCombatStyle(w.getDefinition());
+    }
+
+    public static GameObject getFairyRing() {
+        var f1 = FairyRing.getNearestObject();
+        if (f1 != null) return f1;
+        var fr = GameObjects.newQuery().types(
+                GameObject.Type.PRIMARY).names("Fairy ring").results().nearest();
+        if (fr != null) return fr;
+        var f2 = GameObjects.newQuery().types(
+                GameObject.Type.PRIMARY).names("Spiritual Fairy Tree").results().nearest();
+        if (f2 != null) return f2;
+        var f3 = GameObjects.newQuery().types(
+                GameObject.Type.PRIMARY).actions(Pattern.compile(".*Zanaris.*")).results().nearest();
+        if (f3 != null) return f3;
+        return null;
+    }
+
+    public static GameObject getOrnateJewelleryBox() {
+        return GameObjects.newQuery()
+                .types(GameObject.Type.PRIMARY)
+                .names("Ornate Jewellery Box")
+                .actions("Teleport Menu").results().nearest();
+    }
+
+    public static GameObject getJewelleryBox() {
+        var ornate = getOrnateJewelleryBox();
+        if (ornate != null) return ornate;
+        var fancy = GameObjects.newQuery()
+                .types(GameObject.Type.PRIMARY)
+                .names("Fancy Jewellery Box")
+                .actions("Teleport Menu").results().nearest();
+        if (fancy != null) return fancy;
+        var basic = GameObjects.newQuery()
+                .types(GameObject.Type.PRIMARY)
+                .names("Basic Jewellery Box")
+                .actions("Teleport Menu").results().nearest();
+        if (basic != null) return basic;
+        return null;
+    }
+
+    public static void moveTo(Coordinate c) {
+        if (c == null) return;
+        log.debug(String.format("MoveTo: %s", c));
+        DirectInput.sendMovement(c);
+        Action.set(Action.Move);
+    }
+
+    public static void moveTo(Coordinate.RegionOffset c) {
+        if (c == null) return;
+        log.debug(String.format("MoveTo: %s", c));
+        DirectInput.sendMovement(c);
+        Action.set(Action.Move);
+    }
+
+    public static boolean isSpecFull() {
+        return SpecialAttack.getEnergy() == 100;
+    }
+
+    public static boolean isFullyRestored() {
+        return !Health.isPoisoned() &&
+                Health.getCurrentPercent() >= 90 &&
+                Prayer.getPoints() > 40 &&
+                isSpecFull();
+    }
+
+    public static boolean consume(SpriteItem item, String action) {
+        if (item == null) return false;
+        if (item.getDefinition().isNoted()) return false;
+        try {
+            log.debug(String.format("consuming: %s", item.getDefinition().getName()));
+            var slot = item.getIndex();
+            var it = Inventory.getItemIn(slot);
+            if (it == null) return true;
+            if (it.getId() == item.getId()) {
+                log.debug(String.format("clicking: %s", Inventory.getItemIn(slot)));
+                item.interact(action);
+                Execution.delay(10, 65);
+                Action.set(Action.Consume);
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("Consume", e);
+            return false;
+        }
+    }
+
+    public static boolean consume(int itemId, String action) {
+        return consume(Inventory.newQuery().ids(itemId).unnoted().results().first(), action);
+    }
+
+    public static boolean consume(String itemName, String action) {
+        return consume(Inventory.newQuery().names(itemName).unnoted().results().first(), action);
+    }
+
+    public static boolean consume(Pattern itemName, String action) {
+        return consume(Inventory.newQuery().names(itemName).unnoted().results().first(), action);
+    }
+
+    public static boolean invigorateHeart() {
+        var v = VarbitID.IMBUED_HEART_COOLDOWN.getValue(0);
+        return v == 0 && consume(items.imbuedHeart, items.invigorate);
+    }
+
+    public static boolean boostMagicIfNeeded(Boost b) {
+        int boostThresh = 5;
+        var boost = Skill.MAGIC.getCurrentLevel() - Skill.MAGIC.getBaseLevel();
+        if (boost < boostThresh) {
+            return invigorateHeart();
+        }
+        return false;
+    }
+
+    public static boolean boostRangedIfNeeded() {
+        int boostThresh = 5;
+        var boost = Skill.RANGED.getCurrentLevel() - Skill.RANGED.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeRangedBoost();
+        }
+        return false;
+    }
+
+    public static boolean boostMeleeIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeMeleeBoost();
+        }
+        return false;
+    }
+
+    private static boolean consumeMeleeBoost() {
+        for (Integer b :
+                items.combatBoosts) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean consumeAttackBoostIfNeeded(int boostThresh) {
+        var boost = Skill.ATTACK.getCurrentLevel() - Skill.ATTACK.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeAttackBoost();
+        }
+        return false;
+    }
+
+    public static boolean consumeDefenceBoostIfNeeded(int boostThresh) {
+        var boost = Skill.DEFENCE.getCurrentLevel() - Skill.DEFENCE.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeDefenceBoost();
+        }
+        return false;
+    }
+
+    public static boolean consumeStrengthBoostIfNeeded(int boostThresh) {
+        var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeStrengthBoost();
+        }
+        return false;
+    }
+
+    private static boolean consumeAttackBoost() {
+        for (Integer b :
+                items.attackBoosts) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeDefenceBoost() {
+        for (Integer b :
+                items.defenceBoosts) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeStrengthBoost() {
+        for (Integer b :
+                items.strengthBoosts) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean boostIfNeeded(CombatStyle c) {
+        return boostIfNeeded(c, c.getDefaultBoostThreshold());
+    }
+
+    public static boolean boostIfNeeded(CombatStyle c, int boostThresh) {
+        if (c == CombatStyle.Magic) {
+            var boost = Skill.MAGIC.getCurrentLevel() - Skill.MAGIC.getBaseLevel();
+            if (boost < boostThresh) {
+                return invigorateHeart();
+            }
+        } else if (c == CombatStyle.Ranged) {
+            var boost = Skill.RANGED.getCurrentLevel() - Skill.RANGED.getBaseLevel();
+            if (boost < boostThresh) {
+                return consumeRangedBoost();
+            }
+        } else if (c == CombatStyle.Melee) {
+            var ss = consumeStrengthBoostIfNeeded(boostThresh) ||
+                    consumeAttackBoostIfNeeded(boostThresh) ||
+                    consumeDefenceBoostIfNeeded(boostThresh);
+            if (ss) return true;
+            var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+            if (boost < boostThresh) {
+                return !consumeMeleeBoost();
+            }
+        }
+        return false;
+    }
+
+    public static boolean consumeRangedBoost() {
+        for (Integer b :
+                items.rangedBoosts) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean itemStacksAndInInvent(GroundItem gi) {
+        if (gi == null) return false;
+        var giDef = gi.getDefinition();
+        if (giDef == null) return false;
+        var invItem = Inventory.newQuery().noted().ids(gi.getId()).results().first();
+        if (invItem == null)
+            invItem = Inventory.newQuery().stacks(true).ids(gi.getId()).results().first();
+        if (invItem == null) return false;
+        var invDef = invItem.getDefinition();
+        if (invDef == null) return false;
+        return (giDef.stacks() || giDef.isNoted()) && (invDef.stacks() || invDef.isNoted());
+    }
+
+    public static void take(GroundItem gi) {
+        if (gi == null || !gi.isValid()) {
+            log.debug("null / invalid in take");
+            return;
+        }
+        log.debug(String.format("looting: %s", gi.getDefinition().getName()));
+        DirectInput.send(MenuAction.forGroundItem(gi, "Take"));
+    }
+
+    public static boolean isCannonNearby() {
+        return false;
+    }
+
+    public static boolean restorePrayer() {
+        for (Integer b :
+                items.prayerRestores) {
+            if (consume(b, "Drink")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean otherPlayersNearby() {
+        return Players.getLoaded().size() > 1;
+    }
+
+    public static void ReduceHpWithRockCake() {
+        if (!Inventory.contains(items.dwarvenRock) && !Inventory.contains(items.locatorOrb)) {
+            log.error("no rock cake or locator orb");
+            return;
+        }
+        if (Health.getCurrent() > 1) {
+            if (Inventory.contains(items.dwarvenRock)) {
+                DirectInput.send(MenuAction.forSpriteItem(Inventory.getItems(items.dwarvenRock).first(), "Guzzle"));
+            } else if (Inventory.contains(items.locatorOrb)) {
+                DirectInput.send(MenuAction.forSpriteItem(Inventory.getItems(items.locatorOrb).first(), "Feel"));
+            } else {
+                log.error("rock cake error");
+            }
+        }
+    }
+
+    public static InterfaceComponent getQuickPrayerToggle() {
+        return (InterfaceComponent) Interfaces.newQuery().containers(new int[]{160}).types(new InterfaceComponent.Type[]{InterfaceComponent.Type.CONTAINER}).actions(new Pattern[]{TOGGLE_ACTION}).results().first();
+    }
+
+    public static void DirectInputQuickPrayer() {
+        DirectInput.send(MenuAction.forInterfaceComponent(getQuickPrayerToggle(), 0, MenuOpcode.CC_OP));
+    }
+
+    public static boolean ringOfDuelingToEnclave() {
+        var rod = Inventory.getItems(items.ringOfDueling).first();
+        if (rod == null) return false;
+        if (!rod.interact("Rub")) return false;
+        Keyboard.pressKey(KeyEvent.VK_3);
+        Execution.delayUntil(ChatDialog::isOpen, 400);
+        Keyboard.releaseKey(KeyEvent.VK_3);
+        Keyboard.pressKey(KeyEvent.VK_3);
+        return Execution.delayUntil(() -> util.ferox.contains(Players.getLocal()), util::playerAnimating, 3000);
+    }
+
+    public static boolean restoreAtFerox(NeckBot bot) {
+        var d = bot.getEventDispatcher();
+        if (bot.prayerFlicker != null) {
+            bot.prayerFlicker.setActivePrayers();
+        }
+        var t1 = new Coordinate(3135, 3633);
+        if (!Players.getLocal().getPosition().equals(t1) && new GameObjectQueryBuilder().names("Pool of Refreshment").results().isEmpty()) {
+            var path = BresenhamPath.buildTo(t1);
+            if (path != null) {
+                path.step();
+                Action.set(Action.Move);
+                return false;
+            } else {
+                log.debug("Could not generate path in traverse to ferox pool");
+            }
+        }
+        var pool = new GameObjectQueryBuilder().names("Pool of Refreshment").results().first();
+        if (pool == null) return false;
+        var l = new RestoreListener(d);
+        DirectInput.send(MenuAction.forGameObject(pool, "Drink"));
+        Execution.delayUntil(() -> l.hasRestored(), 15000);
+        l.stop();
+        Execution.delay(2000, 3000);
+        return true;
+    }
+
+    public static boolean isAutoRetaliateEnabled() {
+        return Varps.getAt(VarpID.AUTO_RETALIATE.getId()).getValue() == 0;
+    }
+
+    public static boolean toggleAutoRetaliate() {
+        log.debug("toggling auto retaliate");
+        if (!ControlPanelTab.COMBAT_OPTIONS.open()) {
+            return false;
+        }
+        final InterfaceComponent component = Interfaces.newQuery()
+                .containers(593)
+                .types(InterfaceComponent.Type.CONTAINER)
+                .actions("Auto retaliate")
+                .grandchildren(false)
+                .results()
+                .first();
+        return component != null && component.interact("Auto retaliate");
+    }
+
+    public static boolean curePoison() {
+        if (Health.isPoisoned()) {
+            if (consume(5958, "Drink")) {
+            } else if (consume(5956, "Drink")) {
+            } else if (consume(5954, "Drink")) {
+            } else if (consume(5952, "Drink")) {
+            } else if (consume(Pattern.compile("Superantipoison.*"), "Drink")) {
+            } else if (consume(Pattern.compile("Antipoison.*"), "Drink")) {
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean eat(Food food) {
+        if (food == null) return false;
+        return consume(food.gameName(), "Eat");
+    }
+
+    public static boolean eatIfHpAllows(Food food) {
+        if (food == null) return false;
+        return eatIfHpAllows(food, food.getHeals());
+    }
+
+    public static boolean eatIfHpAllows(Food food, int heals) {
+        if (Health.getMaximum() - Health.getCurrent() >= heals)
+            return eat(food);
+        return false;
+    }
+
+    public static boolean hasBloodRunes() {
+        var magic = Skill.MAGIC.getCurrentLevel();
+        if (magic >= 92 && Rune.BLOOD.getQuantity() > 4 && Rune.DEATH.getQuantity() > 4 && Rune.SOUL.getQuantity() > 1)
+            return true;
+        if (magic >= 80 && Rune.BLOOD.getQuantity() > 4 && Rune.DEATH.getQuantity() > 2)
+            return true;
+        if (magic >= 68 && Rune.BLOOD.getQuantity() > 2 && Rune.DEATH.getQuantity() > 2 && Rune.CHAOS.getQuantity() > 4)
+            return true;
+        if (magic >= 56 && Rune.BLOOD.getQuantity() > 1 && Rune.DEATH.getQuantity() > 2 && Rune.CHAOS.getQuantity() > 2)
+            return true;
+        return false;
+    }
+
+    public static Magic.Ancient getBloodSpell() {
+        var magic = Skill.MAGIC.getCurrentLevel();
+        if (magic >= 92 && Rune.BLOOD.getQuantity() > 4 && Rune.DEATH.getQuantity() > 4 && Rune.SOUL.getQuantity() > 1)
+            return Magic.Ancient.BLOOD_BARRAGE;
+        if (magic >= 80 && Rune.BLOOD.getQuantity() > 4 && Rune.DEATH.getQuantity() > 2)
+            return Magic.Ancient.BLOOD_BLITZ;
+        if (magic >= 68 && Rune.BLOOD.getQuantity() > 2 && Rune.DEATH.getQuantity() > 2 && Rune.CHAOS.getQuantity() > 4)
+            return Magic.Ancient.BLOOD_BURST;
+        if (magic >= 56 && Rune.BLOOD.getQuantity() > 1 && Rune.DEATH.getQuantity() > 2 && Rune.CHAOS.getQuantity() > 2)
+            return Magic.Ancient.BLOOD_RUSH;
+        return null;
+    }
+
+    public static List<Coordinate> getMeleeCoordinates(Npc n) {
+        if (n == null) return new ArrayList<>();
+        var a = n.getArea();
+        if (a == null) return new ArrayList<>();
+        var rect = a.toRectangular();
+        var melees = rect.getSurroundingCoordinates();
+        melees.removeIf(c -> Objects.equals(c, rect.getTopLeft()));
+        melees.removeIf(c -> Objects.equals(c, rect.getTopRight()));
+        melees.removeIf(c -> Objects.equals(c, rect.getBottomLeft()));
+        melees.removeIf(c -> Objects.equals(c, rect.getBottomRight()));
+        return melees;
+    }
+
+    public static boolean canNpcContact() {
+        if (!Magic.Book.LUNAR.isCurrent()) return false;
+        if (Skill.MAGIC.getCurrentLevel() < 67) return false;
+        return Rune.AIR.getQuantity() >= 2 && Rune.ASTRAL.getQuantity() >= 1 && Rune.COSMIC.getQuantity() >= 1;
+    }
+}

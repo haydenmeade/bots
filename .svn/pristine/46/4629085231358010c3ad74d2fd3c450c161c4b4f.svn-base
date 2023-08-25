@@ -1,0 +1,67 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.MonsterLoadoutOverrider;
+import com.neck_flexed.scripts.slayer.SlayerMonster;
+import com.neck_flexed.scripts.slayer.TraverseOverride;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2
+public class TraverseState extends BaseState<SlayerState> {
+    private final NeckBot<?, SlayerState> bot;
+    private final SlayerMonster monster;
+    private final Traverser traverser;
+    private boolean done = false;
+
+    public TraverseState(NeckBot<?, SlayerState> bot, @NotNull SlayerMonster monster) {
+        super(SlayerState.TRAVERSING);
+        this.bot = bot;
+        this.monster = monster;
+        HouseConfig houseConfig = bot.getHouseConfig();
+        TraverseOverride override = monster.getTraverseOverride();
+        bot.prayerFlicker.setActivePrayers();
+        this.traverser = new Traverser(
+                bot,
+                houseConfig,
+                monster.getTraverseToTile(),
+                monster.getPathRegions(),
+                override == null ? null : override::overrideLoop,
+                monster.getTraverseMethods()
+        );
+    }
+
+    @Override
+    public void activate() {
+        super.activate();
+        bot.updateStatus(String.format("Traversing to %s", monster));
+        this.bot.loadouts.setLoadoutOverrider(new MonsterLoadoutOverrider(monster));
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done || monster.getArea().contains(Players.getLocal().getServerPosition());
+    }
+
+    @Override
+    public void executeLoop() {
+        this.done = traverser.executeLoop();
+        if (!monster.isHoppingDisabled()
+                && util.anyOtherPlayersWithin(monster.getArea())
+                && Players.getLocal().getHealthGauge() == null) {
+            log.debug("Force hopping from traverse");
+            this.bot.forceState(SlayerState.HOPPING);
+        }
+    }
+}

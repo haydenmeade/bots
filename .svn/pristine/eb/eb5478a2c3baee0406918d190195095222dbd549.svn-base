@@ -1,0 +1,69 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.Objects;
+
+@RequiredArgsConstructor
+@Getter
+public enum Monster {
+    DustDevil("Dust devil", "Choke devil", areas.DUST_DEVIL, areas.DUST_DEVIL_1, areas.DUST_DEVIL_2),
+    AbyssalDemon("Abyssal demon", "Greater abyssal demon", areas.ABYSSAL_DEMON, areas.ABYSSAL_DEMON_1, areas.ABYSSAL_DEMON_2),
+    Nechryael("Greater Nechryael", "Nechryarch", areas.NECH, areas.NECH_1, areas.NECH_2),
+    Jelly("Warped Jelly", "Vitreous warped Jelly", areas.JELLY, areas.JELLY_1, areas.JELLY_2),
+    ;
+
+    private final String monsterName;
+    private final String superiorName;
+    private final Area area;
+    private final Coordinate tile1;
+    private final Coordinate tile2;
+
+    @Override
+    public String toString() {
+        return this.monsterName;
+    }
+
+    public Npc getSuperior() {
+        return Npcs.newQuery()
+                .names(superiorName)
+                .within(area)
+                .filter(n -> n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                .results().nearest();
+    }
+
+    public boolean isSuperiorPresent() {
+        return getSuperior() != null;
+    }
+
+    public boolean isMonster(Npc npc) {
+        if (npc == null) return false;
+        var name = npc.getName();
+        if (name == null) return false;
+        return name.equalsIgnoreCase(monsterName) || name.equalsIgnoreCase(superiorName);
+    }
+
+    public LocatableEntityQueryResults<Npc> getNpcsWithin() {
+        return Npcs.newQuery()
+                .names(superiorName, monsterName)
+                .within(area)
+                .filter(n -> n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                .results();
+    }
+
+    public Npc getAliveNpc() {
+        return Npcs.newQuery()
+                .names(superiorName, monsterName)
+                .within(area)
+                .filter(n -> n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                .results()
+                .nearestTo(tile1);
+    }
+}

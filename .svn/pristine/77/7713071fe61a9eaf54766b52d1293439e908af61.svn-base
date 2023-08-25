@@ -1,0 +1,21 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.State;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class SearchState implements State {
+    @Override
+    public void activate(EventDispatcher d) {
+
+    }
+
+    @Override
+    public void deactivate(EventDispatcher d) {
+
+    }
+
+    @Override
+    public void execute() {
+
+    }
+}

@@ -1,0 +1,91 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreState")
+public class RestoreState implements LoopState<BarrageState> {
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private final BreakManager breakManager;
+    private String error;
+    private boolean done;
+    private EventDispatcher dispatcher;
+
+    public RestoreState(com.neck_flexed.scripts.barrage.bot bot
+            , BreakManager breakManager) {
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.dispatcher = d;
+        bot.updateStatus(String.format("Restoring"));
+        bot.resetKill();
+        bot.prayerFlicker.setActivePrayers();
+    }
+
+    @Override
+    public BarrageState deactivate(EventDispatcher d) {
+        if (!bot.settings().spell().canCast()) {
+            bot.updateStatus("Ran out of runes.");
+            bot.stop("Ran out of runes.");
+            return BarrageState.STARTING;
+        }
+        if (!SlayerTask.hasTask()) {
+            bot.updateStatus("end slayer task");
+            bot.stop("end slayer task");
+            return BarrageState.STARTING;
+        }
+        if (this.breakManager.breaking() || this.breakManager.stopBot())
+            return BarrageState.BREAKING;
+        return BarrageState.RESTOCKING;
+    }
+
+    @Override
+    public BarrageState get() {
+        return BarrageState.RESTORING;
+    }
+
+    @Override
+    public String fatalError() {
+        return this.error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (bot.settings().RestoreAndBankStrategy() == RestoreAndBankStrategy.House) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                return;
+            }
+
+            if (!HouseUtil.restoreStatsInHouse(bot)) {
+                return;
+            }
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            this.done = HouseUtil.JbToCastleWars();
+        } else {
+            if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                log.error("Unable to tele to ferox");
+                return;
+            } else if (!util.restoreAtFerox(bot)) {
+                return;
+            }
+            this.done = true;
+        }
+
+    }
+}

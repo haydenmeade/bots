@@ -1,0 +1,75 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreTask")
+public class RestoreTask extends LeafTask {
+    private static final int jb_interface_id = 590;
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        sire.updateStatus(String.format("Restoring"));
+        log.debug("restoring");
+        if (!House.isInside()) {
+            log.debug("tele to house");
+            Traverse.breakHouseTab();
+            if (!Execution.delayUntil(() -> House.isInside(), 5000)) {
+                throw new RuntimeException("Unable to get to house");
+            }
+        }
+
+        Execution.delay(2000);
+
+        if (!u.isRestored()) {
+
+            if (!Execution.delayUntil(() -> !Traverse.getPools().isEmpty(), 5000)) {
+                throw new RuntimeException("Unable to pool lll");
+            }
+            var pool = Traverse.getPools().nearest();
+            if (pool == null) {
+                throw new RuntimeException("Unable to find pool");
+            }
+
+            DirectInput.send(MenuAction.forGameObject(pool, "Drink"));
+            if (!Execution.delayUntil(() -> u.isRestored(), 10000)) {
+                throw new RuntimeException("Unable to restore");
+            }
+            Execution.delay(1200);
+        }
+
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+
+        if (!Execution.delayUntil(() -> !Traverse.getJewelleryBox().isEmpty(), 5000)) {
+            throw new RuntimeException("Unable to find jewellery box");
+        }
+        var jb = Traverse.getJewelleryBox().nearest();
+        if (!jb.getActiveDefinition().getActions().contains("Castle Wars")) {
+            while (InterfaceContainers.getAt(jb_interface_id) == null) {
+                jb.interact("Teleport Menu");
+                Execution.delay(1600, 3600);
+            }
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(jb_interface_id) != null, 10000)) {
+                InterfaceContainers.getAt(jb_interface_id).getComponent(2).getChild(6).interact("Castle Wars");
+                Execution.delay(1600, 3600);
+            } else {
+                throw new RuntimeException("stuck at jewellery box");
+            }
+        } else {
+            while (!sire.castleWars.contains(Players.getLocal())) {
+                jb.interact("Castle Wars");
+                Execution.delay(1600, 3600);
+            }
+        }
+        SireState.setBotState(SireState.RESTOCKING);
+    }
+}

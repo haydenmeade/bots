@@ -1,0 +1,122 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.List;
+import java.util.Objects;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<MoleState>, EngineListener {
+    private final Mole bot;
+    private final MoleListener moleListener;
+    private final PrayerFlicker prayerFlicker;
+    private final boolean isDharoks;
+    private final Loadouts loadouts;
+    private final Loadout spec;
+    private final Loadout fightLoadout;
+
+    public FightState(Mole bot,
+                      MoleListener moleListener,
+                      PrayerFlicker prayerFlicker
+    ) {
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.moleListener = moleListener;
+        this.prayerFlicker = prayerFlicker;
+        this.isDharoks = loadouts.getDharoks() != null;
+        this.spec = loadouts.getSpecLoadout();
+        this.fightLoadout = loadouts.getAnyCombat();
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        d.removeListener(this);
+        this.prayerFlicker.setActivePrayers();
+        Execution.delayUntil(() -> {
+            var m = Mole.getMole();
+            return m == null || m.getAnimationId() != MoleListener.digAnim;
+        });
+
+        if (this.moleListener.isDead())
+            return MoleState.LOOTING;
+        else
+            return MoleState.SEARCHING;
+    }
+
+    public Prayer[] getPrayers() {
+        var p = new java.util.ArrayList<>(List.of(this.fightLoadout.getBoostPrayers()));
+        p.add(Prayer.PROTECT_FROM_MELEE);
+        if (this.loadouts.getDharoks() != null) {
+            p.add(Prayer.RAPID_HEAL);
+        }
+        return p.toArray(new Prayer[0]);
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        bot.updateStatus("Fighting");
+        this.prayerFlicker.setActivePrayers(getPrayers());
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.moleListener.isDead() || this.moleListener.isDug() || Mole.getMole() == null;
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            var p = Players.getLocal();
+            if (p == null) return;
+            var npc = Mole.getMole();
+            if (npc == null) return;
+            if (npc.getAnimationId() == MoleListener.digAnim) return;
+            if (loadouts.getEquipped() != null)
+                util.boostIfNeeded(loadouts.getEquipped().getStyle(), bot.settings().reboost());
+            if (isDharoks && Health.getCurrent() > 1) {
+                util.ReduceHpWithRockCake();
+                return;
+            }
+            var target = p.getTarget();
+            var needToSpec = spec != null && SpecialAttack.getEnergy() >= spec.getSpecEnergy();
+            if (needToSpec) {
+                loadouts.equip(spec);
+                util.activateSpec();
+                if (!Objects.equals(target, npc))
+                    util.attack(npc);
+            } else if (!Objects.equals(target, npc)) {
+                loadouts.equip(fightLoadout);
+                util.attack(npc);
+            } else {
+                loadouts.equip(fightLoadout);
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void executeLoop() {
+    }
+}

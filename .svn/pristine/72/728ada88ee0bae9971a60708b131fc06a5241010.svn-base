@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+    private final kq bot;
+
+
+    public Consumeables(kq bot) {
+        this.bot = bot;
+    }
+
+
+    private void checkAndConsume() {
+        if (KqState.isPaused()) return;
+        if (Health.getCurrent() < 39) {
+            if (!util.eat(KqState.getSettings().food())) {
+                this.bot.forceState(KqState.RESTORING);
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!util.restorePrayer()) {
+                this.bot.forceState(KqState.RESTORING);
+            }
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+        if (Health.isPoisoned()) {
+            if (!util.curePoison())
+                log.warn("No anti poison");
+            //this.bot.forceState(KqState.RESTORING);
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.error("death", event);
+        kq.updateStatus("dead");
+        ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Dead, whoops...");
+        bot.stop("DEAD");
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

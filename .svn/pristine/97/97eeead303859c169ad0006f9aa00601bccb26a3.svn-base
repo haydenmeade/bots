@@ -1,0 +1,114 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<CerbState> {
+    private final CerbListener cerbListener;
+    private final PrayerFlicker prayerFlicker;
+    private final cerb bot;
+    private final Prayer[] boostPrayers;
+    private final CombatStyle combatStyle;
+    private final int specEnergy;
+    private boolean done = false;
+
+    public FightState(CerbListener cerbListener,
+                      PrayerFlicker prayerFlicker,
+                      cerb bot,
+                      Prayer[] boostPrayers,
+                      CombatStyle combatStyle,
+                      int specEnergy) {
+        this.cerbListener = cerbListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.boostPrayers = boostPrayers;
+        this.combatStyle = combatStyle;
+        this.specEnergy = specEnergy;
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        if (this.cerbListener.isDead()) {
+            Action.set(Action.None);
+            this.prayerFlicker.setActivePrayers();
+            return CerbState.LOOTING;
+        } else if (this.done)
+            return CerbState.WALK_UNDER;
+        return CerbState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Action.set(Action.None);
+        log.debug("activate");
+        cerb.updateStatus("Fighting");
+        this.prayerFlicker.setActivePrayers(this.boostPrayers);
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.cerbListener.isDead() || done;
+    }
+
+    @Override
+    public void executeLoop() {
+        var s = CerbState.getSettings();
+        var target = Players.getLocal().getTarget();
+        var dog = cerb.getCerb();
+        if (util.otherPlayersNearby()
+                && s.fightStrategy().equals(FightStrategy.Flinch)
+                && (Players.getLocal().getHealthGauge() == null || !Players.getLocal().getHealthGauge().isValid())
+        ) {
+            this.bot.forceState(CerbState.HOPPING);
+            return;
+        }
+        if (dog == null && !Players.getLocal().isMoving()) {
+            log.debug("move to center");
+            util.boostIfNeeded(this.combatStyle);
+            util.moveTo(cerb.centerSpawnTile);
+            return;
+        }
+        if (dog == null) return;
+        if (dog.getId() == cerb.IdStartNoAttack && !Action.get().equals(Action.Move)) {
+            log.debug("initiate");
+            util.moveTo(dog.getArea().getCenter());
+            util.boostIfNeeded(this.combatStyle);
+            return;
+        }
+
+        var playerAnimationListener = new PlayerAnimationListener(Players.getLocal().getAnimationId());
+
+        // flinch method
+        if (s.specEquipment() != null &&
+                !s.specEquipment().isEmpty() &&
+                SpecialAttack.getEnergy() >= specEnergy) {
+            util.activateSpec();
+            if (target == null || !Action.get().equals(Action.Spec)) {
+                util.equip(CerbState.getSettings().specEquipment());
+                cerb.attack();
+                Action.set(Action.Spec);
+            }
+        } else if (target == null || Action.get() != Action.Attack) {
+            util.equip(CerbState.getSettings().equipment());
+            cerb.attack();
+        }
+        //Execution.delayUntil(playerAnimationListener::isDone, 1200, 1250);
+        done = true;
+    }
+}

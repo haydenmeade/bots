@@ -1,0 +1,122 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import com.runemate.game.api.script.framework.listeners.events.NpcSpawnedEvent;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "SarachnisListener")
+public class SarachnisListener implements NpcListener, EngineListener, ChatboxListener {
+    private static final int RespawnTicks = 17;
+    private static final String webbedMsg = "Sarachnis has webbed you in place!";
+    private final com.neck_flexed.scripts.sarachnis.bot bot;
+    private boolean isDead = false;
+    private Area deadArea;
+    @Getter
+    private Sarachnis sarachnis;
+    private int tick = 0;
+    @Getter
+    private int ticksUntilRespawn = 0;
+
+    public SarachnisListener(com.neck_flexed.scripts.sarachnis.bot bot) {
+        this.bot = bot;
+    }
+
+    public void handleEndFight() {
+        this.sarachnis = null;
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        if (!messageEvent.getType().equals(Chatbox.Message.Type.SERVER)) return;
+        if (messageEvent.getMessage().equals(webbedMsg)) {
+            sarachnis.handleWebbed();
+        }
+    }
+
+    public void init() {
+        var h = Npcs.newQuery()
+                .ids(Sarachnis.ID)
+                .results().first();
+        if (h != null) {
+            log.debug("did init");
+            onNpcSpawned(new NpcSpawnedEvent(h));
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            if (this.ticksUntilRespawn > 0)
+                this.ticksUntilRespawn--;
+            this.tick++;
+            //log.debug(tick);
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        try {
+            var npc = event.getNpc();
+            if (npc == null) return;
+            if (npc.getId() != Sarachnis.ID) {
+                return;
+            }
+            sarachnis = new Sarachnis(bot, npc);
+            log.debug(String.format("Sarachnis spawned: %s", tick));
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        try {
+            if (getId(event.getSource()) == Sarachnis.ID && event.getAnimationId() == Sarachnis.DEATH_ANIM) {
+                isDead = true;
+                deadArea = sarachnis.getNpc().getArea().grow(5, 5);
+                this.sarachnis = null;
+                this.ticksUntilRespawn = RespawnTicks;
+                bot.addKill();
+            }
+        } catch (Exception e) {
+            log.error("NpcAnimation", e);
+            e.printStackTrace();
+        }
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    public boolean isDead() {
+        return isDead;
+    }
+
+    public void reset() {
+        log.debug("reset");
+        isDead = false;
+        deadArea = null;
+        this.sarachnis = null;
+    }
+
+    public Area getDeadArea() {
+        return deadArea;
+    }
+}

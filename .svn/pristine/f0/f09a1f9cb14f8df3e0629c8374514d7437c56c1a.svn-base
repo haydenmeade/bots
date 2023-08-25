@@ -1,0 +1,74 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.Xeric;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collection;
+import java.util.List;
+
+@Log4j2
+public class HouseXericTraverse implements TraverseMethod {
+    private final Xeric dest;
+
+    public HouseXericTraverse(Xeric dest) {
+        this.dest = dest;
+    }
+
+    public static GameObject getMountedXerics() {
+        return GameObjects.newQuery()
+                .names("Xeric's Talisman")
+                .results().nearest();
+    }
+
+    @Override
+    public String toString() {
+        return "House Xeric: " + dest;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new HouseRequirement(HouseConfig::isHasMountedXerics));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        if (!House.isInside()) {
+            util.teleToHouse();
+            return false;
+        }
+        var talisman = getMountedXerics();
+        if (talisman == null) {
+            log.error("No mounted xerics found");
+            return false;
+        }
+        var p = Players.getLocal().getServerPosition().getContainingRegionId();
+        if (InterfaceContainers.getAt(187) != null) {
+            Keyboard.pressKey(dest.getKey());
+            return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != p,
+                    util::playerAnimatingOrMoving,
+                    2000, 5000);
+        }
+        if (talisman.getActiveDefinition().getActions().contains(dest.getRightClick())) {
+            DirectInput.send(MenuAction.forGameObject(talisman, dest.getRightClick()));
+            return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != p,
+                    util::playerAnimatingOrMoving,
+                    2000, 5000);
+        }
+        DirectInput.send(MenuAction.forGameObject(talisman, "Teleport menu"));
+
+        Execution.delayUntil(() -> InterfaceContainers.getAt(187) != null, 1000, 2000);
+        return false;
+    }
+}

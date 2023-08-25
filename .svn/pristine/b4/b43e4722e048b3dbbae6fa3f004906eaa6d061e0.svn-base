@@ -1,0 +1,10 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+
+public class Ticker implements EngineListener {
+    @Override
+    public void onTickStart() {
+        BotState.tick();
+    }
+}

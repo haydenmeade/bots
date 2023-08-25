@@ -1,0 +1,139 @@
+package com.neck_flexed.scripts.common;
+
+import com.google.common.base.Stopwatch;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EnumMap;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Loadout")
+public class Loadout {
+    private final CombatStyle style;
+    private final EquipmentLoadout loadout;
+    private final boolean isTwoHanded;
+    private final boolean isDharoks;
+    private final boolean isTwoItems;
+    private final LoadoutRole role;
+    private final boolean isSpecLoadout;
+    private final int specEnergy;
+    private final String name;
+    private final Prayer[] boostPrayers;
+
+    public Loadout(
+            CombatStyle style
+            , EquipmentLoadout l
+            , LoadoutRole role,
+            String name) {
+        this.style = style;
+        this.loadout = l;
+        this.isTwoHanded = isTwoHanded(l);
+        this.isTwoItems = isCurrentEquip2Items(l);
+        this.role = role;
+        this.isSpecLoadout = !role.equals(LoadoutRole.Combat);
+        this.specEnergy = getSpecCost(l);
+        this.name = name;
+        this.boostPrayers = util.getBoostPrayersA(style);
+        isDharoks = util.isDharoks(l);
+    }
+
+    public static Loadout fromEquipmentLoadout(EquipmentLoadout l, LoadoutRole role, String name) {
+        Stopwatch timer = Stopwatch.createStarted();
+        var style = l == null ? CombatStyle.Melee : util.getCombatStyle(l);
+        log.debug("style done in: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        var theL = new Loadout(style, l, role, name);
+        log.debug("loadout construct done in: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        return theL;
+    }
+
+    private static int getSpecCost(EquipmentLoadout l) {
+        if (l == null || l.isEmpty()) return 0;
+        var d = l.getDefinition(Equipment.Slot.WEAPON);
+        if (d == null) return 0;
+        var cost = SpecialAttackCost.getCost(d.getId());
+        return cost == null ? 0 : cost;
+    }
+
+    private static boolean isTwoHanded(EquipmentLoadout l) {
+        var wep = l.getDefinition(Equipment.Slot.WEAPON);
+        return wep == null ? false : wep.isTwoHanded();
+    }
+
+    private static boolean isCurrentEquip2Items(EquipmentLoadout l) {
+        var wep = l.getDefinition(Equipment.Slot.WEAPON);
+        var sh = l.getDefinition(Equipment.Slot.SHIELD);
+        return wep != null && sh != null;
+    }
+
+
+    public Loadout equip(Loadout current) {
+        Stopwatch timer = Stopwatch.createStarted();
+        if (this.equals(current)) return this;
+        // if inventory is full, loadout weapon is 2h, and have current weapon and shield.
+        if (current != null
+                && Inventory.isFull()
+                && this.isTwoHanded
+                && current.isTwoItems
+        ) {
+            log.debug("Dropping food to equip");
+            if (!Food.dropWorst())
+                log.error("error equiping 2h weapon");
+        }
+        util.equip(this.loadout);
+        log.debug("Equip Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        return this;
+    }
+
+    private void doEquip() {
+        if (this.loadout == null) {
+            log.debug("null loadout");
+            return;
+        }
+        for (EnumMap.Entry<Equipment.Slot, Pattern> a : this.loadout.entrySet()) {
+            util.equip(a.getValue(), a.getKey());
+        }
+    }
+
+    public Prayer[] getBoostPrayers() {
+        return this.boostPrayers;
+    }
+
+    public CombatStyle getStyle() {
+        return style;
+    }
+
+    public EquipmentLoadout getLoadout() {
+        return loadout;
+    }
+
+    public boolean isSpecLoadout() {
+        return isSpecLoadout;
+    }
+
+    public int getSpecEnergy() {
+        return specEnergy;
+    }
+
+    public LoadoutRole getRole() {
+        return role;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public boolean isDharoks() {
+        return isDharoks;
+    }
+
+    public enum LoadoutRole {
+        Combat,
+        SpecDefenseReduction,
+        SpecHeal,
+        SpecDps;
+    }
+}

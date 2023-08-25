@@ -1,0 +1,59 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.Instance;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import org.jetbrains.annotations.NotNull;
+
+public class Phase2Steps implements PhaseSteps {
+    private final Coordinate step0;
+    private final Coordinate step1;
+    private final Coordinate step2;
+    private final Coordinate step3;
+    private final Coordinate step4;
+    private final Coordinate step5;
+    private final Coordinate step6;
+
+    public Phase2Steps() {
+        var step0 = new Coordinate(1371, 10278, 0);
+        var step1 = new Coordinate(1366, 10278, 0);
+        var step2 = new Coordinate(1362, 10278, 0);
+
+        var step3 = new Coordinate(1358, 10278, 0);
+        var step4 = new Coordinate(1359, 10277, 0);
+        var step5 = new Coordinate(1359, 10278, 0);
+        var step6 = new Coordinate(1358, 10276, 0);
+        this.step0 = Instance.toInstancedFirst(step0);
+        this.step1 = Instance.toInstancedFirst(step1);
+        this.step2 = Instance.toInstancedFirst(step2);
+        this.step3 = Instance.toInstancedFirst(step3);
+        this.step4 = Instance.toInstancedFirst(step4);
+        this.step5 = Instance.toInstancedFirst(step5);
+        this.step6 = Instance.toInstancedFirst(step6);
+    }
+
+    @Override
+    public @NotNull PhaseSteps.Step GetNextStep(int idx) {
+        switch (idx) {
+            case 0:
+                return new Step(0, h -> !h.getHydra().getImmunity(), HydraListener::isNotOverVent, step0);
+            case 1:
+                return new Step(1, HydraListener::playerAttacked, step1);
+            case 2:
+                return new Step(2, HydraListener::playerAttacked, step2);
+            case 3:
+                return new Step(3, h -> {
+                    if (h.getHydra().getNextSpecialRelative() < 3) return false;
+                    var l = h.getHydra().getNearestLightning();
+                    if (l == null) return false;
+                    return l.distanceTo(Players.getLocal().getServerPosition()) <= 4.5;
+                }, step3);
+            case 4:
+                return new Step(4, 0, step4);
+            case 5:
+                return new Step(5, h -> h.getHydra().getNextSpecialRelative() == 1, step5);
+            default:
+                return new Step(2, 0, step6);
+        }
+    }
+}

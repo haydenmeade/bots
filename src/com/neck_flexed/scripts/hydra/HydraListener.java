@@ -1,0 +1,391 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.Instance;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Projectile;
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.Region;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.*;
+import com.runemate.game.api.script.framework.listeners.events.*;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+@Log4j2(topic = "HydraListener")
+public class HydraListener implements NpcListener, EngineListener, GameObjectListener, ProjectileListener, ChatboxListener, PlayerListener {
+    private static final int RespawnTicks = 43;
+    private final PrayerFlicker prayerFlicker;
+    private final Lock projectileLock = new ReentrantLock();
+    @Getter
+    int fountainTicks = -1;
+    int lastFountainAnim = -1;
+    @Getter
+    private boolean specialNextTick = false;
+    @Getter
+    private int ticksUntilRespawn = RespawnTicks;
+    private boolean didInit;
+    @Getter
+    private int tick = 0;
+    private com.neck_flexed.scripts.hydra.bot bot;
+    @Getter
+    private Hydra hydra;
+    private int lastAttackTick = -1;
+    private int flameMove = 0;
+    @Getter
+    private boolean flameSkip;
+    @Getter
+    private boolean poisonAttack = false;
+    private FightState fightState;
+    @Getter
+    private int specialAttackTick = 0;
+    private int flameMoveProjectile = 0;
+    private boolean playerAttacked = false;
+    private int prevPlayerAnimation = -1;
+
+    public HydraListener(PrayerFlicker prayerFlicker, com.neck_flexed.scripts.hydra.bot bot) {
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.didInit = false;
+    }
+
+    @Override
+    public void onPlayerAnimationChanged(AnimationEvent event) {
+        var p = Players.getLocal();
+        if (!Objects.equals(p, event.getSource())) return;
+        if (p == null) return;
+        //this.playerAttacked = event.getAnimationId() != -1 && prevPlayerAnimation == -1;
+        //this.prevPlayerAnimation = event.getAnimationId();
+    }
+
+    public void init(FightState fightState) {
+        this.fightState = fightState;
+        if (!didInit) {
+            var h = Npcs.newQuery()
+                    .ids(c.ALCHEMICAL_HYDRA)
+                    .results().first();
+            if (h != null) {
+                log.debug("did init hydra");
+                onNpcSpawned(new NpcSpawnedEvent(h));
+                didInit = true;
+            }
+        }
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        if (hydra == null) return;
+        final var chatMessageType = event.getType();
+
+        if (chatMessageType != Chatbox.Message.Type.SERVER && chatMessageType != Chatbox.Message.Type.UNKNOWN) {
+            return;
+        }
+
+        final String message = event.getMessage();
+
+        if (message.equals(c.MESSAGE_NEUTRALIZE)) {
+            hydra.setImmunity(false);
+            log.debug("Hydra immunity removed on tick {}", tick);
+        }
+    }
+
+    @Override
+    public void onProjectileLaunched(ProjectileLaunchEvent event) {
+        try {
+            projectileLock.lock();
+            final Projectile projectile = event.getProjectile();
+            var h = hydra;
+            if (h == null) return;
+            if (projectile == null) return;
+            Stopwatch timer = Stopwatch.createStarted();
+
+            final int projectileId = projectile.getSpotAnimationId();
+            if (h.getPhase().getSpecialProjectileId() == projectileId) {
+                if (h.getPhase().equals(HydraPhase.FLAME)) {
+                    if (this.flameMove >= 2) {
+                        flameMoveProjectile++;
+                        log.debug("FLAME SKIP projectile {} {}", flameMoveProjectile, event);
+                        if (flameMoveProjectile >= 4) {
+                            specialAttackTick = tick + 2;
+                        }
+                    } else {
+                        log.debug("FLAME {}", event);
+                    }
+                } else {
+                    log.debug(String.format("Special attack projectile in phase %s", h.getPhase()));
+                    poisonAttack = true;
+                    if (h.getAttackCount() >= h.getNextSpecial()) {
+                        h.setNextSpecial();
+                    }
+                    if (this.fightState != null)
+                        this.fightState.onSpecialAttack();
+                }
+            } else if (tick != lastAttackTick
+                    && (projectileId == Hydra.AttackStyle.MAGIC.getProjectileID() || projectileId == Hydra.AttackStyle.RANGED.getProjectileID())) {
+
+                var projectileStyle = projectileId == Hydra.AttackStyle.MAGIC.getProjectileID() ? Hydra.AttackStyle.MAGIC : Hydra.AttackStyle.RANGED;
+                if (Objects.equals(prayerFlicker.getActiveProtectionPrayer(), projectileStyle.getPrayer())) {
+                    log.debug("Projectile on tick {}: {}, Current Protect: {}", tick, projectileStyle.name()
+                            , prayerFlicker.getActiveProtectionPrayer());
+                } else {
+                    log.error("Projectile PRAYER ERROR on tick {}: {}, Current Protect: {}", tick, projectileStyle.name()
+                            , prayerFlicker.getActiveProtectionPrayer());
+                }
+
+                flameMoveProjectile = 0;
+                h.handleProjectile(projectileId);
+                lastAttackTick = tick;
+                if (poisonAttack) {
+                    poisonAttack = false;
+                }
+            }
+
+            log.debug("Projectile Handler Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        } finally {
+            projectileLock.unlock();
+        }
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        try {
+            var npc = event.getNpc();
+            if (npc == null) return;
+            if (npc.getId() != c.ALCHEMICAL_HYDRA) {
+                return;
+            }
+            hydra = new Hydra(npc);
+            if (Region.isInstanced() && fountainTicks == -1) //handles the initial hydra spawn when your in the lobby but havent gone through the main doors
+            {
+                fountainTicks = 11;
+            }
+            log.debug(String.format("Hydra spawned: %s", tick));
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            handlePrayers(hydra == null ? Hydra.AttackStyle.RANGED : this.hydra.getNextAttack());
+            if (!com.neck_flexed.scripts.hydra.bot.inHydraInstance()) return;
+            this.ticksUntilRespawn--;
+            tick++;
+            this.flameSkip = flameMoveProjectile >= 4;
+
+            if (hydra != null) {
+                if (hydra.getNextSpecialRelative() == 0 || hydra.getNextSpecialRelative() >= 9) {
+                    if (specialAttackTick == 0 && hydra.getPhase().equals(HydraPhase.ENRAGED))
+                        specialAttackTick = tick + 2;
+                    if (specialAttackTick == tick) {
+                        specialNextTick = true;
+                        if (fightState != null)
+                            fightState.onSpecialAttack();
+                    }
+                } else {
+                    specialAttackTick = 0;
+                    specialNextTick = false;
+                }
+            }
+
+
+            log.debug(
+                    "Tick {}\n" +
+                            "Hydra Phase {}\n" +
+                            "Hydra HP {}\n" +
+                            "Hydra HP Until Phase {}\n" +
+                            "Hydra Anim {}\n" +
+                            "Hydra Stance {}\n" +
+                            "Hydra Next Attack {}\n" +
+                            "Hydra Next Special {}\n" +
+                            "Hydra Next OnTick {}\n" +
+                            "CurrentPrayer {}"
+                    ,
+                    tick
+                    , hydra == null ? 0 : this.hydra.getPhase()
+                    , hydra == null ? 0 : this.hydra.getHp()
+                    , hydra == null ? 0 : this.hydra.getHpUntilPhaseChange()
+                    , hydra == null ? 0 : this.hydra.getNpc().getAnimationId()
+                    , hydra == null ? 0 : this.hydra.getNpc().getStanceId()
+                    , hydra == null ? 0 : this.hydra.getNextAttack()
+                    , hydra == null ? 0 : this.hydra.getNextSpecialRelative()
+                    , specialAttackTick
+                    , this.prayerFlicker.getActiveProtectionPrayer()
+            );
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    public boolean isNotOverVent() {
+        var h = hydra;
+        if (h == null) return true;
+        var npc = h.getNpc();
+        if (npc == null) return true;
+        var area = npc.getArea();
+        if (area == null) return true;
+        var vent1 = Instance.toInstancedFirst(new Coordinate(1362, 10272, 0));
+        if (area.contains(vent1)) return false;
+        var vent2 = Instance.toInstancedFirst(new Coordinate(1371, 10272, 0));
+        if (area.contains(vent2)) return false;
+        var vent3 = Instance.toInstancedFirst(new Coordinate(1371, 10263, 0));
+        if (area.contains(vent3)) return false;
+        return true;
+    }
+
+    public void handlePrayers(Hydra.AttackStyle nextAttack) {
+        var s = this.bot.getCurrentState();
+        if (s == null) {
+            this.prayerFlicker.disable();
+            return;
+        }
+        if (Objects.equals(s.get(), HydraState.POST_LOOT) && ticksUntilRespawn < 5) {
+            util.joinPrayers(this.bot.loadouts.getEquipped().getBoostPrayers(), Prayer.PROTECT_FROM_MISSILES);
+            return;
+        }
+        if (!Objects.equals(s.get(), HydraState.FIGHTING)
+                && !Objects.equals(s.get(), HydraState.ENTERING_LAIR)) {
+            this.prayerFlicker.disable();
+            return;
+        }
+        if (hydra == null) {
+            this.prayerFlicker.disable();
+            return;
+        }
+        this.prayerFlicker.setActivePrayers(
+                util.joinPrayers(this.bot.loadouts.getEquipped().getBoostPrayers(),
+                        nextAttack.equals(Hydra.AttackStyle.RANGED)
+                                ? Prayer.PROTECT_FROM_MISSILES
+                                : Prayer.PROTECT_FROM_MAGIC)
+        );
+    }
+
+    @Override
+    public void onNpcHitsplat(HitsplatEvent event) {
+        try {
+            if (hydra == null || hydra.getNpc() == null) return;
+            if (getId(event.getSource()) != hydra.getNpc().getId()) return;
+            log.debug(event);
+            log.debug("Hitpoints till phase: " + hydra.getHpUntilPhaseChange());
+            playerAttacked = true;
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        try {
+            if (!com.neck_flexed.scripts.hydra.bot.inHydraInstance()) return;
+            if (event.getAnimationId() == -1) return;
+
+            if (hydra == null || hydra.getNpc() == null
+                    || getId(event.getSource()) != hydra.getNpc().getId()) {
+                return;
+            }
+            Stopwatch timer = Stopwatch.createStarted();
+
+            final HydraPhase phase = hydra.getPhase();
+
+            final int animationId = event.getAnimationId();
+
+            log.debug(event);
+            if (animationId == phase.getDeathAnimation2() || animationId == phase.getDeathAnimation1()) {
+                specialNextTick = false;
+                specialAttackTick = 0;
+                switch (phase) {
+                    case POISON:
+                        hydra.changePhase(HydraPhase.LIGHTNING);
+                        if (this.fightState != null)
+                            this.fightState.onPhase();
+                        break;
+                    case LIGHTNING:
+                        hydra.changePhase(HydraPhase.FLAME);
+                        if (this.fightState != null)
+                            this.fightState.onPhase();
+                        break;
+                    case FLAME:
+                        hydra.changePhase(HydraPhase.ENRAGED);
+                        if (this.fightState != null)
+                            this.fightState.onPhase();
+                        break;
+                    case ENRAGED:
+                        // NpcDespawned event does not fire for Hydra inbetween kills; must use death animation.
+                        reset();
+                        this.bot.addKill();
+                        this.ticksUntilRespawn = RespawnTicks;
+                        break;
+                }
+
+                return;
+            } else if (animationId == phase.getSpecialAnimationId() && phase.getSpecialAnimationId() != 0) {
+                log.debug(String.format("Special attack in phase %s: %s", phase, animationId));
+                if (phase.equals(HydraPhase.FLAME)) {
+                    this.flameMove++;
+                    log.debug("Flame skip inc " + this.flameMove);
+                }
+                log.debug("nextSpec: " + hydra.getNextSpecialRelative());
+                hydra.setNextSpecial();
+                if (this.fightState != null)
+                    this.fightState.onSpecialAttack();
+            }
+
+            log.debug("Anim Handler Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    public void reset() {
+        hydra = null;
+        flameSkip = false;
+        poisonAttack = false;
+        flameMoveProjectile = 0;
+        flameMove = 0;
+        lastAttackTick = -1;
+        fountainTicks = -1;
+        lastFountainAnim = -1;
+        didInit = false;
+        specialNextTick = false;
+        resetPlayerAttacked();
+    }
+
+    public void stopFightState() {
+        this.fightState = null;
+    }
+
+    public boolean playerAttacked() {
+        return this.playerAttacked;
+    }
+
+    public void resetPlayerAttacked() {
+        this.playerAttacked = false;
+    }
+}

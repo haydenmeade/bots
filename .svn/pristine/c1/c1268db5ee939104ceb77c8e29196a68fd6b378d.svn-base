@@ -1,0 +1,44 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public class TraverseToBankState implements LoopState<TuraelState> {
+    private final com.neck_flexed.scripts.turael.bot bot;
+
+    public TraverseToBankState(bot bot) {
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Traversing to bank");
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        return TuraelState.RESTOCKING;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.TRAVERSE_TO_BANK;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return Banks.getLoaded().nearest() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+
+    }
+}

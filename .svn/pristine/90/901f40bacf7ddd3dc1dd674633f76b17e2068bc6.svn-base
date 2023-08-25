@@ -1,0 +1,67 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class MoleStateManager extends StateManager<Mole, MoleState> {
+    private final MoleListener moleListener;
+
+    public MoleStateManager(Mole mole, MoleListener moleListener) {
+        super(mole);
+        this.moleListener = moleListener;
+    }
+
+    @Override
+    public MoleState getNextState(MoleState initiator) {
+        switch (initiator) {
+            case FIGHTING:
+                if (this.moleListener.isDead())
+                    return MoleState.LOOTING;
+                else
+                    return MoleState.SEARCHING;
+            case LOOTING:
+                if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot()) {
+                    return MoleState.RESTORING;
+                } else {
+                    return MoleState.SEARCHING;
+                }
+            case SEARCHING:
+                if (util.isCannonNearby()) {
+                    return MoleState.HOPPING;
+                }
+                if (Mole.getMole() != null) {
+                    // TODO
+                    boolean myMole = false;
+                    if (util.otherPlayersNearby() && !myMole) {
+                        return MoleState.HOPPING;
+                    } else {
+                        this.moleListener.resetDig();
+                        return MoleState.FIGHTING;
+                    }
+                } else {
+                    log.debug("search no mole");
+                }
+                if (!Mole.isInLair())
+                    return MoleState.TRAVERSING;
+        }
+        if (Mole.isInLair())
+            return MoleState.SEARCHING;
+
+        if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+            return MoleState.BREAKING;
+
+        if (Bank.isOpen()) return MoleState.RESTOCKING;
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return MoleState.RESTOCKING;
+            return MoleState.RESTORING;
+        }
+
+        return MoleState.TRAVERSING;
+    }
+}

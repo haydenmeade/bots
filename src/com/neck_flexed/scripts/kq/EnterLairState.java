@@ -1,0 +1,161 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "EnterLairState")
+public class EnterLairState extends BaseState<KqState> {
+
+    private final kq bot;
+    private final Loadouts loadouts;
+    private final PeekListener peekListener;
+    private final KqListener kqListener;
+
+    public EnterLairState(kq bot, KqListener kqListener) {
+        super(bot, KqState.ENTERING_LAIR);
+        this.bot = bot;
+        this.kqListener = kqListener;
+        this.loadouts = bot.loadouts;
+        this.peekListener = new PeekListener();
+    }
+
+    private static GameObject getRoomEntranceNoRope() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3509, 9497, 2))
+                .names("Tunnel entrance")
+                .results().first();
+    }
+
+    private static GameObject getRoomEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3509, 9497, 2))
+                .names("Tunnel entrance")
+                .actions("Climb-down")
+                .results().first();
+    }
+
+    // elite diary
+    private static GameObject getCrevice() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3501, 9510, 2))
+                .ids(16465)
+                .actions("Squeeze-through", "Listen")
+                .results().first();
+    }
+
+    // crack use: tile 3501,9483,2
+    private static GameObject getCrack() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3501, 9484, 2))
+                .ids(29705)
+                .actions("Peek")
+                .results().first();
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Entering lair");
+        this.kqListener.reset();
+        bot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{peekListener};
+    }
+
+    @Override
+    public void deactivate() {
+        if (this.needHop())
+            bot.forceState(KqState.HOPPING);
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return needHop() || kq.isInLair();
+    }
+
+    private boolean needHop() {
+        return this.peekListener.getPlayerCount() > 0
+                || (!Players.newQuery().within(kq.lairEntryArea).filter(p -> !Players.getLocal().getName().equals(p.getName())).results().isEmpty());
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.loadouts.getEquipped() == null) {
+            this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getForRole(Loadout.LoadoutRole.Combat));
+            this.loadouts.equip(this.loadouts.getEquipped(), true);
+        }
+        if (kq.lairEntryArea.contains(Players.getLocal())) {
+            var re = getRoomEntrance();
+            var reNoRope = getRoomEntranceNoRope();
+            if (re != null) {
+                log.debug("going down hole");
+                di.send(MenuAction.forGameObject(re, "Climb-down"));
+                Execution.delayUntil(() -> kq.isInLair() || needHop(), 5000, 5500);
+            } else if (reNoRope != null) {
+                var rope = Inventory.getItems(items.rope).first();
+                if (rope == null) {
+                    bot.updateStatus("no rope found");
+                    return;
+                }
+                di.sendItemUseOn(rope, reNoRope);
+                Execution.delayUntil(() -> getRoomEntrance() != null, 4500, 5500);
+            } else {
+                log.error("Error trying to enter hole");
+                bot.updateStatus("Error trying to enter hole");
+            }
+        } else if (kq.canUseCreviceShortcut()) {
+            var crevice = getCrevice();
+            if (crevice == null) {
+                log.debug("no crevice");
+                return;
+            }
+            if (this.peekListener.getPlayerCount() == -1) {
+                log.debug("checking crevice");
+                di.send(MenuAction.forGameObject(crevice, "Listen"));
+                Execution.delayUntil(() -> this.peekListener.getPlayerCount() != -1, 5000);
+            } else {
+                log.debug("going through crevice");
+                di.send(MenuAction.forGameObject(crevice, "Squeeze-through"));
+                Execution.delayUntil(() -> kq.lairEntryArea.contains(Players.getLocal()), 5000, 6000);
+                Execution.delay(600, 700);
+            }
+        } else {
+            var crack = getCrack();
+            if (crack == null) return;
+            if (this.peekListener.getPlayerCount() == -1) {
+                log.debug("peeking in the crack");
+                di.send(MenuAction.forGameObject(crack, "Peek"));
+                Execution.delayUntil(() -> this.peekListener.getPlayerCount() != -1, 5000);
+            } else {
+                log.debug("going down hole");
+                if (getRoomEntrance() != null) {
+                    di.send(MenuAction.forGameObject(getRoomEntrance(), "Climb-down"));
+                    Execution.delayUntil(() -> kq.isInLair() || needHop(), 5000, 5500);
+                } else {
+                    util.moveTo(kq.lairEntryArea.getCenter());
+                }
+            }
+        }
+    }
+}

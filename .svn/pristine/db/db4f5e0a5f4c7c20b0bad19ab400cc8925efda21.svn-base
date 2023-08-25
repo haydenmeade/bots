@@ -1,0 +1,70 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class SlayerTowerBasementTraverseOverride implements TraverseOverride {
+    public final Coordinate monsterDestination;
+    Area tower = new Area.Polygonal(
+            new Coordinate(3409, 3580, 0),
+            new Coordinate(3407, 3565, 0),
+            new Coordinate(3406, 3554, 0),
+            new Coordinate(3406, 3543, 0),
+            new Coordinate(3404, 3530, 0),
+            new Coordinate(3414, 3529, 0),
+            new Coordinate(3418, 3532, 0),
+            new Coordinate(3424, 3531, 0),
+            new Coordinate(3425, 3536, 0),
+            new Coordinate(3432, 3536, 0),
+            new Coordinate(3434, 3531, 0),
+            new Coordinate(3438, 3531, 0),
+            new Coordinate(3450, 3530, 0),
+            new Coordinate(3453, 3540, 0),
+            new Coordinate(3455, 3581, 0)
+    );
+    private Traverser regionTraverser;
+
+    boolean inSlayerTower(Coordinate p) {
+        return tower.contains(p);
+    }
+
+    GameObject getLadder() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3417, 3535, 0))
+                .names("Ladder")
+                .actions("Climb-down")
+                .results()
+                .first();
+    }
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        var ladder = getLadder();
+        if (ladder != null && inSlayerTower(Players.getLocal().getServerPosition())) {
+            DirectInput.send(MenuAction.forGameObject(ladder, "Climb-down"));
+            Execution.delayUntil(
+                    () -> Players.getLocal().getServerPosition().getPlane() == 3,
+                    util::playerAnimatingOrMoving, 1000, 2000);
+            return true;
+        }
+        var pos = Players.getLocal().getServerPosition();
+        if (pos.getPlane() == 3 && pos.getContainingRegionId() == 13723) {
+            if (this.regionTraverser == null)
+                this.regionTraverser = Traverser.regionPathTraverser(monsterDestination);
+            regionTraverser.executeLoop();
+            return true;
+        }
+        return false;
+    }
+}

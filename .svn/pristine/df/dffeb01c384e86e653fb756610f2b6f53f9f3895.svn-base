@@ -1,0 +1,65 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockTask")
+public class RestockTask extends LeafTask {
+
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        sire.updateStatus(String.format("Restocking"));
+
+
+        if (!Bank.isOpen()) {
+            Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 5000);
+
+            u.equipPhase1();
+
+            if (Banks.getLoaded().nearest() == null) {
+                log.error("unable to load bank");
+                return;
+            }
+            DirectInput.sendMovement(Banks.getLoaded().nearest().getPosition());
+            if (!Execution.delayUntil(() -> Bank.open(), 5000)) {
+                log.error("unable to open bank");
+                return;
+            }
+        }
+        if (NeckBank.doBankLoop(
+                util.concatenate(
+                        util.toPatternArray(new String[]{"Blood rune", "Death rune", "Soul rune", "Air rune", items.houseTab,
+                                items.dramenStaff, items.lunarStaff, "Unsired", items.ashSanctifier,}),
+                        new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape,},
+                        util.toItemList(SireState.getSettings().phase1Equipment()),
+                        util.toItemList(SireState.getSettings().phase2Equipment()),
+                        util.toItemList(SireState.getSettings().specEquipment())
+                ),
+
+                // withdraw
+                NeckBank.getBoostsNeeded(1,
+                        false,
+                        SireState.getSettings().phase1Boost(),
+                        SireState.getSettings().phase2Boost()
+                ),
+                NeckBank.toMap(1, SireState.getSettings().antipoison().pattern(), items.stamina4Dose),
+                NeckBank.toMap(0, SireState.getSettings().food().gameName())
+        )) {
+            Bank.close();
+            log.debug("done restock");
+            SireState.setBotState(SireState.TRAVERSING);
+        }
+    }
+
+}

@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.plank;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.osrs.local.hud.interfaces.MakeAllInterface;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "OfferState")
+public class PlankingState implements LoopState<PlankState> {
+    private final planker bot;
+    private boolean done;
+
+    public PlankingState(planker planker) {
+        this.bot = planker;
+    }
+
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.bot.updateStatus("Planking");
+    }
+
+    @Override
+    public PlankState deactivate(EventDispatcher d) {
+        if (planker.getOperator() == null)
+            return PlankState.TRAVERSING;
+        return PlankState.RETURNTOBANK;
+    }
+
+    @Override
+    public PlankState get() {
+        return PlankState.PLANKING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done || planker.getOperator() == null;
+    }
+
+    @Override
+    public void executeLoop() {
+        var plank = this.bot.settings().plank();
+        if (plank.hasPlanks()) {
+            this.done = true;
+            return;
+        }
+        if (isPlankInterfaceOpen()) {
+            // do action
+            Keyboard.pressKey(plank.getKey());
+            Execution.delayUntil(() -> !plank.hasPlanks(), 1000, 2000);
+            return;
+        }
+
+        var operator = planker.getOperator();
+        if (operator == null) return;
+        DirectInput.send(MenuAction.forNpc(operator, "Buy-plank"));
+        Execution.delayUntil(this::isPlankInterfaceOpen, 4000, 6000);
+    }
+
+    private boolean isPlankInterfaceOpen() {
+        return MakeAllInterface.isOpen();
+    }
+}

@@ -1,0 +1,17 @@
+package com.neck_flexed.scripts.barrage;
+
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public enum TraverseStrategy {
+    HousePortal("House Portal Kourend"),
+    HouseXeric("House Mounted Xeric's"),
+    Xeric("Xeric's Talisman");
+
+    private final String label;
+
+    @Override
+    public String toString() {
+        return this.label;
+    }
+}

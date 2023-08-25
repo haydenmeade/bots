@@ -1,0 +1,8 @@
+package com.neck_flexed.scripts.cerberus;
+
+public enum Phase {
+    Auto,
+    Combo,
+    Ghost,
+    Lava;
+}

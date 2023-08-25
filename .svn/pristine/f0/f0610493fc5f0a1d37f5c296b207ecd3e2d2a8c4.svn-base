@@ -1,0 +1,85 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Loadout;
+import com.neck_flexed.scripts.common.Loadouts;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
+
+@Log4j2(topic = "Phase32Fighter")
+public class Phase32Fighter implements EngineListener, PlayerListener, NpcListener {
+
+
+    private final Loadout dpsSpec;
+    private final Loadouts loadouts;
+    private final Loadout phase2;
+    private final sireBot bot;
+    private final Sire sire;
+    private boolean isDead = false;
+
+    public Phase32Fighter(Loadouts loadouts, sireBot bot) {
+        this.loadouts = loadouts;
+        this.phase2 = u.getPhase2Loadout(loadouts);
+        this.dpsSpec = u.getSpecDpcLoadout(loadouts);
+        this.bot = bot;
+        this.sire = bot.sireListener.getSire();
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && Objects.equals(((Npc) event.getSource()).getName(), SireListener.Name)) {
+            isDead = true;
+        }
+    }
+
+
+    @Override
+    public void onTickStart() {
+        if (done()) return;
+        if (this.sire == null) return;
+        var sireNpc = sire.getNpc();
+        if (sireNpc == null) return;
+        var target = Players.getLocal().getTarget();
+
+        if (dpsSpec != null && SpecialAttack.getEnergy() >= dpsSpec.getSpecEnergy()) {
+            loadouts.equip(dpsSpec);
+            util.activateSpec();
+        } else {
+            loadouts.equip(phase2);
+        }
+
+        if (sireNpc.getAnimationId() == Phase3.explosionAnim) {
+            if (!Players.getLocal().getPosition().equals(Phase3.tile1S) &&
+                    !Players.getLocal().getPosition().equals(Phase3.tile2S)
+            ) {
+                util.moveTo(Phase3.getMoveToTile(Players.getLocal().getPosition()));
+            }
+            log.debug(String.format("Wait for explosion: SireId: %s, Animation: %s", sireNpc.getId(), sireNpc.getAnimationId()));
+        } else if (sireBot.onMiasmaPool()) {
+            log.debug("move");
+            util.moveTo(Phase3.getMoveToTile2(Players.getLocal().getPosition()));
+        } else if (target == null || !target.equals(sire.getNpc())) {
+            sire.attack();
+        }
+
+    }
+
+
+    public boolean done() {
+        if (isDead || bot.sireListener.isDead()) return true;
+        if (sire == null) return true;
+        var s = sire.getNpc();
+        return s == null || s.getId() == -1 || s.getId() == sireBot.SireId_Phase0;
+    }
+
+}

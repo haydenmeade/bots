@@ -1,0 +1,85 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockTask")
+public class Restock {
+    private static void withdrawBoost(Boost boost, int amount) {
+        switch (boost) {
+
+            case None:
+                break;
+            case Ranging:
+                Bank.withdraw("Ranging potion(4)", amount);
+                break;
+            case Ranging_Divine:
+                Bank.withdraw("Divine ranging potion(4)", amount);
+                break;
+            case ImbuedHeart:
+                break;
+            case Combat:
+                Bank.withdraw("Super combat(4)", amount);
+                break;
+            case Combat_Divine:
+                Bank.withdraw("Divine super combat potion(4)", amount);
+                break;
+            case Super_Set:
+                Bank.withdraw("Super strength(4)", amount);
+                Bank.withdraw("Super attack(4)", amount);
+                break;
+            case Super_Set_Divine:
+                Bank.withdraw("Divine super strength potion(4)", amount);
+                Bank.withdraw("Divine super attack potion(4)", amount);
+                break;
+        }
+    }
+
+    public static void restock() {
+        Mole.updateStatus(String.format("Restocking"));
+        Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 5000);
+        if (Banks.getLoaded().nearest() == null) {
+            Mole.updateStatus(String.format("unable to open bank"));
+            log.error("unable to open bank");
+            MoleState.set(MoleState.STOPPING);
+            return;
+        }
+        DirectInput.sendMovement(Banks.getLoaded().nearest().getPosition());
+
+        if (!Execution.delayUntil(() -> Bank.open(), 30000)) {
+            Mole.updateStatus(String.format("unable to open bank"));
+            log.error("unable to open bank2");
+            MoleState.set(MoleState.STOPPING);
+        }
+
+        Pattern[] x = util.concatenate(
+                util.toPatternArray(new String[]{"Rune pouch", "Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune",
+                        items.houseTab, items.imbuedHeart, items.saturatedHeart, items.spade,
+                }),
+                new Pattern[]{Mole.falShield, MoleState.getSettings().light().getPattern(), items.ringOfDueling,},
+                util.toItemList(MoleState.getSettings().equipment()),
+                util.toItemList(MoleState.getSettings().specEquipment())
+        );
+        Bank.depositAllExcept(x);
+
+        if (MoleState.getSettings().RestoreAndBankStrategy() == RestoreAndBankStrategy.RingOfDueling &&
+                !Inventory.contains(items.ringOfDueling)) {
+            Bank.withdraw(items.ringOfDueling, 1);
+        }
+        withdrawBoost(MoleState.getSettings().boost(), MoleState.getSettings().boostAmount());
+        Bank.withdraw("Stamina potion(4)", MoleState.getSettings().staminaAmount());
+        Bank.withdraw(MoleState.getFood(), 2);
+        Bank.close();
+
+        log.debug("done restock");
+    }
+}

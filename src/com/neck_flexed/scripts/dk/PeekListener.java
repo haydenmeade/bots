@@ -1,0 +1,42 @@
+package com.neck_flexed.scripts.dk;
+
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "PeekListener")
+public class PeekListener implements ChatboxListener {
+    private static Pattern number = Pattern.compile("\\d+");
+    private final dk bot;
+    private int playerCount = -1;
+
+    public PeekListener(dk bot) {
+        this.bot = bot;
+    }
+
+    public void reset() {
+        this.playerCount = -1;
+    }
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        if (!Objects.equals(event.getType(), Chatbox.Message.Type.SERVER)) return;
+        log.debug(event);
+        var str = event.getMessage();
+        if (!str.contains("You peek through the crack")) return;
+        if (bot.settings().useSlayerCave()) {
+            this.playerCount = str.contains("Slayer cave: No adventurers.") ? 0 : 1;
+        } else {
+            this.playerCount = str.contains("Standard cave: No adventurers.") ? 0 : 1;
+        }
+    }
+
+    public int getPlayerCount() {
+        return playerCount;
+    }
+
+}

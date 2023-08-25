@@ -1,0 +1,141 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.details.Interactable;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.script.Execution;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class SpiritTreeTraverse implements TraverseMethod {
+    private static final Area ardyCloakTele = new Area.Rectangular(new Coordinate(2540, 3265, 0), new Coordinate(2620, 3209, 0));
+    private static final Area grandExchangeArea = new Area.Rectangular(new Coordinate(3121, 3518, 0), new Coordinate(3192, 3464, 0));
+    private final Destination destination;
+    private Traverser traverser;
+
+    public SpiritTreeTraverse(Destination destination) {
+        this.destination = destination;
+    }
+
+    public static boolean ardyCloakTele() {
+        var cl = Inventory.contains(items.argdougneCloak)
+                ? Inventory.getItems(items.argdougneCloak).first()
+                : Equipment.getItems(items.argdougneCloak).first();
+        if (cl == null) {
+            log.error("no ardy cloak");
+            return false;
+        }
+        if (cl.interact("Monastery Teleport"))
+            return Execution.delayUntil(() -> ardyCloakTele.contains(Players.getLocal()), util::playerAnimating, 2000, 3000);
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        return "Spirit Tree (House / Ring of Wealth / ArdyCloak): " + destination;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        var l = new ArrayList<Requirement>();
+        l.add(new HouseRequirement(HouseConfig::isHasSpiritTree));
+        l.add(new BaseRequirement(items.ringOfWealth));
+        l.add(new HouseRequirement(HouseConfig::hasOrnateJewelleryBox));
+        l.add(new BaseRequirement(items.argdougneCloak));
+        return l;
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        GameObject tree = getSpiritTree();
+        if (tree != null) {
+            return spiritTreeTo(tree, this.destination, startPosition);
+        }
+        var pos = Players.getLocal().getServerPosition();
+        if (!House.isInside() && (houseConfig.isHasSpiritTree() || houseConfig.hasOrnateJewelleryBox())) {
+            util.teleToHouse();
+        } else if (grandExchangeArea.contains(pos)) {
+            Traverser.regionPathTraverser(new Coordinate(3181, 3507, 0)).executeLoop();
+        } else if (House.isInside() && houseConfig.hasOrnateJewelleryBox()) {
+            new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.GrandExchange).doTraverseLoop(houseConfig, startPosition);
+            return false;
+        } else if (Items.contains(util.inventoryEquipmentSource(), items.ringOfWealth)) {
+            new ItemTraverse(items.ringOfWealth, "Rub", "Grand Exchange").doTraverseLoop(houseConfig, startPosition);
+        } else if (Inventory.contains(items.argdougneCloak) || Equipment.contains(items.argdougneCloak)) {
+            if (ardyCloakTele.contains(pos)) {
+                if (this.traverser == null)
+                    this.traverser = Traverser.regionPathTraverser(new Coordinate(2554, 3255, 0));
+                traverser.executeLoop();
+            } else {
+                ardyCloakTele();
+            }
+        }
+        return false;
+    }
+
+    private boolean spiritTreeTo(GameObject tree, Destination destination, Coordinate startPosition) {
+        var def = tree.getActiveDefinition();
+        if (def == null) return false;
+        var action = def.getActions().contains("Tree") ? "Tree" : "Travel";
+        var start = Players.getLocal().getServerPosition().getContainingRegionId();
+        var isOpen = InterfaceContainers.getAt(187) != null;
+        if (isOpen) {
+            Keyboard.pressKey(destination.getKey());
+            return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != start,
+                    util::playerAnimatingOrMoving, 2000, 4000);
+        }
+        DirectInput.send(MenuAction.forGameObject(tree, action));
+        return Execution.delayUntil(() -> InterfaceContainers.getAt(187) != null,
+                util::playerAnimatingOrMoving, 1000, 2000);
+    }
+
+    private GameObject getSpiritTree() {
+        return GameObjects.newQuery()
+                .names(Pattern.compile("Spirit Tree", Pattern.CASE_INSENSITIVE), Pattern.compile("Spiritual Fairy Tree", Pattern.CASE_INSENSITIVE))
+                .types(GameObject.Type.PRIMARY)
+                .filter(Interactable::isVisible)
+                .results()
+                .nearest();
+    }
+
+    @Getter
+    @RequiredArgsConstructor
+    public enum Destination {
+        TreeGnomeVillage("Tree Gnome Village", KeyEvent.VK_1),
+        GnomeStronghold("Gnome Stronghold", KeyEvent.VK_2),
+        BattlefieldOfKhazard("Battlefield of Khazard", KeyEvent.VK_3),
+        GrandExchange("Grand Exchange", KeyEvent.VK_4),
+        FeldipHill("Feldip Hill", KeyEvent.VK_5),
+        Prifddinas("Prifddinas", KeyEvent.VK_6),
+        Etceteria("Etceteria", KeyEvent.VK_7),
+        PortSarim("Port Sarim", KeyEvent.VK_9),
+        Brimhaven("Brimhaven", KeyEvent.VK_9),
+        Hosidius("Hosidius", KeyEvent.VK_A),
+        FarmingGuild("Farming Guild", KeyEvent.VK_B),
+        House("Your house", KeyEvent.VK_C);
+
+        private final String label;
+        private final int key;
+    }
+}

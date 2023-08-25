@@ -1,0 +1,84 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerMaster;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class KaramjaGloves3Traverse implements TraverseMethod {
+    private static final Pattern kg3 = Pattern.compile("^Karamja gloves 3$");
+    private static final Collection<Integer> traverseRegions = List.of(11410, 11310);
+    private Traverser traverser;
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new BaseRequirement(kg3));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var g = Inventory.getItems(kg3).first();
+        if (g == null) return false;
+        var pos = Players.getLocal().getServerPosition();
+        if (!traverseRegions.contains(pos.getContainingRegionId())) {
+            DirectInput.send(MenuAction.forSpriteItem(g, "Gem Mine"));
+            Execution.delayUntil(() -> traverseRegions.contains(Players.getLocal().getServerPosition().getContainingRegionId()),
+                    util::playerAnimatingOrMoving, 3000, 5000);
+            return false;
+        }
+        if (pos.getContainingRegionId() == 11410) {
+            var ladder = getLadder1();
+            if (ladder != null) {
+                DirectInput.send(MenuAction.forGameObject(ladder, "Climb-up"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == 11310,
+                        util::playerAnimatingOrMoving, 3000, 5000);
+            }
+            return false;
+        }
+        if (pos.getPlane() == 0) {
+            var ladder = getLadder2();
+            if (ladder != null) {
+                DirectInput.send(MenuAction.forGameObject(ladder, "Climb-up"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getPlane() == 1,
+                        util::playerAnimatingOrMoving, 3000, 5000);
+            } else {
+                if (this.traverser == null)
+                    this.traverser = Traverser.regionPathTraverser(new Coordinate(2871, 2970, 0));
+                traverser.executeLoop();
+            }
+            return false;
+        } else {
+            util.moveTo(SlayerMaster.DURADEL.getLocation());
+            Execution.delayUntil(() -> SlayerMaster.DURADEL.getNpc() != null, util::playerMoving, 3000);
+        }
+
+        return SlayerMaster.DURADEL.getNpc() != null;
+    }
+
+    GameObject getLadder1() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(2838, 9388, 0))
+                .names("Ladder")
+                .actions("Climb-up")
+                .results().first();
+    }
+
+    GameObject getLadder2() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(2871, 2971, 0))
+                .names("Ladder")
+                .actions("Climb-up")
+                .results().first();
+    }
+}

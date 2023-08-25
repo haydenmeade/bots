@@ -1,0 +1,23 @@
+package com.neck_flexed.scripts.dk;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Npcs;
+
+public class dk {
+
+    public static final int SupremeId = 2265;
+    public static final int PrimeId = 2266;
+    public static final int RexId = 2267;
+
+    public static Npc getPrime() {
+        return Npcs.newQuery().ids(PrimeId).results().first();
+    }
+
+    public static Npc getSupreme() {
+        return Npcs.newQuery().ids(SupremeId).results().first();
+    }
+
+    public static Npc getRex() {
+        return Npcs.newQuery().ids(RexId).results().first();
+    }
+}

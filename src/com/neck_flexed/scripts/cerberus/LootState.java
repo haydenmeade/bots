@@ -1,0 +1,114 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState extends BaseState<CerbState> {
+    public static final Pattern[] mustLoot = util.toPatternArray(
+            "Primordial crystal",
+            "Pegasian crystal",
+            "Eternal crystal",
+            "Smouldering stone",
+            "Jar of souls"
+    );
+    private final CerbListener cerbListener;
+    private final cerb bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(CerbListener cerbListener, cerb bot, BreakManager breakManager) {
+        super(bot, CerbState.LOOTING);
+        this.cerbListener = cerbListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    public List<String> getIgnoreLoot() {
+        if (bot.settings().fightStrategy().equals(FightStrategy.Default))
+            return Arrays.asList(
+                    "Unholy symbol",
+                    "Steel arrow",
+                    "Iron arrow",
+                    "Mithril bar",
+                    "Uncut ruby",
+                    "Adamant javelin",
+                    "Uncut sapphire",
+                    "Uncut emerald",
+                    "Nature talisman");
+        return Arrays.asList(
+                "Unholy symbol",
+                "Summer pie",
+                "Steel arrow",
+                "Iron arrow",
+                "Mithril bar",
+                "Uncut ruby",
+                "Super restore(4)",
+                "Adamant javelin",
+                "Uncut sapphire",
+                "Uncut emerald",
+                "Nature talisman");
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Looting");
+        if (cerbListener.getDeadArea() == null) return;
+        util.moveTo(cerbListener.getDeadArea().getCenter());
+        Loot.waitForLoot(cerbListener.getDeadArea(), Pattern.compile(".*"), 5000);
+    }
+
+    @Override
+    public void deactivate() {
+        bot.resetKill();
+
+        if (!SlayerTask.hasTask()) {
+            bot.updateStatus("Finished slayer task");
+            util.teleToHouse();
+            bot.stop("Slayer task completed");
+        }
+        if (result.equals(Loot.LootResult.Full)) {
+            bot.forceState(CerbState.RESTORING);
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        var ignoreLootCpy = new ArrayList<String>(getIgnoreLoot());
+        if (!bot.settings().lootAshes()) {
+            ignoreLootCpy.add("Infernal ashes");
+        }
+        this.result = Loot.doLoop(
+                this.cerbListener.getDeadArea()
+                , bot.settings()
+                , util.toPatternArray(ignoreLootCpy.toArray(new String[0]))
+                , mustLoot
+                , bot.settings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boost().patternAny()
+                , null
+                , 4000, 600
+        );
+    }
+}

@@ -1,0 +1,413 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.neck_flexed.scripts.slayer.*;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.location.navigation.Landmark;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.osrs.local.RunePouch;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends BaseState<SlayerState> {
+    private final SlayerMonster monster;
+    private final HouseConfig houseConfig;
+    private final boolean preferHouse;
+    private final com.neck_flexed.scripts.slayer.bot bot;
+    private final Loadout loadout;
+    private final HashSet<Rune> activeRunes = new HashSet<>();
+    private final boolean isTuraelTask;
+    protected String error = null;
+    private boolean done;
+    private Path path;
+    private boolean loopDone = false;
+    private boolean didRunePouch = false;
+    private boolean emptiedRunePouch = false;
+
+    public RestockState(com.neck_flexed.scripts.slayer.bot bot, HouseConfig houseConfig, boolean preferHouse) {
+        super(SlayerState.RESTOCKING);
+        this.bot = bot;
+        this.houseConfig = houseConfig;
+        this.preferHouse = preferHouse;
+        this.monster = Monster.fromSlayerTask(bot.barrageTasksAvailable(), bot.getOverrideTask()).orElse(null);
+        bot.prayerFlicker.disable();
+        isTuraelTask = monster != null && monster.isTuraelMonster();
+        this.loadout = monster != null
+                ? monster.getLoadout(bot.loadouts)
+                : bot.loadouts.getForName(SlayerLoadout.MELEE_LOADOUT);
+
+        bot.loadouts.invalidateCurrent();
+    }
+
+    private static boolean useRuneOnRunePouch(SpriteItem rp, Rune r) {
+        var iRune = Inventory.getItems(r.getName()).first();
+        if (iRune == null) return true;
+        DirectInput.sendItemUseOn(rp, iRune);
+        Execution.delay(200, 250);
+        return false;
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        bot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Restock");
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.loopDone && this.didRunePouch) {
+            this.done = true;
+            return;
+        }
+
+        if (this.loopDone) {
+            if (!bot.loadouts.isCurrentIsDirty() &&
+                    Objects.equals(bot.loadouts.getEquipped(), loadout)) {
+                if (!didRunePouch && !activeRunes.isEmpty() && hasRunePouch()) {
+                    this.didRunePouch = setupRunePouch(this.activeRunes);
+                    if (didRunePouch) {
+                        loopDone = false;
+                    }
+                } else {
+                    this.didRunePouch = true;
+                }
+                if (didRunePouch)
+                    return;
+            } else {
+                bot.loadouts.equip(loadout);
+                this.loopDone = false;
+                return;
+            }
+        }
+
+        if (!Bank.isOpen()) {
+            walkToBankAndOpen();
+            return;
+        }
+        // bank open
+        Map<Pattern, Integer>[] withdraw = getWithdraw();
+        Pattern[] except = getExcept();
+
+        if (!didRunePouch) {
+            var rp = Inventory.getItems(items.runePouch).first();
+            if (rp != null && !emptiedRunePouch && needToEmptyRunePouch()) {
+                DirectInput.send(MenuAction.forSpriteItem(rp, "Empty"));
+                Execution.delayUntil(RunePouch::isEmpty, 3000, 4000);
+                this.emptiedRunePouch = true;
+            }
+        }
+
+
+        if (NeckBank.doBankLoop(bot, except, withdraw)) {
+            Bank.close();
+            this.loopDone = true;
+        } else {
+            bot.loadouts.equip(loadout);
+            bot.loadouts.invalidateCurrent();
+        }
+
+    }
+
+    private boolean needToEmptyRunePouch() {
+        var rp = Inventory.getItems(items.runePouch).first();
+        if (rp == null) return false;
+        var def = rp.getDefinition();
+        if (def == null) return false;
+        var isDivine = def.getName().toLowerCase().contains("divine");
+        var rpSize = isDivine ? 4 : 3;
+        if (Inventory.getEmptySlots() == rpSize) return false;
+        for (var s : RunePouch.Slot.values()) {
+            if (!isDivine && s.equals(RunePouch.Slot.FOUR)) continue;
+            var r = RunePouch.getRune(s);
+            if (!activeRunes.contains(r)) return true;
+        }
+        return false;
+    }
+
+    private boolean setupRunePouch(HashSet<Rune> activeRunes) {
+        var rp = Inventory.getItems(items.runePouch).first();
+        if (rp == null) return false;
+        var def = rp.getDefinition();
+        if (def == null) return false;
+        var isDivine = def.getName().toLowerCase().contains("divine");
+        var rpSize = isDivine ? 4 : 3;
+        var empty = isDivine ? RunePouch.getEmptySlots() : RunePouch.getEmptySlots() - 1;
+        int i = 0;
+        for (var r : activeRunes.stream().filter(r -> RunePouch.getQuantity(r) > 0).collect(Collectors.toList())) {
+            useRuneOnRunePouch(rp, r);
+        }
+        for (var r : activeRunes) {
+            if (i >= rpSize) break;
+            if (useRuneOnRunePouch(rp, r)) continue;
+            i++;
+        }
+        var used = rpSize - empty;
+        return Math.min(activeRunes.size(), rpSize) == used;
+    }
+
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        Stopwatch timer = Stopwatch.createStarted();
+        var l = new ArrayList<Map<Pattern, Integer>>();
+        var houseConfig = bot.getHouseConfig();
+
+        if (monster != null) {
+            handleTraverseBank(l, this.getBestTraverseBank(List.of(monster.getTraverseMethods()), bot.settings().preferHouseTraverse(), monster.toString()));
+        }
+        handleMasterBank(l, bot.settings().master());
+        if (bot.settings().skipTasksEnabled() && bot.settings().skipTasksWithTurael()) {
+            handleMasterBank(l, SlayerMaster.TURAEL);
+        }
+
+        // MISC ITEMS
+        for (var item : util.parseCsvRegexString(bot.settings().miscItems())) {
+            if (Items.contains(util.inventoryEquipmentBankSource(), item))
+                l.add(NeckBank.toMap(1, item));
+        }
+        // ALCHING
+        if (Magic.Book.STANDARD.isCurrent() && util.parseCsvRegexString(bot.settings().alchItems()).length > 0) {
+            activeRunes.add(Rune.FIRE);
+            activeRunes.add(Rune.NATURE);
+        }
+
+        log.debug("traverse load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        if (monster != null)
+            handleMonsterBank(l, monster);
+
+
+        // traverseBank tele
+
+        // restore tele
+        if (houseConfig.getPool().equals(HouseConfig.Pool.Ornate) && util.hasHouseTeleport(util.inventoryEquipmentBankSource())) {
+            var t = util.getHouseTeleport();
+            l.add(t.getItems());
+            this.activeRunes.addAll(t.getRunes());
+        } else {
+            l.add(NeckBank.toMap(1, items.ringOfDueling));
+        }
+
+        if (this.activeRunes.size() > 0) {
+            l.add(this.getRuneBank(activeRunes, this.hasRunePouch()));
+
+            if (Items.contains(util.inventoryEquipmentBankSource(), items.runePouch)) {
+                l.add(NeckBank.toMap(1, items.runePouch));
+            }
+        }
+        var result = l.stream().flatMap(m -> m.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Integer::max));
+        log.debug("withdraw load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        return new Map[]{result};
+    }
+
+    private void handleMonsterBank(ArrayList<Map<Pattern, Integer>> l, @NotNull SlayerMonster monster) {
+        var isBarrageTask = monster.isBarrageMonster();
+
+        // FOOD
+        if (monster.needsFood())
+            l.add(NeckBank.toMap(monster.getFood(), bot.settings().food().gameName()));
+
+        var l1 = monster.getLoadout(bot.loadouts);
+        if (l1 != null)
+            l.add(l1.getBank(new MonsterLoadoutOverrider(monster)));
+
+        if (monster.getBoneType() != null && !monster.getBoneType().equals(BoneType.None)) {
+            if (monster.getBoneType().equals(BoneType.Bones)
+                    && bot.settings().bonecrusher()
+                    && Items.contains(util.inventoryEquipmentBankSource(), items.bonecrusher)) {
+                l.add(NeckBank.toMap(1, items.bonecrusher));
+            } else if (monster.getBoneType().equals(BoneType.Ashes)
+                    && bot.settings().ashSanctifier()
+                    && Items.contains(util.inventoryEquipmentBankSource(), items.ashSanctifier)) {
+                l.add(NeckBank.toMap(1, items.ashSanctifier));
+            }
+        }
+        if (monster.getProtection() != null)
+            l.add(monster.getProtection().getBank());
+        if (monster.getFinishItem() != null)
+            l.add(monster.getFinishItem().getBank());
+        if (monster.needsLightSource())
+            l.add(NeckBank.toMap(1, getLightSource(util.inventoryEquipmentBankSource())));
+        if (!monster.getTraverseItems().isEmpty())
+            l.add(monster.getTraverseItems());
+        if (monster.isDragon())
+            l.add(bot.settings().antifire().getBank(1));
+        if (monster.isPoisonous())
+            l.add(bot.settings().antipoison().getBank(1));
+
+        if (isBarrageTask) {
+            // barrage+lure equipment
+            var l2 = bot.loadouts.getForName(SlayerLoadout.LURE_LOADOUT);
+            if (l2 != null)
+                l.add(l2.getBank(new MonsterLoadoutOverrider(monster)));
+
+            l.add(bot.settings().mageBoost().getBank(1));
+
+            // add barrage runes
+            this.activeRunes.addAll(bot.settings().spell().getRunes());
+            if (NeckSpell.getBestBlood() != null)
+                this.activeRunes.addAll(NeckSpell.getBestBlood().getRunes());
+
+        } else {
+            if (!monster.isLeafBladed() && !monster.isDragon() && !monster.isWyvern()) {
+                var l2 = bot.loadouts.getForName(SlayerLoadout.SPEC_LOADOUT);
+                if (l2 != null)
+                    l.add(l2.getBank(new MonsterLoadoutOverrider(monster)));
+            }
+            if (isTuraelTask) {
+                l.add(bot.settings().turaelBoost().getBank(1, true));
+            } else {
+                l.add(bot.settings().meleeBoost().getBank(1, !monster.needsFood()));
+            }
+
+            if (monster.getCannon() != null && bot.settings().useCannon()) {
+                l.add(util.cannonBank());
+            }
+        }
+    }
+
+    private void handleMasterBank(ArrayList<Map<Pattern, Integer>> l, SlayerMaster master) {
+        if (Magic.Book.LUNAR.isCurrent() && Skill.MAGIC.getCurrentLevel() >= 67) {
+            activeRunes.add(Rune.AIR);
+            activeRunes.add(Rune.ASTRAL);
+            activeRunes.add(Rune.COSMIC);
+        } else {
+            handleTraverseBank(l, this.getBestTraverseBank(List.of(master.getTraverses()), bot.settings().preferHouseTraverse(), master.toString()));
+        }
+    }
+
+    private Pattern getLightSource(Collection<SpriteItem> items) {
+        for (var l : LightSource.values()) {
+            if (l.equals(LightSource.None)) continue;
+
+            if (Items.contains(items, l.getPattern()))
+                return l.getPattern();
+        }
+        return Pattern.compile("");
+    }
+
+    private boolean hasRunePouch() {
+        return Bank.contains(items.runePouch) || Inventory.contains(items.runePouch);
+    }
+
+    private void handleTraverseBank(ArrayList<Map<Pattern, Integer>> l, TraverseMethod.TraverseBank traverseBank) {
+        if (traverseBank != null) {
+            l.add(traverseBank.getItems());
+            if (traverseBank.needsHouseTeleport()) {
+                var t = util.getHouseTeleport();
+                l.add(t.getItems());
+                this.activeRunes.addAll(t.getRunes());
+            }
+            l.add(this.getRuneBank(traverseBank.getRunes(), hasRunePouch()));
+            this.activeRunes.addAll(traverseBank.getRunes());
+        }
+    }
+
+    private Map<Pattern, Integer> getRuneBank(Collection<Rune> runes, boolean runePouch) {
+        var m = new HashMap<Pattern, Integer>();
+        for (var r : runes) {
+            var expectedCount = runePouch ? Math.min(getRuneCountTotal(r), 10000) : 0;
+            m.put(Pattern.compile(r.getName()), expectedCount);
+        }
+        return m;
+    }
+
+    protected int getRuneCountTotal(Rune r) {
+        return r.getQuantity() + Bank.getQuantity(r.getName());
+    }
+
+    private TraverseMethod.TraverseBank getBestTraverseBank(Collection<TraverseMethod> traverses, boolean preferHouse, String to) {
+        if (preferHouse) {
+            for (var traverse : traverses.stream().filter(t -> t.isHouse(houseConfig)).collect(Collectors.toList())) {
+                if (traverse.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                    return traverse.getBank(this.houseConfig, this.preferHouse);
+                }
+            }
+        }
+        for (var traverse : traverses) {
+            if (traverse.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                return traverse.getBank(this.houseConfig, this.preferHouse);
+            }
+        }
+        var msg = String.format("Unable to find a traverse to %s, options are %s", to, util.toString(traverses));
+        log.error(msg);
+        bot.startPauseAndEndBotTimeout(msg);
+        return null;
+    }
+
+    protected Pattern[] getExcept() {
+        return new Pattern[0];
+    }
+
+    private void walkToBankAndOpen() {
+        Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 500);
+        var booth = Banks.getLoadedBankBooths().nearest();
+        var chest = Banks.getLoadedBankChests().nearest();
+        var b = booth != null
+                ? booth
+                : chest != null
+                ? chest
+                : Banks.getLoaded().nearest();
+
+        if (b == null || b.getPosition() == null) {
+            if (path == null) {
+                this.path = WebPath.buildTo(Landmark.BANK);
+            }
+            if (path != null) {
+                path.step();
+            } else {
+                error = "Could not generate path to bank";
+            }
+            return;
+        }
+        DirectInput.sendMovement(b.getPosition());
+        if (!Execution.delayUntil(() -> Bank.open(b), 30000)) {
+            if (path == null) {
+                this.path = WebPath.buildTo(Landmark.BANK);
+            }
+            if (path != null) {
+                path.step();
+            } else {
+                error = "Could not generate path to bank";
+            }
+            return;
+        }
+        return;
+    }
+
+}

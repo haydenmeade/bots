@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class HouseRequirement implements Requirement {
+    private final Predicate<HouseConfig> meetsRequirement;
+    private final List<Pattern> withItems;
+
+    public HouseRequirement(Predicate<HouseConfig> meetsRequirement, Pattern... withItems) {
+        this.meetsRequirement = meetsRequirement;
+        this.withItems = List.of(withItems);
+    }
+
+    @Override
+    public Collection<Pattern> items() {
+        return util.joinLists(util.getHouseTeleport().getItems().keySet(), withItems);
+    }
+
+    @Override
+    public Collection<Rune> runes() {
+        return util.getHouseTeleport().getRunes();
+    }
+
+    @Override
+    public TraverseMethod.TraverseBank getBank() {
+        var hb = util.getHouseTeleport();
+        for (var i : withItems) {
+            hb.getItems().put(i, 1);
+        }
+        return hb;
+    }
+
+    @Override
+    public boolean isHouse() {
+        return true;
+    }
+
+    @Override
+    public boolean meetsRequirement(HouseConfig houseConfig, Collection<SpriteItem> spriteItems) {
+        if (houseConfig == null) {
+            log.error("null house config");
+        }
+        return util.hasHouseTeleport(spriteItems) &&
+                (this.meetsRequirement == null || this.meetsRequirement.test(houseConfig));
+    }
+}

@@ -1,0 +1,135 @@
+package com.neck_flexed.scripts.ashes;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.Wilderness;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "AshesMain")
+public class ashes extends NeckBot<AshSettings, AshState> implements SettingsListener, PlayerListener {
+
+    public static final Area fountain =
+            new Area.Rectangular(new Coordinate(3375, 3891, 0), new Coordinate(3375, 3891, 0));
+    public BreakManager breakManager;
+    protected boolean started = false;
+    protected LoopState<AshState> currentState;
+    protected AshState forcedState = null;
+    private boolean died;
+    private boolean loaded = false;
+    @SettingsProvider(updatable = true)
+    private AshSettings settings;
+
+    public static boolean atFountain() {
+        return fountain.contains(Players.getLocal());
+    }
+
+    public static boolean inWildy() {
+        return Wilderness.getDepth() > 1;
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        this.getEventDispatcher().addListener(this);
+        this.setLoopDelay(10, 25);
+        resetKill();
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "You need Wilderness Sword 4, and Locator orb/Rock cake in inventory\n" +
+                        "Start on Arceuus book\n" +
+                        "Start anywhere MAKE SURE YOU DON'T HAVE ANYTHING VALUABLE EQUIPPED\n" +
+                        "**Will just continue in case of a player attack**\n"
+        ));
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        this.died = true;
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        if (!Inventory.contains(items.wildySword4) && !Equipment.contains(items.wildySword4)) {
+            return true;
+        }
+        if (!Inventory.contains(items.locatorOrb) && !Inventory.contains(items.dwarvenRock)) {
+            return true;
+        }
+        if (Ash.hasNoAshesLeft()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[0];
+    }
+
+    @Override
+    public void resetKill() {
+        this.died = false;
+    }
+
+    @Override
+    protected void initFromSettings(AshSettings settings) {
+        this.breakManager = new BreakManager(settings, this);
+        this.ignoreLoadouts = true;
+    }
+
+    protected LoopState<AshState> getState(AshState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case OFFERING:
+                return new OfferState(this);
+            case SELFDEATH:
+                return new SelfDeathState(this);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, AshState.BREAKING, AshState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    protected LoopState<AshState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    protected AshState getBreakStateEnum() {
+        return AshState.BREAKING;
+    }
+
+    protected AshState getStartStateEnum() {
+        return AshState.STARTING;
+    }
+
+    public void updateStatus(String s) {
+        log.debug(s);
+        DefaultUI.setStatus(s);
+    }
+
+    public AshSettings settings() {
+        return this.settings;
+    }
+
+    public boolean isDead() {
+        return died;
+    }
+}

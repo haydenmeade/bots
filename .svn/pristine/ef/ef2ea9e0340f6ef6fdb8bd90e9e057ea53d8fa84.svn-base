@@ -1,0 +1,113 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+
+@Log4j2
+public class HousePortalTraverse implements TraverseMethod {
+    private final PortalNexusTeleport portal;
+
+    public HousePortalTraverse(PortalNexusTeleport portal) {
+        this.portal = portal;
+    }
+
+    public static boolean nexusTeleTo(PortalNexusTeleport t, Coordinate startPosition) {
+        if (t == null) return false;
+        var n = HouseUtil.getPortalNexus();
+        var iface = InterfaceContainers.getAt(17);
+        if (n == null) {
+            return false;
+        } else if (iface != null) {
+            var ifaceChild = iface.getComponent(12);
+            if (ifaceChild == null) return false;
+            var childLabel = ifaceChild.getChild(
+                    c -> {
+                        if (!c.getType().equals(InterfaceComponent.Type.LABEL)) return false;
+                        var text = c.getText();
+                        if (text == null) return false;
+                        return text.endsWith(t.getOption());
+                    }
+            );
+            if (childLabel == null) {
+                log.error("unable to find teleport: {}", t);
+                return false;
+            }
+            var text = childLabel.getText();
+            if (text == null) return false;
+            var key = text.substring(0, 1);
+            Keyboard.typeKey(key);
+            Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                    () -> util.playerAnimating() || util.playerMoving(), 2000, 3000);
+            Execution.delay(600);
+        } else {
+            DirectInput.send(MenuAction.forGameObject(n, "Teleport Menu"));
+            Execution.delayUntil(() -> InterfaceContainers.getAt(17) != null, util::playerMoving, 1200, 2400);
+        }
+        return Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId();
+    }
+
+    public static boolean teleHousePortal(GameObject go, Coordinate startPosition) {
+        if (go == null) {
+            log.error("No house portal");
+            return false;
+        } else {
+            DirectInput.send(MenuAction.forGameObject(go, "Enter"));
+            Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                    () -> util.playerAnimating() || util.playerMoving(), 2000, 3000);
+            Execution.delay(600);
+        }
+        return Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId();
+    }
+
+    public static GameObject getPortalLoop(PortalNexusTeleport portal) {
+        return GameObjects.newQuery()
+                .names(portal.getOption() + " Portal")
+                .results().nearest();
+    }
+
+    @Override
+    public boolean hasSupport(HouseConfig houseConfig) {
+        return Arrays.asList(houseConfig.getPortals()).contains(portal);
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        if (!House.isInside()) {
+            util.teleToHouse();
+            return false;
+        }
+        var sr = Players.getLocal().getServerPosition().getContainingRegionId();
+        var portalLoop = getPortalLoop(this.portal);
+        var res = portalLoop == null
+                ? nexusTeleTo(this.portal, startPosition)
+                : teleHousePortal(portalLoop, startPosition);
+        if (res) {
+            Execution.delayUntil(
+                    () -> !House.isInside() && sr != Players.getLocal().getServerPosition().getContainingRegionId(),
+                    () -> util.playerMoving() && util.playerAnimating(),
+                    3000, 4000);
+        }
+        return res;
+    }
+
+    @Override
+    public String toString() {
+        return "HOUSE Portal Traverse: " + this.portal.toString();
+    }
+}

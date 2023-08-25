@@ -1,0 +1,14 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import com.runemate.ui.DefaultUI;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "StartingTask")
+public class StartingTask extends LeafTask {
+    @Override
+    public void execute() {
+        DefaultUI.setStatus(String.format("Starting"));
+        log.debug("starting");
+    }
+}

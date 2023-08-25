@@ -1,0 +1,137 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skills;
+import com.runemate.game.api.hybrid.local.WorldOverview;
+import com.runemate.game.api.hybrid.local.WorldType;
+import com.runemate.game.api.hybrid.local.Worlds;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.ControlPanelTab;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.game.api.script.Execution;
+import lombok.NonNull;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EnumSet;
+import java.util.stream.IntStream;
+
+@Log4j2(topic = "Hopping")
+public class Hopping {
+
+    private static final int CONTAINER_INDEX = 69;
+
+    public static boolean isOpen() {
+        return ControlPanelTab.WORLD_HOP.isOpen();
+    }
+
+    public static boolean open() {
+        return ControlPanelTab.WORLD_HOP.open();
+    }
+
+    public static boolean close() {
+        final InterfaceComponent component = Interfaces.newQuery()
+                .containers(69)
+                .actions("Close")
+                .sprites(535)
+                .heights(23)
+                .widths(26)
+                .types(InterfaceComponent.Type.SPRITE)
+                .results()
+                .first();
+        return component != null && component.interact("Close");
+    }
+
+    private static boolean to(int targetWorld) {
+        log.info("Hopping to world {}", targetWorld);
+        if (targetWorld < 0) {
+            log.warn("Invalid request to hop to world {}", targetWorld);
+            return false;
+        }
+        int initialWorld = Worlds.getCurrent();
+        if (targetWorld == initialWorld) {
+            log.info("The target world of {} is already loaded.", targetWorld);
+            return true;
+        }
+        log.debug("Attempting to hop to world {} from {}", targetWorld, initialWorld);
+        if (open()) {
+            final InterfaceComponent wc = getWorldComponent(targetWorld);
+            if (wc == null) {
+                log.warn("Couldn't find world component");
+                return false;
+            }
+            final InterfaceComponent cc = getContainerComponent();
+            if (cc == null) {
+                log.warn("Couldn't find container component");
+                return false;
+            }
+            DirectInput.send(MenuAction.forInterfaceComponent(wc, 0));
+            Execution.delayUntil(() -> Worlds.getCurrent() == targetWorld || getHopWarningDialog() != null, 6000, 9000);
+            ChatDialog.Option confirm = getHopWarningDialog();
+            if (confirm != null && confirm.select()) {
+                Execution.delayUntil(() -> Worlds.getCurrent() == targetWorld, 6000, 9000);
+            }
+        }
+        return targetWorld == Worlds.getCurrent();
+    }
+
+    private static ChatDialog.Option getHopWarningDialog() {
+        return ChatDialog.getOption("Yes. In future, only warn about dangerous worlds.",
+                "Switch to the Deadman world - and your Deadman profile.",
+                "Switch to the PvP world.",
+                "Switch to the Access-All-Areas world - and temporary profile."
+        );
+    }
+
+    private static InterfaceComponent getContainerComponent() {
+        return Interfaces.newQuery()
+                .containers(CONTAINER_INDEX)
+                .types(InterfaceComponent.Type.CONTAINER)
+                .grandchildren(false)
+                .widths(174)
+                .heights(193)
+                .results()
+                .first();
+    }
+
+    private static InterfaceComponent getWorldComponent(int worldId) {
+        return Interfaces.newQuery()
+                .containers(CONTAINER_INDEX)
+                .types(InterfaceComponent.Type.SPRITE)
+                .grandchildren(true)
+                .names(Integer.toString(worldId))
+                .visible()
+                .results()
+                .first();
+    }
+
+    private static boolean isSafeAndUsable(@NonNull WorldOverview destination, boolean member, int current) {
+        int totalLevel = IntStream.of(Skills.getBaseLevels()).sum();
+        EnumSet<WorldType> types = destination.getWorldTypes();
+        return destination.getId() != current && destination.isMembersOnly() == member && !types.contains(WorldType.PVP_ARENA) && !types.contains(WorldType.QUEST_SPEEDRUNNING) && !types.contains(WorldType.TOURNAMENT_WORLD) && !types.contains(WorldType.SEASONAL) && !types.contains(WorldType.LAST_MAN_STANDING) && !WorldType.isPvp(destination.getWorldTypes()) && (!destination.isSkillTotal2200() || totalLevel >= 2200) && (!destination.isSkillTotal2000() || totalLevel >= 2000) && (!destination.isSkillTotal1750() || totalLevel >= 1750) && (!destination.isSkillTotal1500() || totalLevel >= 1500) && (!destination.isSkillTotal1250() || totalLevel >= 1250) && (!destination.isSkillTotal750() || totalLevel >= 750) && (!destination.isSkillTotal500() || totalLevel >= 500);
+    }
+
+    public static boolean hop(WorldRegion region) {
+        log.debug("hopping");
+        if (!isOpen() && !open()) {
+            Execution.delay(1200, 1400);
+            log.error("Unable to open world hopper");
+            return false;
+        }
+        var current = Worlds.getCurrent();
+        log.debug("current");
+        log.debug(current);
+        var newWorldWithRegion = Worlds.newQuery()
+                .filter(w -> isSafeAndUsable(w, true, current) && w.getRegion().getAlpha2().equals(region.getAlpha2()))
+                .results();
+        var newWorldWithNoRegion = Worlds.newQuery().filter(w -> isSafeAndUsable(w, true, current)).results();
+        var newWorld = newWorldWithRegion.isEmpty() ? newWorldWithNoRegion.random() : newWorldWithRegion.random();
+        if (!to(newWorld.getId())) {
+            return false;
+        }
+        return Execution.delayUntil(() -> current != Worlds.getCurrent() && Players.getLocal() != null, 9000, 12000);
+    }
+}

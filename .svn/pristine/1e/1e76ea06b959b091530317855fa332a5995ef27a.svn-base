@@ -1,0 +1,178 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.NpcSpawnedEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "BarrageListener")
+public class BarrageListener implements NpcListener, EngineListener {
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private final Lock lock = new ReentrantLock();
+    private int tick = 0;
+    private Monster monster;
+    private boolean isInArea = false;
+
+    public BarrageListener(com.neck_flexed.scripts.barrage.bot bot) {
+        this.bot = bot;
+    }
+
+    public void init() {
+        this.monster = bot.settings().monster();
+//        var m = monster.getNpcsWithin();
+//        try {
+//            lock.lock();
+//            this.monsters.clear();
+//            this.monsters.addAll(m);
+//        } finally {
+//            lock.unlock();
+//        }
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            this.tick++;
+            log.debug("tick: {}, monsters alive {}", tick, getTargetingMe().size());
+            var p = Players.getLocal();
+            if (p == null) return;
+            if (monster == null) return;
+            this.isInArea = monster.getArea().contains(p);
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    public Npc getNearest() {
+        var p = Players.getLocal();
+        if (p == null) return null;
+        return monster.getNpcsWithin().nearest();
+    }
+
+    public Npc getBestTarget() {
+        var npcs = Npcs.newQuery()
+                .names(monster.getSuperiorName(), monster.getMonsterName())
+                .filter(n -> n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                .results();
+        var bestCoord = npcs.stream()
+                .map(Npc::getServerPosition)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet()
+                .stream()
+                .max(Map.Entry.comparingByValue())
+                .orElse(null);
+        if (bestCoord == null) {
+            log.debug("nearest");
+            return getNearest();
+        }
+        log.debug("best on: {}", bestCoord.getKey());
+
+        return Npcs.newQuery()
+                .names(monster.getSuperiorName(), monster.getMonsterName())
+                .on(bestCoord.getKey())
+                .results().first();
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        try {
+            if (!isInArea) return;
+            var npc = event.getNpc();
+            if (npc == null) return;
+            if (!monster.isMonster(npc)) {
+                return;
+            }
+            if (!monster.getArea().contains(npc)) return;
+
+//            try {
+//                lock.lock();
+//                this.monsters.add(npc);
+//            } finally {
+//                lock.unlock();
+//            }
+            log.debug("{} spawned: {}", monster, tick);
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+
+//    @Override
+//    public void onNpcAnimationChanged(AnimationEvent event) {
+//        try {
+//            if (getId(event.getSource()) == Barrage.ID && event.getAnimationId() == Barrage.DEATH_ANIM) {
+//                isDead = true;
+//                deadArea = barrage.getNpc().getArea();
+//                this.barrage = null;
+//                this.ticksUntilRespawn = RespawnTicks;
+//                bot.addKill();
+//            }
+//        } catch (Exception e) {
+//            log.error("NpcAnimation", e);
+//            e.printStackTrace();
+//        }
+//    }
+
+
+    @Override
+    public void onNpcDeath(DeathEvent event) {
+        if (!isInArea) return;
+        var source = event.getSource();
+        if (source == null) return;
+        if (!(source instanceof Npc)) return;
+        var npc = (Npc) source;
+        if (!Objects.equals(npc.getTarget(), Players.getLocal())) return;
+        log.debug("{} dead: {} - {}", monster, tick, event);
+        bot.addKill();
+    }
+
+    public boolean anyTargetingMe() {
+        return !getTargetingMe().isEmpty();
+    }
+
+    public List<Npc> getTargetingMe() {
+        var p = Players.getLocal();
+        if (p == null) return new ArrayList<>();
+        return monster.getNpcsWithin().stream().filter(n -> n != null && n.isValid() && Objects.equals(n.getTarget(), p)).collect(Collectors.toList());
+    }
+
+    public boolean allTargetingMe() {
+        var p = Players.getLocal();
+        if (p == null) return false;
+        try {
+            lock.lock();
+            return monster.getNpcsWithin().stream().allMatch(n -> Objects.equals(n.getTarget(), p));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean allAreDead() {
+        return !anyTargetingMe();
+    }
+
+    public void reset() {
+        log.debug("reset");
+        this.monster = bot.settings().monster();
+    }
+
+    public Area getDeadArea() {
+        return new Area.Rectangular(monster.getTile1(), monster.getTile2()).grow(2, 2);
+    }
+}

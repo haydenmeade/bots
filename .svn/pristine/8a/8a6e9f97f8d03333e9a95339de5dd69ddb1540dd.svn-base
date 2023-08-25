@@ -1,0 +1,151 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.Player;
+import com.runemate.game.api.hybrid.entities.details.Interactable;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Spell;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+import java.util.concurrent.Callable;
+import java.util.function.Predicate;
+
+@Log4j2(topic = "Neck DI")
+public class DI implements EventListener, EngineListener {
+    @Getter
+    private int actionsThisTick = 0;
+    private int tick = 0;
+
+    public boolean doDiInteractObstacleReachable(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheck()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle alt: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+        if (!pos.isReachable()) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacleAlt(Predicate<GameObject> doOnlyIf, Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheck()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle alt: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+        if (!doOnlyIf.test(g)) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Predicate<Player> doOnlyIf, Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheck()) return false;
+        var p = Players.getLocal();
+        if (p == null) return false;
+        if (!doOnlyIf.test(p)) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheck()) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate, int minTimeout, int maxTimeout) {
+        if (diCheck()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+
+        DirectInput.send(MenuAction.forGameObject(g, action));
+        var p = Players.getLocal();
+        if (p == null) return false;
+        Execution.delayUntil(() -> playerPredicate.test(p),
+                util::playerAnimatingOrMoving, minTimeout, maxTimeout);
+        return true;
+    }
+
+    public void send(MenuAction action) {
+        if (diCheck()) return;
+        DirectInput.send(action);
+    }
+
+    public void sendMovement(Locatable locatable) {
+        if (diCheck()) return;
+        DirectInput.sendMovement(locatable);
+    }
+
+    public void sendMovement(Coordinate.RegionOffset offset) {
+        if (diCheck()) return;
+        DirectInput.sendMovement(offset);
+    }
+
+    public void sendMovement(int localX, int localY) {
+        if (diCheck()) return;
+        DirectInput.sendMovement(localX, localY);
+
+    }
+
+    public boolean setSelectedItem(SpriteItem item) {
+        if (diCheck()) return false;
+        return DirectInput.setSelectedItem(item);
+    }
+
+    public boolean setSelectedSpell(Spell spell) {
+        if (diCheck()) return false;
+        return DirectInput.setSelectedSpell(spell);
+    }
+
+    public void sendItemUseOn(@NonNull SpriteItem item, @NonNull Interactable target) {
+        if (diCheck()) return;
+        DirectInput.sendItemUseOn(item, target);
+    }
+
+    public void sendSpellCastOn(@NonNull Spell spell, @NonNull Interactable target) {
+        if (diCheck()) return;
+        DirectInput.sendSpellCastOn(spell, target);
+    }
+
+    @Override
+    public void onTickStart() {
+        tick++;
+        actionsThisTick = 0;
+    }
+
+    private boolean diCheck() {
+        actionsThisTick++;
+        return actionsThisTick < 7;
+    }
+
+
+}

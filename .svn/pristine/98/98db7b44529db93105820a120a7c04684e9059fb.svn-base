@@ -1,0 +1,17 @@
+package com.neck_flexed.scripts.common;
+
+public enum CombatStyle {
+    Melee,
+    Ranged,
+    Magic;
+
+    private static CombatStyle state;
+
+    public static CombatStyle get() {
+        return state;
+    }
+
+    public static void set(CombatStyle botState) {
+        CombatStyle.state = botState;
+    }
+}

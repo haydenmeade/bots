@@ -1,0 +1,29 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.Xeric;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class XericTraverse implements TraverseMethod {
+    private final Xeric dest;
+
+    public XericTraverse(Xeric dest) {
+        this.dest = dest;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new BaseRequirement(Pattern.compile(items.xericsTalisman)));
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        return util.xericsTo(dest);
+    }
+}

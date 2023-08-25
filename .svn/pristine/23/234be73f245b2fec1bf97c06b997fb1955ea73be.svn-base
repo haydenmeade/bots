@@ -1,0 +1,490 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.HoppingState;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.neck_flexed.scripts.common.state.RestoreState;
+import com.neck_flexed.scripts.common.traverse.TeleportTraverse;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.slayer.barrage.BarrageListener;
+import com.neck_flexed.scripts.slayer.barrage.BarrageState;
+import com.neck_flexed.scripts.slayer.barrage.LuringState;
+import com.neck_flexed.scripts.slayer.barrage.StackingState;
+import com.neck_flexed.scripts.slayer.state.*;
+import com.neck_flexed.scripts.slayer.turael.TuraelTaskGetterState;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EventListener;
+import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "SlayerMain")
+public class bot extends SlayerBotImpl<SlayerSettings> {
+
+    @Getter
+    private final AlchListener alchListener = new AlchListener(this);
+    @Getter
+    private Consumeables<SlayerSettings, SlayerState> consumeables;
+    @SettingsProvider(updatable = true)
+    private SlayerSettings settings;
+
+    @Override
+    public @NotNull Location selectLocation(SlayerMonster monster) {
+        var locations = monster.getLocations();
+        var defaultLocation = locations.iterator().next();
+        var slayerLocation = SlayerTask.getLocation();
+        if (slayerLocation != null && !slayerLocation.isEmpty()) {
+            return getLocation(SlayerTask.getLocation(), locations, defaultLocation);
+        }
+        Location r = null;
+        if (barrageTasksAvailable())
+            r = locations.stream().filter(Location::isBarrage).findFirst().orElse(null);
+        if (r == null && settings().useCannon())
+            r = locations.stream().filter(l -> l.getCannonSpot() != null).findFirst().orElse(null);
+        return r == null ? defaultLocation : r;
+    }
+
+    private Location getLocation(String location, Collection<Location> locations, Location defaultLocation) {
+        return locations.stream().filter(l -> l.getName() != null && l.getName().equalsIgnoreCase(location)).findFirst().orElse(defaultLocation);
+    }
+
+    @Override
+    public @Nullable Task getOverrideTask() {
+        return settings().slayerMode() ? null : settings().debugMonster();
+    }
+
+    @Override
+    public boolean barrageTasksAvailable() {
+        return settings.doBarrageTasks() && (Magic.Book.ANCIENT.isCurrent() || canSpellbookSwap(Magic.Book.ANCIENT));
+    }
+
+    public boolean doWeNeedToRestockInFight() {
+        if (settings() == null) return false;
+        var mOpt = Monster.fromSlayerTask(getOverrideTask());
+        log.debug("restock check {} in fight", mOpt.orElse(null));
+
+        if (mOpt.isPresent()) {
+            var m = mOpt.get();
+            var loc = m.getLocation(this);
+            var l = m.getLoadout(this);
+            if (!l.isEquippedOrInInventory(m)) {
+                log.debug("Missing loadout {}", l.getLoadout());
+                return true;
+            }
+
+            if (m.isDragon() && !Antifire.hasAny()) {
+                log.debug("No antifire");
+                return true;
+            }
+
+            if (m.isPoisonous() && !Antipoison.hasAny()) {
+                log.debug("No antipoison");
+                return true;
+            }
+
+            var boost = getBoost(l);
+            if (boost != Boost.None && !boost.hasAny(!m.needsFood(this)) && !isBoosted(l.getStyle())) {
+                log.debug("Missing boost {}", boost);
+                return true;
+            }
+
+            if (loc.isBarrage()) {
+                // barrage task
+                if (!settings.spell().canCast()) {
+                    log.debug("Missing spell castable");
+                    return true;
+                }
+            } else {
+                if (m.getFinishItem() != null && !Inventory.containsAllOf(m.getFinishItem().getBank().keySet().toArray(new Pattern[0]))) {
+                    log.debug("Missing finish item {}", m.getFinishItem());
+                    // no finish item
+                    return true;
+                }
+                if (m.needsLightSource() && !LightSource.hasAny()) {
+                    log.debug("Missing light source");
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isBoosted(CombatStyle style) {
+        switch (style) {
+            case Melee:
+                return (Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel()) < settings.reboostMelee();
+            case Ranged:
+                return (Skill.RANGED.getCurrentLevel() - Skill.RANGED.getBaseLevel()) < settings.reboostRange();
+            case Magic:
+                return (Skill.MAGIC.getCurrentLevel() - Skill.MAGIC.getBaseLevel()) < settings.reboostMage();
+        }
+        return false;
+    }
+
+    public boolean doWeNeedToRestock(boolean inFight) {
+        if (inFight) return doWeNeedToRestockInFight();
+        if (settings() == null) return false;
+        var mOpt = Monster.fromSlayerTask(getOverrideTask());
+        log.debug("restock check {}", mOpt.orElse(null));
+
+        if (mOpt.isPresent()) {
+            var m = mOpt.get();
+            var l = m.getLoadout(this);
+            if (!l.isEquippedOrInInventory(m)) {
+                log.debug("Missing loadout {}", l.getLoadout());
+                return true;
+            }
+            var location = m.getLocation(this);
+
+            if (!Traverser.isInPathRegions(Players.getLocal().getServerPosition(), location.getPathRegions(), location.getTraverseToTile())) {
+                if (location.getTraverseItems() != null) {
+
+                    var missingItems = location.getTraverseItems().entrySet().stream()
+                            .filter(e -> Items.getQuantity(util.inventoryEquipmentSource(), e.getKey()) < e.getValue())
+                            .map(Map.Entry::getKey)
+                            .collect(Collectors.toList());
+                    if (!missingItems.isEmpty()) {
+                        log.debug("Missing traverse items {}", util.toString(missingItems));
+                        return true;
+                    }
+                }
+                if (!util.hasAnyTraverse(location.getTraverseMethods(), getHouseConfig())) {
+                    log.debug("Missing traverse to {}", m);
+                    // no available traverses
+                    return true;
+                }
+            }
+
+            if (location.getCannonSpot() != null && settings.useCannon() && !Cannon.hasCannon()) {
+                log.debug("Missing cannon");
+                return true;
+            }
+
+            if (m.isDragon() && !Antifire.hasAny()) {
+                log.debug("No antifire");
+                return true;
+            }
+
+            if (m.isPoisonous() && !Antipoison.hasAny()) {
+                log.debug("No antipoison");
+                return true;
+            }
+
+            var boost = getBoost(l);
+            if (boost.getDoses() < 3) {
+                log.debug("Missing boost {}", boost);
+                return true;
+            }
+
+            var loc = m.getLocation(this);
+            if (loc.isBarrage()) {
+                // barrage task
+                if (!settings.spell().canCast()) {
+                    log.debug("Missing spell castable");
+                    return true;
+                }
+            } else {
+                if (m.getFinishItem() != null && !Inventory.containsAllOf(m.getFinishItem().getBank().keySet().toArray(new Pattern[0]))) {
+                    log.debug("Missing finish item {}", m.getFinishItem());
+                    // no finish item
+                    return true;
+                }
+                if (m.needsLightSource() && !LightSource.hasAny()) {
+                    log.debug("Missing light source");
+                    return true;
+                }
+            }
+        } else {
+            if (settings.skipTasksEnabled() && settings.skipTasksWithTurael() &&
+                    !(util.hasAnyTraverse(SlayerMaster.TURAEL.getTraverses(), getHouseConfig()) || npcContactAvailable())) {
+                log.debug("Missing turael traverse");
+                return true;
+            }
+
+            if (!(util.hasAnyTraverse(settings.master().getTraverses(), getHouseConfig()) || npcContactAvailable()) && settings.master().getNpc() == null) {
+                log.debug("Missing master traverse {}", settings.master());
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public boolean npcContactAvailable() {
+        return settings.npcContactEnabled() && util.canNpcContactWithSwap(settings.altar());
+    }
+
+    public int getBoostReboost(Loadout l) {
+        switch (l.getStyle()) {
+            case Melee:
+                return settings.reboostMelee();
+            case Ranged:
+                return settings.reboostRange();
+            case Magic:
+                return settings.reboostMage();
+        }
+        return settings.reboostMelee();
+    }
+
+    public Boost getBoost(Loadout l) {
+        switch (l.getStyle()) {
+            case Melee:
+                return settings.meleeBoost();
+            case Ranged:
+                return settings.rangeBoost();
+            case Magic:
+                return settings.mageBoost();
+        }
+        return settings.meleeBoost();
+    }
+
+    public void resetKill() {
+
+    }
+
+    public boolean canSpellbookSwap(Magic.Book book) {
+        return book.isCurrent() ||
+                (getHouseConfig().getAltar().supportsSwitchTo(book) && getHouseConfig().getAltar().supportsSwitchTo(Magic.Book.getCurrent()));
+    }
+
+    public Magic.Book getDesiredSpellbook(@Nullable SlayerMonster m, HouseConfig houseConfig) {
+        if (getHouseConfig().getAltar().equals(HouseConfig.Altar.None)) return Magic.Book.getCurrent();
+
+        if (!SlayerTask.hasTask()) {
+            if (settings.npcContactEnabled() && !Magic.Book.LUNAR.isCurrent()) {
+                return Magic.Book.LUNAR;
+            }
+        }
+        if (m != null
+                && m.getLocation(this).isBarrage()
+                && barrageTasksAvailable()
+                && canSpellbookSwap(Magic.Book.ANCIENT))
+            return Magic.Book.ANCIENT;
+
+        if (m != null) {
+            var items = Bank.isOpen() ? util.inventoryEquipmentBankSource() : util.inventoryEquipmentSource();
+            var t = Traverser.getBestTraverse(m.getLocation(this).getTraverseMethods(), houseConfig, items);
+            if (t.isPresent() && t.get() instanceof TeleportTraverse) {
+                // Using for traverse.
+                var tt = (TeleportTraverse) t.get();
+                var hasTeleportTab = tt.getSpellRequirement().getInfo().hasTeleportTab(util.inventoryEquipmentSource());
+                if (!hasTeleportTab) return Magic.Book.getCurrent();
+            }
+        }
+        return canSpellbookSwap(Magic.Book.STANDARD) ? Magic.Book.STANDARD : Magic.Book.getCurrent();
+    }
+
+    @Override
+    protected void initFromSettings(SlayerSettings settings) {
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().meleeEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.MELEE_LOADOUT.toString()),
+                Triple.of(settings().meleeSpecEquipment(), Loadout.LoadoutRole.SpecDps, SlayerLoadout.SPEC_LOADOUT.toString()),
+                Triple.of(settings().leafEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.LEAF_LOADOUT.toString()),
+                Triple.of(settings().barrageEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.BARRAGE_LOADOUT.toString()),
+                Triple.of(settings().barrageLureEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.LURE_LOADOUT.toString()),
+                Triple.of(settings().dragonEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.DRAGON_LOADOUT.toString()),
+                Triple.of(settings().wyvernEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.WYVERN_LOADOUT.toString()),
+                Triple.of(settings().wyrmDrakeEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.DRAKE_WYRM_LOADOUT.toString()),
+                Triple.of(settings().lizardmanShaman(), Loadout.LoadoutRole.Combat, SlayerLoadout.SHAMAN_LOADOUT.toString()),
+                Triple.of(settings().turaelSkipEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.TURAEL_LOADOUT.toString())
+        );
+        this.breakManager = new BreakManager(settings, this);
+        updateItemFilter(util.concatenate(
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling, items.dramenStaff,},
+                loadouts.getItemFilter()
+        ));
+        this.alchListener.setAlchables(util.parseCsvRegexString(settings.alchItems()));
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, junkDropper, alchListener, shamanEncounter, getCannon()};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        consumeables = new Consumeables<>(this, 35, SlayerState.RESTORING, false);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings, this);
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Start me from anywhere, I will get whatever traverse/loadout items I need from bank\n\n" +
+                        "Supports: NPC Contact --> Be on lunars\n" +
+                        "Supports: Barrage Tasks --> Be on ancients\n" +
+                        "Supports: Alching --> Be on standard\n\n" +
+                        "I will only fight monsters in specific areas" +
+                        "To see supported monsters see discord or SlayerBotImpl description\n" +
+                        "If you have any issues or suggestions visit the Neck Discord\n"
+        ));
+
+        String s = getAvailableTraverses();
+        log.trace(s);
+        DefaultUI.addPanel(4, this, "Available Traverses", new Text(s));
+        DefaultUI.addPanel(5, this, "Progress Log", progressLog);
+        shamanEncounter.initiate(this);
+    }
+
+    private String getAvailableTraverses() {
+        var sb = new StringBuilder();
+        sb.append("# Masters");
+        sb.append("\n");
+        for (var m : SlayerMaster.values()) {
+            sb.append("## " + m.toString());
+            sb.append("\n");
+            for (var t : m.getTraverses()) {
+                sb.append("- " + t.toString());
+                sb.append("\n");
+            }
+        }
+        sb.append("\n");
+        sb.append("# Monsters");
+        sb.append("\n");
+
+        var monsters = new ArrayList<SlayerMonster>(Monster.getMonsters());
+        for (var m : monsters) {
+            sb.append("## " + m.getMonsterName());
+            sb.append("\n");
+            for (var location : m.getLocations()) {
+                sb.append("## " + location.getName());
+                sb.append("\n");
+                for (var t : location.getTraverseMethods()) {
+                    sb.append("- " + t.toString());
+                    sb.append("\n");
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    protected LoopState<SlayerState> getState(SlayerState s) {
+        var monster = Monster.fromSlayerTask(this.getOverrideTask());
+
+        switch (s) {
+            case TRAVERSING:
+                if (monster.isEmpty()) {
+                    this.forceState(SlayerState.STARTING);
+                    break;
+                }
+                return new TraverseState(this, monster.get());
+            case BARRAGING:
+                if (monster.isEmpty()) {
+                    return new StartingState(this);
+                }
+                return new BarrageState(this, new BarrageListener(this, monster.get()), this.prayerFlicker,
+                        this.loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT),
+                        monster.get(),
+                        settings.spell(),
+                        settings.reboostMage());
+            case PICK_UP_CANNON:
+                return new PickUpCannonState(this);
+            case LOOTING:
+                return new LootState(this, settings, monster.orElse(null));
+            case LURING:
+                if (monster.isEmpty()) {
+                    return new StartingState(this);
+                }
+                return new LuringState(this,
+                        new BarrageListener(this, monster.get()),
+                        monster.get(),
+                        this.loadouts.getForName(SlayerLoadout.LURE_LOADOUT)
+                );
+            case STACKING:
+                if (monster.isEmpty()) {
+                    return new StartingState(this);
+                }
+                return new StackingState(this,
+                        monster.get(),
+                        new BarrageListener(this, monster.get())
+                );
+            case RESTORING:
+                return new RestoreState<>(this, SlayerState.RESTORING, this.getHouseConfig());
+            case HOPPING:
+                return new HoppingState<>(this, settings().worldRegion(), SlayerState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this, this.getHouseConfig(), settings.preferHouseTraverse());
+            case BREAKING:
+                return new BreakHandlerState<>(this.breakManager, this, SlayerState.BREAKING);
+            case FIGHTING:
+                if (monster.isEmpty()) {
+                    this.forceState(SlayerState.STARTING);
+                    break;
+                }
+                return new FightState(this,
+                        monster.get(),
+                        getBoostReboost(monster.get().getLoadout(this)),
+                        monster.get().getLoadout(this),
+                        settings, !settings.antifire().equals(Antifire.None));
+            case GET_TURAEL_TASK:
+                return new TuraelTaskGetterState(this, this.getHouseConfig());
+            case SKIP_TASK:
+                return new SkipTaskState(this);
+            case GET_NEW_TASK:
+                return new GetNewTaskState(this, this.getPreviousTask());
+            case GET_MASTER_TASK:
+                return new GetMasterState(this);
+            case SWITCH_SPELLBOOK:
+                return new SwitchSpellBookState(this, this.getDesiredSpellbook(monster.orElse(null), this.getHouseConfig()));
+            case STARTING:
+            default:
+        }
+        return new StartingState(this);
+    }
+
+    @Override
+    protected LoopState<SlayerState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected SlayerState getBreakStateEnum() {
+        return SlayerState.BREAKING;
+    }
+
+    @Override
+    protected SlayerState getStartStateEnum() {
+        return SlayerState.STARTING;
+    }
+
+    @Override
+    protected IStateManager<SlayerState> createStateManager() {
+        return new SlayerStateManager(this);
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Kills: %d, Tasks Completed: %d", s, this.getKillCount(), this.tasksCompleted.size());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public SlayerSettings settings() {
+        return settings;
+    }
+
+}

@@ -1,0 +1,156 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.encounters.EncounterOverride;
+import com.neck_flexed.scripts.slayer.traverse.TraverseOverride;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+public interface SlayerMonster {
+
+    Task getTask();
+
+    String getMonsterName();
+
+    String[] getSuperiorNames();
+
+    int[] getPathRegions();
+
+    com.runemate.game.api.hybrid.location.Area getArea();
+
+    com.neck_flexed.scripts.common.traverse.TraverseMethod[] getTraverseMethods();
+
+    com.runemate.game.api.hybrid.location.Coordinate getCannon();
+
+    com.runemate.game.api.osrs.local.hud.interfaces.Prayer getPrayer();
+
+    SlayerFinishItem getFinishItem();
+
+    SlayerProtectionItem getProtection();
+
+    boolean needsLightSource();
+
+    boolean isInSafeArea();
+
+    TraverseOverride getTraverseOverride();
+
+    boolean isLeafBladed();
+
+    default boolean isBarrageMonster() {
+        return false;
+    }
+
+    default boolean isTuraelMonster() {
+        return false;
+    }
+
+    boolean isDragon();
+
+    boolean isWyvern();
+
+    boolean isPoisonous();
+
+    boolean isHoppingDisabled();
+
+    BoneType getBoneType();
+
+    int getFood();
+
+    default boolean isMonster(Npc npc) {
+        if (npc == null) return false;
+        var name = npc.getName();
+        if (name == null) return false;
+        var names = util.toPatternArray(getAllNames());
+        return Arrays.stream(names).anyMatch(a -> a.matcher(name).find());
+    }
+
+    default String[] getAllNames() {
+        return util.concatenate(getAlternatives(), new String[]{getMonsterName()}, getSuperiorNames());
+    }
+
+    default Coordinate getTraverseToTile() {
+        if (getCannon() != null) return getCannon();
+        var a = getArea();
+        var c = a.getCenter();
+        return c;
+    }
+
+    default NpcQueryBuilder getNpcsQuery() {
+        var names = util.toPatternArray(getAllNames());
+        return Npcs.newQuery()
+                .names(names)
+                .within(getArea())
+                .filter(n -> (n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                        && (n.getHealthGauge() == null || n.getHealthGauge().getPercent() > 0));
+    }
+
+    default LocatableEntityQueryResults<Npc> getNpcsWithin() {
+        return getNpcsQuery()
+                .actions("Attack")
+                .results();
+    }
+
+    default boolean needsFood() {
+        return false;
+    }
+
+    default @Nullable LocatableEntityQueryResults<Npc> getSuperior(SlayerBot bot) {
+        if (getSuperiorNames().length == 0) return null;
+        var names = util.toPatternArray(getSuperiorNames());
+        return Npcs.newQuery()
+                .names(names)
+                .within(getArea())
+                .filter(n -> !bot.getSuperiorBlacklist().contains(n) &&
+                        (n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                        && (n.getHealthGauge() == null || n.getHealthGauge().getPercent() > 0))
+                .actions("Attack")
+                .results();
+    }
+
+    default boolean isSuperiorPresent(SlayerBot bot) {
+        return getSuperior(bot) != null && getSuperior(bot).size() > 0;
+    }
+
+    default Map<Pattern, Integer> getTraverseItems() {
+        return Collections.emptyMap();
+    }
+
+    String[] getAlternatives();
+
+
+    default Loadout getLoadout(Loadouts loadouts) {
+        Loadout l = null;
+        if (isBarrageMonster()) {
+            l = loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT);
+        } else if (isLeafBladed()) {
+            l = loadouts.getForName(SlayerLoadout.LEAF_LOADOUT);
+        } else if (isTuraelMonster()) {
+            l = loadouts.getForName(SlayerLoadout.TURAEL_LOADOUT);
+        } else if (isDragon()) {
+            l = loadouts.getForName(SlayerLoadout.DRAGON_LOADOUT);
+        } else if (isWyvern()) {
+            l = loadouts.getForName(SlayerLoadout.WYVERN_LOADOUT);
+        } else if (getTask().equals(Task.WYRMS) || getTask().equals(Task.DRAKES)) {
+            l = loadouts.getForName(SlayerLoadout.DRAKE_WYRM_LOADOUT);
+        }
+        return l == null ? loadouts.getForName(SlayerLoadout.MELEE_LOADOUT) : l;
+    }
+
+    default EncounterOverride getSuperiorEncounter() {
+        return null;
+    }
+}

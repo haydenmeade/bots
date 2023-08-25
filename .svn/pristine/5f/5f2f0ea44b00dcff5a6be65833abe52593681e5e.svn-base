@@ -1,0 +1,178 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.Menu;
+import com.runemate.game.api.hybrid.local.hud.MenuItem;
+import com.runemate.game.api.hybrid.local.hud.interfaces.*;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.hybrid.util.Regex;
+import com.runemate.game.api.script.Execution;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Log4j2
+@RequiredArgsConstructor
+public class DiBank {
+    private final DI di;
+
+    private final int BANK_CONTAINER = 12;
+    private final Pattern DEPOSIT_ALL_PATTERN = Regex.getPattern("^Deposit[- ]All$");
+    private final Pattern DEPOSIT_X_PATTERN = Regex.getPattern("^Deposit[- ]X$");
+    private final Pattern DEPOSIT_NUMBER_PATTERN = Regex.getPattern("^Deposit[- ](\\d+)$");
+
+    public boolean depositAllExcept(final Pattern... names) {
+        return depositAllExcept(Items.getNamePredicate(names));
+    }
+
+    public boolean depositAllExcept(final String... names) {
+        return depositAllExcept(item -> {
+            final ItemDefinition definition = item.getDefinition();
+            if (definition != null) {
+                final String itemName = definition.getName();
+                for (final String name : names) {
+                    if (Objects.equals(name, itemName)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        });
+    }
+
+    public boolean depositAllExcept(final int... ids) {
+        return depositAllExcept(item -> {
+            final int itemId = item.getId();
+            for (final int id : ids) {
+                if (itemId == id) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
+     * Deposits all of the items except those that match the exclusions filter.
+     * If exclusions is null, it redirects to the depositInventory() method.
+     *
+     * @return true if ALL of the items that don't match the filter are deposited successfully.
+     */
+    public boolean depositAllExcept(final Predicate<SpriteItem> exclusion) {
+        if (exclusion == null || !Inventory.containsAnyOf(exclusion)) {
+            return depositInventory();
+        }
+        boolean result = true;
+        for (final SpriteItem item : Inventory.getItems()) {
+            //verify that it wasn't already deposited
+            if (item.isValid() && !exclusion.test(item) && !deposit(item.getId(), 0)) {
+                result = false;
+            }
+        }
+        return result;
+    }
+
+    public boolean deposit(final String name, final int amount) {
+        return deposit(Items.getNamePredicate(name), amount);
+    }
+
+    public boolean deposit(final int id, final int amount) {
+        return deposit(spriteItem -> spriteItem.getId() == id, amount);
+    }
+
+    /**
+     * Deposits the first item that matches the specified filter.
+     * If amount is equal to 0 it will deposit all of the item.
+     * If amount is equal to -1 it will deposit all of the item
+     */
+    public boolean deposit(final Predicate<SpriteItem> filter, final int amount) {
+        final SpriteItem item = Inventory.getItems(filter).first();
+        return item != null && deposit(item, amount);
+    }
+
+    public boolean deposit(final Pattern name, final int amount) {
+        final SpriteItem item = Inventory.getItems(name).first();
+        return item != null && deposit(item, amount);
+    }
+
+    public boolean depositInventory() {
+        if (!Inventory.getItems().isEmpty()) {
+            log.info("Depositing inventory");
+            final InterfaceComponent button = Interfaces.newQuery()
+                    .containers(BANK_CONTAINER)
+                    .types(InterfaceComponent.Type.SPRITE)
+                    .actions("Deposit inventory")
+                    .grandchildren(false)
+                    .results()
+                    .first();
+            if (button != null && button.isVisible()) {
+                di.send(MenuAction.forInterfaceComponent(button, 0));
+                Execution.delayUntil(Inventory::isEmpty, 2000);
+            }
+        }
+        return Inventory.getItems().isEmpty();
+    }
+
+    public boolean deposit(final SpriteItem item, final int amount) {
+        if (item == null || !item.hover()) {
+            return false;
+        }
+        log.info("Depositing {} {}", amount, item);
+
+
+        int invQuantity = Inventory.getQuantity(item.getId());
+        final int quantityToDeposit = amount == 0 ? invQuantity : amount;
+        boolean willDepositRemaining = quantityToDeposit >= invQuantity;
+
+        Set<String> actions = Menu.getItems().stream()
+                .map(MenuItem::getAction)
+                .collect(Collectors.toSet());
+
+        Set<String> validActions = actions.stream()
+                .filter(action -> {
+                    int quantity;
+                    Matcher matcher;
+                    if (DEPOSIT_ALL_PATTERN.matcher(action).find()) {
+                        quantity = invQuantity;
+                    } else if ((matcher = DEPOSIT_NUMBER_PATTERN.matcher(action)).find()) {
+                        quantity = Integer.parseInt(matcher.group(1));
+                    } else {
+                        return false;
+                    }
+                    return quantity == quantityToDeposit
+                            || (willDepositRemaining && quantity >= invQuantity);
+                })
+                .collect(Collectors.toSet());
+
+        Pattern action;
+        boolean manual = false;
+        if (!validActions.isEmpty()) {
+            //We make a pattern with all valid actions and let .interact() select the correct one (i.e left-click)
+            action = Regex.getPatternForExactStrings(validActions.toArray(new String[0]));
+        } else {
+            //We default to Withdraw-X if no other action is valid
+            if (actions.stream().anyMatch(a -> DEPOSIT_X_PATTERN.matcher(a).find())) {
+                action = DEPOSIT_X_PATTERN;
+                manual = true;
+            } else {
+                log.warn("Action not found in {}", actions);
+                return false;
+            }
+        }
+
+        log.debug("Using action {}", action);
+        di.send(MenuAction.forSpriteItem(item, action));
+        if (manual && Execution.delayUntil(InputDialog::isOpen, 1400, 2200)) {
+            return InputDialog.enterAmount(amount) && Execution.delayWhile(item::isValid, 1400, 2200);
+        }
+        return Execution.delayWhile(item::isValid, 1400, 2200);
+    }
+
+}

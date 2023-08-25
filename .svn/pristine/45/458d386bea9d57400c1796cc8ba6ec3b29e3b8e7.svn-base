@@ -1,0 +1,78 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+
+public class StackingState implements LoopState<BarrageState>, EngineListener {
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private final BarrageListener listener;
+    private final Monster monster;
+    private boolean done = false;
+
+    public StackingState(bot bot) {
+        this.bot = bot;
+        this.listener = bot.getBarrageListener();
+        this.monster = bot.settings().monster();
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Stacking");
+        d.addListener(this);
+        this.bot.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+    }
+
+    @Override
+    public BarrageState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        return BarrageState.FIGHTING;
+    }
+
+    @Override
+    public BarrageState get() {
+        return BarrageState.STACKING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public void onTickStart() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        if (pos.equals(monster.getTile1())) {
+            util.moveTo(monster.getTile2());
+        } else {
+            util.moveTo(monster.getTile1());
+        }
+    }
+
+    @Override
+    public boolean done() {
+        return this.done ||
+                (monster.equals(Monster.Nechryael) && monster.isSuperiorPresent());
+    }
+
+    @Override
+    public void executeLoop() {
+        var monsters = new ArrayList<Npc>(this.listener.getTargetingMe());
+        var mustBeWithin = Area.rectangular(monster.getTile1(), monster.getTile2()).grow(1, 1);
+        this.done = monsters.stream().allMatch(m -> mustBeWithin.contains(m.getServerPosition()));
+        if (!Traversal.isRunEnabled() && Traversal.getRunEnergy() > 20)
+            Traversal.toggleRun();
+    }
+}

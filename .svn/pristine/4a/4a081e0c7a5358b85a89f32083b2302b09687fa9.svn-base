@@ -1,0 +1,101 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.neck_flexed.scripts.common.TeleportSpellInfo;
+import com.neck_flexed.scripts.common.Xeric;
+import com.neck_flexed.scripts.common.items;
+import com.runemate.game.api.hybrid.local.House;
+
+import java.util.regex.Pattern;
+
+public class Traverses {
+    public static final TraverseMethod[] SLAYER_TOWER = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.SlayerTower).withPriority(9),
+            new HousePortalTraverse(PortalNexusTeleport.SalveGraveyard),
+            new FairyRingTraverse(FairyRing.CKS),
+            new HousePortalTraverse(PortalNexusTeleport.Kharyrll),
+    };
+    public static final TraverseMethod[] NIEVE_CAVE = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.StrongholdSlayerCave).withPriority(9),
+            new SpiritTreeTraverse(SpiritTreeTraverse.Destination.GnomeStronghold),
+            new ItemTraverse(items.royalSeedPod, "Commune"),
+    };
+    public static final TraverseMethod[] SMOKE_DUNGEON = new TraverseMethod[]{
+            new FairyRingTraverse(FairyRing.BKP),
+            new DuelingRingTraverse(DuelingRingTraverse.Destination.CastleWars),
+            new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.CastleWars)
+    };
+    public static final int[] SMOKE_DUNGEON_REGIONS = new int[]{9519, 9776, 9775, 9619};
+    public static final int[] SLAYER_TOWER_REGIONS = new int[]{13623, 13622, 13878, 13879, 14135, 13723};
+    public static final int[] STRONGHOLD_REGIONS = new int[]{9782, 9781, 9525, 9526, 9881, 9880, 9624, 9625};
+    public static final int[] CATACOMBS_REGIONS = new int[]{6457, 6813, 6557, 6556, 6812, 6966, 6967, 6711, 6712, 6456, 6713, 6969, 6968, 5786};
+    public static final TraverseMethod[] CATACOMBS_TRAVERSES = new TraverseMethod[]{
+            new XericTraverse(Xeric.Heart),
+            new TeleportTraverse(TeleportSpellInfo.KOUREND),
+            new HouseXericTraverse(Xeric.Heart),
+            new HousePortalTraverse(PortalNexusTeleport.KourendCastle),
+            new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Hosidius),
+            new HouseLocationTraverse(House.Location.KOUREND)
+    };
+    public static final int[] FREM_SLAYER_REGIONS = new int[]{11164, 10908, 10907, 11064};
+    public static final TraverseMethod[] FREM_SLAYER_TRAVERSES = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.FremennikSlayerDungeon),
+            new FairyRingTraverse(FairyRing.AJR)
+    };
+    public static final TraverseMethod[] TAVERLY_DUNGEON = new TraverseMethod[]{
+            new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Taverley),
+            new HouseLocationTraverse(House.Location.TAVERLEY),
+            new ItemTraverse("Taverley teleport", "Break"),
+            new TeleportTraverse(TeleportSpellInfo.FALADOR),
+            new HousePortalTraverse(PortalNexusTeleport.Falador)
+    };
+    public static final int[] TAVERLY_DUNGEON_REGIONS = new int[]{11574, 11573, 11572, 11829, 11828, 11417, 11416, 11673, 11672};
+    public static final int[] LITHRIKEN_REGIONS = new int[]{14142, 14243, 6223, 14242};
+    public static final TraverseMethod[] LITHRIKEN_TRAVERSES = new TraverseMethod[]{
+            new DigsitePendantTraverse(DigsiteDestination.Lithkren),
+            new HouseDigsiteTraverse(DigsiteDestination.Lithkren)
+    };
+    public static final int[] DURADADDY_REGIONS = new int[]{1};
+    public static final int[] MOUNT_KARALUUM_REGIONS = new int[]{5179, 5178, 5434, 4923, 5435, 5433, 5177, 4922, 5279, 5023};
+    public static final TraverseMethod[] JORMUNGANDS_PRISON = new TraverseMethod[]{
+            new ItemTraverse(items.fremBoots4, "Teleport").withPriority(2),
+            new ItemTraverse(items.enchantedLyre, "Play", "Rellekka").withPriority(1),
+            new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Rellekka),
+            new HouseLocationTraverse(House.Location.RELLEKKA),
+            new ItemTraverse("Rellekka teleport", "Break"),
+            new FairyRingTraverse(FairyRing.DKS)
+    };
+
+    public static final TraverseMethod[] MOUNT_KARALUUM_TRAVERSES = new TraverseMethod[]{
+            new ItemTraverse(items.radasBlessing4, "Mount Karuulm").withPriority(9),
+            new FairyRingTraverse(FairyRing.CIR),
+            new TeleportTraverse(TeleportSpellInfo.BATTLEFRONT),
+            new HousePortalTraverse(PortalNexusTeleport.Battlefront)
+    };
+    public static final TraverseMethod[] BANK = new TraverseMethod[]{
+            new ItemTraverse(items.craftingCape, "Teleport").withPriority(4),
+            new ItemTraverse("Amulet of eternal glory", "Rub", "Edgeville").withPriority(3),
+            new ItemTraverse(items.enchantedLyre, "Play", "Neitiznot").withPriority(2),
+            new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.CastleWars),
+            new DuelingRingTraverse(DuelingRingTraverse.Destination.CastleWars),
+            new ItemTraverse(items.amuletOfGlory, "Rub", "Edgeville"),
+            new ItemTraverse(items.ringOfWealth, "Rub", "Grand Exchange"),
+            new ItemTraverse(Pattern.compile("Farming cape.*"), "Teleport").withPriority(2),
+            new HousePortalTraverse(PortalNexusTeleport.SeersVillage),
+            new HousePortalTraverse(PortalNexusTeleport.GrandExchange),
+            new TeleportTraverse(TeleportSpellInfo.VARROCK),
+            new TeleportTraverse(TeleportSpellInfo.FALADOR),
+            new ItemTraverse(items.drakans, "Ver Sinhaza").withPriority(1),
+            //new ItemTraverse(items.royalSeedPod, "Commune"),
+            new ItemTraverse(items.radasBlessing4, "Mount Karuulm")
+    };
+    public static final int[] JORMUNGANDS_PRISON_REGIONS = new int[]{9890, 9634, 9891, 9635, 10552, 10808, 11064, 10809, 10553, 10297, 9790, 10810, 10554};
+
+    public static TraverseMethod[] duradaddy() {
+        return new TraverseMethod[]{
+                new ItemTraverse(Pattern.compile("^Karamja gloves 4$"), "Duradel"),
+                new KaramjaGloves3Traverse()
+        };
+    }
+
+}

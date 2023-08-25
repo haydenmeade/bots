@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Action;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Phase31Fighter")
+public class Phase31Fighter implements EngineListener, PlayerListener {
+    public static final int Phase3_2_Trigger = 1816;
+    private boolean isDone = false;
+
+    public boolean isDone() {
+        return isDone;
+    }
+
+    public void setDone(boolean done) {
+        isDone = done;
+    }
+
+    @Override
+    public void onTickStart() {
+        if (done()) return;
+        if (u.getSire() == null) return;
+        if (u.getSire().getId() == sire.SireId_Phase2or3_Walk) {
+            log.debug("wait for walk");
+            return;
+        }
+        if (sire.onMiasmaPool()) {
+            log.debug("move");
+            u.moveTo(Phase3.getMoveToTile2(Players.getLocal().getPosition()));
+        } else if (Action.get() != Action.Attack) {
+            log.debug("attack");
+            u.attackSire();
+        }
+
+    }
+
+    @Override
+    public void onPlayerAnimationChanged(AnimationEvent event) {
+        if (event.getAnimationId() == Phase3_2_Trigger)
+            setDone(true);
+    }
+
+    public boolean done() {
+        if (isDone()) return true;
+        var st = SireState.getFightState();
+        if (st != null && st != FightState.Phase3_1) return true;
+        return u.getSire() == null;
+    }
+}

@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "SearchingLairState")
+public class SearchingLairState implements LoopState<KqState>, EngineListener {
+    private final kq bot;
+
+    public SearchingLairState(kq bot) {
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        bot.updateStatus("Looking for the bug");
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        if (kq.getKq() == null) return KqState.STARTING;
+        return KqState.FIGHTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.SEARCHING_LAIR;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        var k = kq.getKq();
+        return k != null && k.getArea() != null && k.getArea().contains(Players.getLocal()) || !kq.isInLair();
+    }
+
+    @Override
+    public void onTickStart() {
+        var k = kq.getKq();
+        if (k != null) {
+            if (k.getPosition() == null || k.getArea() == null) {
+                log.debug("null");
+                log.debug(k);
+                return;
+            }
+            util.moveTo(k.getArea().getCenter());
+        } else {
+            var n = Npcs.getLoaded().furthest();
+            if (n != null) {
+                util.moveTo(n.getPosition());
+                Execution.delayUntil(() -> kq.getKq() != null || !Players.getLocal().isMoving(), 5000, 6000);
+            }
+        }
+    }
+
+    @Override
+    public void executeLoop() {
+        // TODO move to spawn.
+    }
+}

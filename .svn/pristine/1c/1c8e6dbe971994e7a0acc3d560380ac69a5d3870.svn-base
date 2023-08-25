@@ -1,0 +1,101 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Antipoison;
+import com.neck_flexed.scripts.common.CombatBoost;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockTask")
+public class RestockTask extends LeafTask {
+    private static void withdrawCombatBoost() {
+        if (SireState.getSettings().combatBoost() == CombatBoost.Super_Set) {
+            Bank.withdraw("Super strength(4)", 1);
+            Bank.withdraw("Super defence(4)", 1);
+            Bank.withdraw("Super attack(4)", 1);
+        } else if (SireState.getSettings().combatBoost() == CombatBoost.Combat) {
+            Bank.withdraw("Super combat(4)", 1);
+        } else if (SireState.getSettings().combatBoost() == CombatBoost.Super_Set_Divine) {
+            Bank.withdraw("Divine super strength potion(4)", 1);
+            Bank.withdraw("Divine super attack potion(4)", 1);
+            Bank.withdraw("Divine super defence potion(4)", 1);
+        } else if (SireState.getSettings().combatBoost() == CombatBoost.Combat_Divine) {
+            Bank.withdraw("Divine super combat potion(4)", 1);
+        }
+    }
+
+    private static void withdrawAntipoison() {
+        if (SireState.getSettings().antipoison() == Antipoison.ANTIPOISONPP) {
+            Bank.withdraw("Antidote++(4)", 1);
+        } else if (SireState.getSettings().antipoison() == Antipoison.ANTIPOISON) {
+            Bank.withdraw("Antipoison(4)", 1);
+        } else if (SireState.getSettings().antipoison() == Antipoison.SUPER_ANTIPOISON) {
+            Bank.withdraw("Superantipoison(4)", 1);
+        }
+    }
+
+    private static boolean withdraw(String i, int amount) {
+        if (Bank.getItems(i).stream().count() == 0) {
+            return false;
+        }
+        Bank.withdraw(i, amount);
+        return Execution.delayUntil(() -> Inventory.contains(i), 10000);
+    }
+
+    private static void withdrawPhase1Boost() {
+        if (SireState.getSettings().phase1Boost() == Phase1Boost.Ranging) {
+            Bank.withdraw("Ranging potion(4)", 1);
+        } else if (SireState.getSettings().phase1Boost() == Phase1Boost.Ranging_Divine) {
+            Bank.withdraw("Divine ranging potion(4)", 1);
+        }
+    }
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        sire.updateStatus(String.format("Restocking"));
+        Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null && Banks.getLoaded().nearest().isVisible(), 5000);
+        DirectInput.sendMovement(new Coordinate(2444, 3082));
+        u.equipRanged();
+
+        if (!Execution.delayUntil(() -> Bank.open(), 30000)) {
+            log.error("unable to open bank");
+            sire.updateStatus("unable to open bank");
+            SireState.setBotState(SireState.STOPPING);
+            return;
+        }
+
+        Pattern[] x = util.concatenate(
+                util.toPatternArray(new String[]{"Blood rune", "Death rune", "Soul rune", "Air rune", items.houseTab,
+                        items.dramenStaff, items.lunarStaff, items.imbuedHeart, items.saturatedHeart, "Unsired"}),
+                new Pattern[]{items.runePouch},
+                util.toItemList(SireState.getSettings().phase1Equipment()),
+                util.toItemList(SireState.getSettings().phase2Equipment()),
+                util.toItemList(SireState.getSettings().specEquipment())
+        );
+        Bank.depositAllExcept(x);
+
+        withdrawPhase1Boost();
+        withdrawCombatBoost();
+        withdrawAntipoison();
+        Bank.withdraw("Stamina potion(4)", 1);
+
+        Execution.delay(600);
+        Bank.withdraw(SireState.getFood(), 0);
+        Execution.delay(600);
+        Bank.close();
+
+        log.debug("done restock");
+        SireState.setBotState(SireState.TRAVERSING);
+    }
+
+}

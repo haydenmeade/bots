@@ -1,0 +1,190 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.Environment;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.Player;
+import com.runemate.game.api.hybrid.entities.details.Interactable;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Spell;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.Getter;
+import lombok.NonNull;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+import java.util.concurrent.Callable;
+import java.util.function.Predicate;
+
+@Log4j2(topic = "Neck DI")
+public class DI implements EventListener, EngineListener {
+    private static final DI staticInstance = new DI();
+    private static final int LIMIT = 8;
+    @Getter
+    private int actionsThisTick = 0;
+    private int tick = 0;
+
+    public static DI get() {
+        final var bot = Environment.getBot();
+        if (bot != null) {
+            return ((NeckBot<?, ?>) bot).di;
+        }
+        return staticInstance;
+    }
+
+    public boolean doDiInteractObstacleReachable(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheckIsFailed()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle alt: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+        if (!pos.isReachable()) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacleAlt(Predicate<GameObject> doOnlyIf, Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheckIsFailed()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle alt: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+        if (!doOnlyIf.test(g)) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Predicate<Player> doOnlyIf, Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheckIsFailed()) return false;
+        var p = Players.getLocal();
+        if (p == null) return false;
+        if (!doOnlyIf.test(p)) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate) {
+        if (diCheckIsFailed()) return false;
+        return doDiInteractObstacle(getGameObject, action, playerPredicate, 1600, 2400);
+    }
+
+    public boolean doDiInteractObstacle(Callable<GameObject> getGameObject, String action, Predicate<Player> playerPredicate, int minTimeout, int maxTimeout) {
+        if (diCheckIsFailed()) return false;
+        GameObject g;
+        try {
+            g = getGameObject.call();
+        } catch (Exception e) {
+            log.error("interact obstacle: {}, {}", action, e);
+            return false;
+
+        }
+        if (g == null) return false;
+        var pos = g.getPosition();
+        if (pos == null) return false;
+
+        DirectInput.send(MenuAction.forGameObject(g, action));
+        var p = Players.getLocal();
+        if (p == null) return false;
+        Execution.delayUntil(() -> playerPredicate.test(p),
+                util::playerAnimatingOrMoving, minTimeout, maxTimeout);
+        return true;
+    }
+
+    public boolean send(MenuAction action) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.send(action);
+        return true;
+    }
+
+    public boolean sendMovement(Locatable locatable) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.sendMovement(locatable);
+        return true;
+    }
+
+    public boolean sendMovement(Coordinate.RegionOffset offset) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.sendMovement(offset);
+        return true;
+    }
+
+    public boolean sendMovement(int localX, int localY) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.sendMovement(localX, localY);
+        return true;
+    }
+
+    public boolean setSelectedItem(SpriteItem item) {
+        if (diCheckIsFailed()) return false;
+        return DirectInput.setSelectedItem(item);
+    }
+
+    public boolean setSelectedSpell(Spell spell) {
+        if (diCheckIsFailed()) return false;
+        return DirectInput.setSelectedSpell(spell);
+    }
+
+    public boolean sendItemUseOn(@NonNull SpriteItem item, @NonNull Interactable target) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.sendItemUseOn(item, target);
+        return true;
+    }
+
+    public boolean sendSpellCastOn(@NonNull Spell spell, @NonNull Interactable target) {
+        if (diCheckIsFailed()) return false;
+        DirectInput.sendSpellCastOn(spell, target);
+        return true;
+    }
+
+    @Override
+    public void onTickStart() {
+        tick++;
+        actionsThisTick = 0;
+    }
+
+    private boolean diCheckIsFailed() {
+        actionsThisTick++;
+        var checkFailed = actionsThisTick >= LIMIT;
+        if (checkFailed) {
+            log.debug("DirectInput check failed, have done actions {} in tick {}", actionsThisTick, tick);
+        }
+        return checkFailed;
+    }
+
+
+    public boolean interact(InterfaceComponent component, String action) {
+        var ma = MenuAction.forInterfaceComponent(component, action);
+        if (ma != null) {
+            DirectInput.send(ma);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean interact(InterfaceComponent component, int i) {
+        var ma = MenuAction.forInterfaceComponent(component, i);
+        if (ma != null) {
+            DirectInput.send(ma);
+            return true;
+        }
+        return false;
+    }
+
+}

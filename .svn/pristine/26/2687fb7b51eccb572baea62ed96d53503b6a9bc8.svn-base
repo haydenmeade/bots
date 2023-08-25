@@ -1,0 +1,205 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.state.HoppingState;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.neck_flexed.scripts.common.state.RestoreState;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+
+import java.util.ArrayList;
+import java.util.EventListener;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+
+@Log4j2(topic = "Dk")
+public class dk extends NeckBot<DkSettings, DkState> {
+
+    public static final int SupremeId = 2265;
+    public static final int SupremeAttackId = 2855;
+    public static final int DeathAnimation = 2856;
+    public static final int PrimeId = 2266;
+    public static final int PrimeAttackId = 2854;
+    public static final int RexId = 2267;
+    public static final int RexAttackId = 2853;
+    // death: 2856
+    public static final String petRock = "Pet rock";
+    public static final String runeThrowingAxe = "Rune thrownaxe";
+    @SettingsProvider(updatable = true)
+    private DkSettings settings;
+    private DkListener dkListener;
+    private Consumeables<DkSettings, DkState> consumeables;
+    private AlchListener alcher;
+
+    @Override
+    protected IStateManager<DkState> createStateManager() {
+        return new DkStateManager(this, dkListener);
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boostMelee();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Inventory.getQuantity(settings().food().gameName()) < 1) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void resetKill() {
+        Action.set(Action.None);
+        this.dkListener.reset();
+    }
+
+    @Override
+    public void onStop(String reason) {
+        super.onStop(reason);
+        this.executor.shutdown();
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings, this);
+        this.setLoopDelay(10, 25);
+
+        consumeables = new Consumeables(this, 51, DkState.RESTORING);
+        dkListener = new DkListener(prayerFlicker, this);
+        alcher = new AlchListener(LootingState.alchables.toArray(new String[0]));
+
+        resetKill();
+
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "Start bot anywhere except the boss room, bot will take about a minute to load\n" +
+                        "Input your 3 loadouts + spec, choose your boosts and food\n" +
+                        "The bot still loses the occasional prayer point so bring a ppot\n" +
+                        "If you are on ancient spellbook and have the runes bot will use blood barrage on Rex\n" +
+                        "Otherwise supports alching on stardard spellbook\n" +
+                        "If you choose the slayer cave, bot will stop when slayer task finished\n" +
+                        "!!!Make sure you have pet rocks and rune thrownaxe in the bank\n" +
+                        "I've mostly tested with GPU (render distance for traverse)\n" +
+                        "If you want to do multiple trips, you'll need house teleport (tab/spell/cape). As well as a valid traverse strategy\n" +
+                        "If you set bot to only pray flick then that's all it will do (no traverse/bank etc.)\n"
+        ));
+
+        executor.scheduleAtFixedRate(diFixRunnable, 0, 30, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{
+                this.junkDropper,
+                this.dkListener,
+                this.prayerFlicker,
+                this.consumeables,
+                this.alcher,
+        };
+    }
+
+    @Override
+    protected void initFromSettings(DkSettings s) {
+        updateItemFilter(
+                util.concatenate(
+                        util.toPatternArray(new String[]{items.houseTab, dk.petRock, dk.runeThrowingAxe,
+                                s.food().gameName()}),
+                        new Pattern[]{items.staminaPotions, items.ringOfDueling, items.dramenStaff,},
+                        util.toItemList(s.magicEquipment()),
+                        util.toItemList(s.meleeEquipment()),
+                        util.toItemList(s.rangedEquipment()),
+                        util.toItemList(s.specEquipment())
+                ));
+        this.breakManager = new BreakManager(settings, this);
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().specEquipment(), Loadout.LoadoutRole.SpecHeal, "Spec"),
+                Triple.of(settings().meleeEquipment(), Loadout.LoadoutRole.Combat, CombatStyle.Melee.toString()),
+                Triple.of(settings().magicEquipment(), Loadout.LoadoutRole.Combat, CombatStyle.Magic.toString()),
+                Triple.of(settings().rangedEquipment(), Loadout.LoadoutRole.Combat, CombatStyle.Ranged.toString())
+        );
+    }
+
+    public boolean isSlayerTaskDone() {
+        var slayer = settings().useSlayerCave();
+        if (!slayer) return false;
+        return !SlayerTask.hasTask();
+    }
+
+    @Override
+    protected LoopState<DkState> getState(DkState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this, loadouts);
+            case TRAVERSING:
+                return new TraverseState(this, loadouts, prayerFlicker);
+            case FIGHTING:
+                return new FightState(this.dkListener, this);
+            case LOOTING:
+                return new LootingState(this);
+            case RESTORING:
+                return new RestoreState(this, DkState.RESTORING, this.getHouseConfig(), settings.useSlayerCave());
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), DkState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case OFF_TICK:
+                return new OffTickState(dkListener, this);
+            case ENTERING_LAIR:
+                return new EnterLairState(dkListener, this, prayerFlicker);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, DkState.BREAKING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    public HouseConfig getHouseConfig() {
+        var s = settings;
+        var l = new ArrayList<PortalNexusTeleport>();
+        if (s.hasPortalWaterbirth())
+            l.add(PortalNexusTeleport.WaterbirthIsland);
+        if (s.hasPortalLunar())
+            l.add(PortalNexusTeleport.LunarIsle);
+        return HouseConfig.parse(settings,
+                l.toArray(new PortalNexusTeleport[0]));
+    }
+
+    @Override
+    protected LoopState<DkState> getStartingState() {
+        return new StartingState(this, loadouts);
+    }
+
+    @Override
+    protected DkState getBreakStateEnum() {
+        return DkState.BREAKING;
+    }
+
+    @Override
+    protected DkState getStartStateEnum() {
+        return DkState.STARTING;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Dk KC: %d", s, getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public DkSettings settings() {
+        return settings;
+    }
+
+}

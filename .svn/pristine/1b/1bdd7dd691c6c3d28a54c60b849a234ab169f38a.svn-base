@@ -1,0 +1,96 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.Spell;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+
+@Log4j2
+public class TeleportTraverse implements TraverseMethod {
+    public static final TeleportTraverse LASSAR_TRAVERSE =
+            new TeleportTraverse(Magic.Ancient.LASSAR_TELEPORT, 72, Rune.WATER, Rune.LAW);
+    public static final TeleportTraverse VARROCK_TRAVERSE =
+            new TeleportTraverse(Magic.VARROCK_TELEPORT, 35, Rune.AIR, Rune.FIRE, Rune.LAW);
+    public static final TeleportTraverse LUMBRIDGE_TRAVERSE =
+            new TeleportTraverse(Magic.LUMBRIDGE_TELEPORT, 31, Rune.LAW, Rune.EARTH, Rune.AIR);
+    public static final TeleportTraverse FALADOR_TRAVERSE =
+            new TeleportTraverse(Magic.FALADOR_TELEPORT, 37, Rune.LAW, Rune.WATER, Rune.AIR);
+    private final Spell spell;
+    private final Rune[] runes;
+    private final int magicLevel;
+
+    public TeleportTraverse(Spell spell, int magicLevel, Rune... runes) {
+        this.spell = spell;
+        this.runes = runes;
+        this.magicLevel = magicLevel;
+    }
+
+    private static boolean canSwap() {
+        return Magic.Book.LUNAR.isCurrent() && Skill.MAGIC.getCurrentLevel() >= 96
+                && Rune.ASTRAL.getQuantity() >= 3 && Rune.COSMIC.getQuantity() >= 2 && Rune.LAW.getQuantity() >= 1;
+    }
+
+    private static String getSpellbookSwapName(Magic.Book book) {
+        switch (book) {
+            case STANDARD:
+                return "Standard";
+            case ANCIENT:
+                return "Ancient";
+            case ARCEUUS:
+                return "Arceuus";
+        }
+        return null;
+    }
+
+    @Override
+    public boolean hasSupport(HouseConfig houseConfig) {
+        if (Inventory.contains(spell.name())) {
+            return true;
+        }
+        var hasRunes = Arrays.stream(runes).allMatch(r -> r.getQuantity() > 10);
+        var spellBookActive = spell.getSpellBook().isCurrent();
+        var canSwap = canSwap();
+        return hasRunes && Skill.MAGIC.getCurrentLevel() >= magicLevel && (spellBookActive || canSwap);
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var currReg = Players.getLocal().getServerPosition().getContainingRegionId();
+        if (currReg != startPosition.getContainingRegionId()) return true;
+        if (Inventory.contains(spell.name())) {
+            var tab = Inventory.getItems(spell.name()).first();
+            if (tab == null || !tab.interact("Break")) {
+                log.error("Teleport tab error {}", spell);
+                return false;
+            }
+            return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                    util::playerAnimating, 1200, 2400);
+        }
+        var spellBookActive = spell.getSpellBook().isCurrent();
+        var canSwap = canSwap();
+        if (!spellBookActive && canSwap) {
+            if (!Magic.Lunar.SPELLBOOK_SWAP.activate(getSpellbookSwapName((Magic.Book) spell.getSpellBook()))) {
+                log.error("Unable to spellbook swap to {} for {}", spell.getSpellBook(), spell);
+                return false;
+            }
+            Execution.delayUntil(() -> spell.getSpellBook().isCurrent(),
+                    util::playerAnimating, 1200, 2400);
+            return false;
+        }
+        if (!spell.activate()) {
+            log.error("Unable to activate spell {}", spell);
+            return false;
+        }
+        return Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                util::playerAnimating, 1200, 2400);
+    }
+}

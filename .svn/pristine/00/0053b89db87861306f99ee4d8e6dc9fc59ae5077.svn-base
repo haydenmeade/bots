@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Hopping;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingTask")
+public class HoppingTask extends LeafTask {
+
+    @Override
+    public void execute() {
+        sire.updateStatus("hopping");
+        if (Hopping.hop(SireState.getSettings().worldRegion())) {
+            SireState.setBotState(SireState.getInitialState());
+            Execution.delay(600, 1200);
+        }
+    }
+}

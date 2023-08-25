@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.kq;
+
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+@Log4j2(topic = "KqListener")
+public class KqListener implements NpcListener, EngineListener {
+    public static final int phaseAnim = 6242;
+    public static final int hatchAnim = 6270;
+    private boolean isDead = false;
+    private Area deadArea;
+    private KqPhase phase = KqPhase.Phase1;
+
+    @Override
+    public void onTickStart() {
+        var kq = Npcs.getLoaded("Kalphite Queen").first();
+        if (kq != null) {
+            log.debug(String.format("KQ ID %s", kq.getId()));
+            log.debug(String.format("KQ ANIM ID %s", kq.getAnimationId()));
+        }
+        if (kq == null) return;
+        if (this.phase == KqPhase.Transition && kq.getAnimationId() != phaseAnim && kq.getAnimationId() != hatchAnim) {
+            log.debug(String.format("Start phase 2"));
+            this.phase = KqPhase.Phase2;
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        log.debug(event);
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && event.getAnimationId() == phaseAnim) {
+            log.debug("PHASING BRO");
+            phase = KqPhase.Transition;
+        }
+    }
+
+    public int getId(Locatable o) {
+        var identifiable = (Identifiable) o;
+        return (o == null) ? 0 : identifiable.getId();
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        log.debug(event);
+        if (event.getEntityType() == EntityEvent.EntityType.NPC) {
+            if (getId(event.getSource()) == kq.IdPhase1) {
+                log.debug(String.format("PHASE 1 DEAD on: %s", event.getSource().getPosition()));
+                phase = KqPhase.Transition;
+            } else if (getId(event.getSource()) == kq.IdPhase2) {
+                log.debug(String.format("PHASE 2 DEAD on: %s", event.getSource().getPosition()));
+                log.debug(String.format("PHASE 2 DEAD area: %s", event.getSource().getArea()));
+                if (event.getSource().getArea() != null)
+                    log.debug(String.format("PHASE 2 DEAD area centre: %s", event.getSource().getArea().getCenter()));
+                isDead = true;
+                deadArea = event.getSource().getArea();
+                KqState.setKqKilled(KqState.getKqKilled() + 1);
+            }
+        }
+    }
+
+    public KqPhase getPhase() {
+        return this.phase;
+
+    }
+
+    public boolean isDead() {
+        return isDead;
+    }
+
+
+    public void reset() {
+        log.debug("reset");
+        isDead = false;
+        deadArea = null;
+        phase = KqPhase.Phase1;
+    }
+
+    public Area getDeadArea() {
+        return deadArea;
+    }
+}

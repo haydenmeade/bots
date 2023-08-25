@@ -1,0 +1,59 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "EnterLairState")
+public class EnterLairState implements LoopState<DkState> {
+
+    private final dk bot;
+    private PeekListener peekListener;
+    private DkListener dkListener;
+
+    public EnterLairState(DkListener dkListener, dk bot) {
+        this.dkListener = dkListener;
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        dk.updateStatus("Entering boss room");
+        this.peekListener = new PeekListener(d);
+        this.dkListener.reset();
+    }
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        this.peekListener.stop();
+        if (this.needHop()) {
+            return DkState.HOPPING;
+        }
+        return DkState.FIGHTING;
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.ENTERING_LAIR;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return needHop();
+    }
+
+    private boolean needHop() {
+        return this.peekListener.getPlayerCount() > 0;
+    }
+
+
+    @Override
+    public void executeLoop() {
+    }
+}

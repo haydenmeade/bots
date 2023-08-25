@@ -1,0 +1,76 @@
+package com.neck_flexed.scripts.ashes;
+
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.awt.event.KeyEvent;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<AshState> {
+    private final ashes bot;
+    private String error;
+    private WebPath path;
+
+    public TraverseState(ashes bot) {
+        super(bot, AshState.TRAVERSING);
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+        this.bot.resetKill();
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return ashes.atFountain();
+    }
+
+
+    @Override
+    public void executeLoop() {
+        if (!ashes.inWildy()) {
+            var sw = Inventory.getItems(items.wildySword4).first();
+            if (ChatDialog.isOpen()) {
+                Keyboard.pressKey(KeyEvent.VK_1);
+                Execution.delayUntil(ashes::inWildy, 3000, 6000);
+            } else if (sw != null) {
+                sw.interact("Teleport");
+                Execution.delayUntil(ChatDialog::isOpen, 1000, 3000);
+            } else {
+                log.error("no sword");
+            }
+            return;
+        }
+        var c = new Coordinate(3375, 3891, 0);
+        if (c.isLoaded()) {
+            util.moveTo(c);
+            Execution.delayUntil(() -> c.equals(Players.getLocal().getPosition()), 1000, 2000);
+            return;
+        }
+
+        if (path == null) {
+            this.path = WebPath.buildTo(ashes.fountain);
+        }
+        if (path != null) {
+            path.step();
+        } else {
+            log.error("Could not generate path to fountain");
+        }
+    }
+}

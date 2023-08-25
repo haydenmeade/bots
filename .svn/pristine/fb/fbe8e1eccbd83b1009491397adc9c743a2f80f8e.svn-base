@@ -1,0 +1,175 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+
+@Log4j2(topic = "GhostState")
+public class GhostState implements LoopState<CerbState>, EngineListener, NpcListener {
+
+    private final CerbListener cerbListener;
+    private final PrayerFlicker prayerFlicker;
+    private final cerb bot;
+    private final Prayer[] boostPrayers;
+    private boolean done = false;
+    private Ghost lastAttack;
+    private Prayer protectionPrayer;
+    private Ghost[] ghosts;
+    private int idx = 0;
+
+    public GhostState(CerbListener cerbListener,
+                      PrayerFlicker prayerFlicker,
+                      cerb bot,
+                      Prayer[] boostPrayers) {
+        this.cerbListener = cerbListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.boostPrayers = boostPrayers;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Action.set(Action.None);
+        log.debug("activate");
+        bot.updateStatus("Ghosts");
+        d.addListener(this);
+
+    }
+
+    private Ghost[] getGhosts() {
+        var ghosts = Npcs.newQuery().
+                ids(cerb.ghostMageId, cerb.ghostMeleeId, cerb.ghostRangedId).
+                within(new Area.Rectangular(new Coordinate(1237, 1257, 0), new Coordinate(1243, 1256, 0))).
+                results();
+        if (ghosts.isEmpty()) {
+            //log.error("ghosts not in place yet");
+            return new Ghost[0];
+        }
+        var sorted = ghosts.sortByDistanceFrom(new Coordinate(1235, 1257, 0));
+        var ret = new ArrayList<Ghost>();
+        for (Npc g : sorted) {
+            var id = g.getId();
+            switch (id) {
+                case cerb.ghostMageId:
+                    ret.add(Ghost.Mage);
+                    break;
+                case cerb.ghostMeleeId:
+                    ret.add(Ghost.Melee);
+                    break;
+                case cerb.ghostRangedId:
+                    ret.add(Ghost.Ranged);
+                    break;
+                default:
+                    log.debug("don't have this id: " + id);
+            }
+        }
+        return ret.toArray(Ghost[]::new);
+    }
+
+    private Prayer getProtectionPrayer(int idx) {
+        if (this.ghosts == null || this.ghosts.length == 0) return Prayer.PROTECT_FROM_MAGIC;
+        if (idx > 2) idx = 2;
+        if (idx < 0) idx = 0;
+        var gh = this.ghosts[idx];
+
+        switch (gh) {
+            case Ranged:
+                return Prayer.PROTECT_FROM_MISSILES;
+            case Mage:
+                return Prayer.PROTECT_FROM_MAGIC;
+            case Melee:
+                return Prayer.PROTECT_FROM_MELEE;
+        }
+        return Prayer.PROTECT_FROM_MAGIC;
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        return CerbState.FIGHTING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.GHOSTS;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.ghosts == null || this.ghosts.length == 0) {
+            this.ghosts = getGhosts();
+            this.protectionPrayer = getProtectionPrayer(0);
+            this.prayerFlicker.setActivePrayers(util.joinPrayers(this.boostPrayers, this.protectionPrayer));
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        if (Prayer.getPoints() < 61 && idx == 0) {
+            util.restorePrayer();
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        var npcId = getId(event.getSource());
+        var id = event.getAnimationId();
+        if (id == -1) return;
+        var strGhost = npcId == cerb.ghostRangedId ? "Ranged" : npcId == cerb.ghostMageId ? "Mage" : "Melee";
+        switch (npcId) {
+            case cerb.ghostRangedId:
+            case cerb.ghostMageId:
+            case cerb.ghostMeleeId:
+                log.debug("Anim: " + event.getAnimationId());
+                log.debug(String.format("GHOST ATTACK %s %s, Expected: %s, Current Prayer: %s", idx, strGhost, this.ghosts[idx], this.protectionPrayer));
+
+                this.idx++;
+                this.protectionPrayer = getProtectionPrayer(this.idx);
+                this.prayerFlicker.setActivePrayers(util.joinPrayers(this.boostPrayers, this.protectionPrayer));
+                log.debug(String.format("Next GHOST ATTACK %s, Next Prayer: %s", this.ghosts[idx], this.protectionPrayer));
+            default:
+                break;
+        }
+        if (this.idx >= 3)
+            done = true;
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    private enum Ghost {
+        Ranged,
+        Mage,
+        Melee
+    }
+}

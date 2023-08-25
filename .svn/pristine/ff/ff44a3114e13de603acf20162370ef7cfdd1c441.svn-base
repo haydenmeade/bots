@@ -1,0 +1,31 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.RuneScape;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "StopTask")
+public class StopTask extends LeafTask {
+
+    @Override
+    public void execute() {
+        log.debug("STOPPING");
+
+        SireState.setActivePrayers();
+        u.removeFightListeners();
+
+        for (EventListener l :
+                SireState.getEventDispatcher().getListeners()) {
+            if (l.getClass().getName().equals(PrayerFlicker.class.getName()) ||
+                    l.getClass().getName().equals(Consumeables.class.getName()) ||
+                    l.getClass().getName().equals(LogListener.class.getName())) {
+                SireState.getEventDispatcher().removeListener(l);
+            }
+        }
+
+        RuneScape.logout();
+        SireState.getBot().stop("STOPPING");
+    }
+}

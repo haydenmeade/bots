@@ -1,0 +1,155 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.Region;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<HydraState> {
+    private final com.neck_flexed.scripts.hydra.bot bot;
+    private final Loadouts loadouts;
+    private final PrayerFlicker prayerFlicker;
+    private final Traverser traverser;
+    private final Coordinate destTile = new Coordinate(1311, 3807, 0);
+    private String error;
+    private Traverser dungeonTraverser;
+
+    public TraverseState(com.neck_flexed.scripts.hydra.bot bot, Loadouts loadouts, PrayerFlicker prayerFlicker) {
+        super(HydraState.TRAVERSING);
+        this.bot = bot;
+        this.loadouts = loadouts;
+        this.prayerFlicker = prayerFlicker;
+        this.traverser = new Traverser(bot,
+                bot.getHouseConfig(),
+                destTile,
+                new int[]{5179, 5178, 5434, 4923, 5435, 5433, 5177, 4922,},
+                null,
+                new ItemTraverse(items.radasBlessing4, "Mount Karuulm"),
+                new FairyRingTraverse(com.neck_flexed.scripts.common.traverse.FairyRing.CIR),
+                new TeleportTraverse(Magic.Arceuus.BATTLEFRONT_TELEPORT, 23, Rune.EARTH, Rune.LAW, Rune.FIRE),
+                new HousePortalTraverse(PortalNexusTeleport.Battlefront)
+        );
+    }
+
+    private static GameObject getDungeonEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1311, 3807, 0))
+                .names("Elevator")
+                .actions("Activate")
+                .results().first();
+    }
+
+    private static GameObject getShortcut() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1316, 10214, 0))
+                .names("Mysterious pipe")
+                .actions("Enter")
+                .results().first();
+    }
+
+    private static boolean canShortcut() {
+        return Skill.AGILITY.getCurrentLevel() >= 88 && AchievementDiary.KOUREND_AND_KEBOS.isEliteComplete();
+    }
+
+    private static GameObject getRocks() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1351, 10251, 0))
+                .names("Rocks")
+                .actions("Climb")
+                .results().first();
+    }
+
+    private static GameObject getRocksFirst() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1311, 10215, 0))
+                .names("Rocks")
+                .actions("Climb")
+                .results().first();
+    }
+
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return com.neck_flexed.scripts.hydra.bot.inBossRoom() || com.neck_flexed.scripts.hydra.bot.inEntranceArea();
+    }
+
+    @Override
+    public void executeLoop() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        var de = getDungeonEntrance();
+        if (com.neck_flexed.scripts.hydra.bot.isInKaralumDungeon()) {
+            var r = getRocks();
+            var rFirst = getRocksFirst();
+            var s = getShortcut();
+            if (r != null && pos.getY() >= 10228) {
+                log.debug("Rocks");
+                dungeonTraverser = null;
+                DirectInput.send(MenuAction.forGameObject(r, "Climb"));
+                Execution.delay(600, 700);
+                Execution.delayUntil(Region::isInstanced,
+                        util::playerAnimatingOrMoving
+                        , 4000, 5000);
+            } else if (canShortcut() && s != null && pos.getY() < 10215 && s.getInteractionPoint() != null) {
+                log.debug("Shortcut");
+                Execution.delay(600, 700);
+                dungeonTraverser = null;
+                DirectInput.send(MenuAction.forGameObject(s, "Enter"));
+                Execution.delay(600, 700);
+                Execution.delayUntil(() -> getRocks() != null && ChatDialog.getContinue() != null,
+                        util::playerAnimatingOrMoving
+                        , 20000, 25000);
+            } else if (rFirst != null && pos.getY() < 10215) {
+                log.debug("RocksFirst");
+                dungeonTraverser = null;
+                DirectInput.send(MenuAction.forGameObject(rFirst, "Climb"));
+                Execution.delayUntil(() -> Players.getLocal().getPosition().getY() > 10215,
+                        util::playerAnimatingOrMoving,
+                        2000, 3000);
+                Execution.delay(600, 700);
+            } else {
+                log.debug("Path to hydra in dungeon");
+                if (dungeonTraverser == null)
+                    this.dungeonTraverser = Traverser.webPathTraverser(new Coordinate(1351, 10248, 0));
+                this.dungeonTraverser.executeLoop();
+            }
+        } else if (de != null && pos.distanceTo(de.getPosition()) < 15) {
+            log.debug("Elevator");
+            DirectInput.send(MenuAction.forGameObject(de, "Activate"));
+            Execution.delayUntil(com.neck_flexed.scripts.hydra.bot::isInKaralumDungeon, util::playerAnimatingOrMoving, 4000, 5000);
+            Execution.delayUntil(() -> Players.getLocal() != null, util::playerAnimatingOrMoving, 4000, 5000);
+        } else {
+            this.traverser.executeLoop();
+        }
+
+
+    }
+
+}

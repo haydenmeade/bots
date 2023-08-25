@@ -1,0 +1,84 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.queries.GroundItemQueryBuilder;
+import com.runemate.game.api.hybrid.region.GroundItems;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Loot")
+public class Loot {
+
+    public static boolean waitForLoot(Area area, Pattern alwaysDrops, int timeout) {
+        var area2 = area.toRectangular().grow(1, 1);
+        if (!Execution.delayUntil(() -> !GroundItems.newQuery().within(area2).names(alwaysDrops).results().isEmpty(), timeout)) {
+            log.debug("no loot? must be someone else's kill?");
+            return false;
+        }
+        return true;
+    }
+
+    public static LootResult doLoop(Area area, List<String> ignoreList, Food[] foodCanEat, Pattern[] suppliesCanDrop) {
+        return doLoop(area, ignoreList, foodCanEat, suppliesCanDrop, 600);
+    }
+
+    public static LootResult doLoop(Area area, List<String> ignoreList, Food[] foodCanEat, Pattern[] suppliesCanDrop, int timeout) {
+        var area2 = area.toRectangular().grow(1, 1);
+        var gi = getGroundItemToLoot(area2, ignoreList, suppliesCanDrop);
+        if (gi == null) {
+            if (Execution.delayUntil(() -> getGroundItemToLoot(area2, ignoreList, suppliesCanDrop) != null, timeout))
+                return LootResult.NotDone;
+            return LootResult.Done;
+        }
+        var p = gi.getPosition();
+        var id = gi.getId();
+        log.info(String.format("Looting: %s", gi));
+        if (Inventory.isFull() && !util.itemStacksAndInInvent((gi))) {
+            if (!tryToEmptySlotForLoot(foodCanEat, suppliesCanDrop)) {
+                log.info("Invent full");
+                return LootResult.Full;
+            }
+        }
+        util.take(gi);
+        Execution.delayUntil(() -> new GroundItemQueryBuilder().on(p).ids(id).results().isEmpty(), 600, 700);
+        return LootResult.NotDone;
+    }
+
+    private static boolean tryToEmptySlotForLoot(Food[] foodCanEat, Pattern[] suppliesCanDrop) {
+        var foodNames = Arrays.stream(foodCanEat).map(food -> food.gameName()).toArray(String[]::new);
+        var foodItem = Inventory.newQuery().names(foodNames).unnoted().results().first();
+        if (foodItem != null) {
+            util.consume(foodItem, "Eat");
+            return true;
+        }
+        var dropItem = Inventory.newQuery().names(suppliesCanDrop).unnoted().results().first();
+        if (dropItem != null) {
+            dropItem.interact("Drop");
+            return true;
+        }
+        return false;
+    }
+
+    public static @Nullable GroundItem getGroundItemToLoot(Area area, List<String> ignoreLoot, Pattern[] suppliesCanDrop) {
+        return GroundItems.newQuery().
+                within(area).
+                filter(groundItem -> !ignoreLoot.contains(groundItem.getDefinition().getName())
+                        && !groundItem.getDefinition().isNoted()
+                        && !Arrays.stream(suppliesCanDrop).anyMatch(s -> s.matcher(groundItem.getDefinition().getName()).find())
+                ).
+                results().nearest();
+    }
+
+    public static enum LootResult {
+        NotDone,
+        Done,
+        Full,
+    }
+}

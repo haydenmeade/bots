@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.turael;
+
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+public class areas {
+    public static Area Banshees = new Area.Polygonal(
+            new Coordinate(3432, 3540, 0),
+            new Coordinate(3434, 3533, 0),
+            new Coordinate(3438, 3534, 0),
+            new Coordinate(3442, 3534, 0),
+            new Coordinate(3445, 3531, 0),
+            new Coordinate(3448, 3531, 0),
+            new Coordinate(3451, 3535, 0),
+            new Coordinate(3451, 3538, 0),
+            new Coordinate(3448, 3541, 0),
+            new Coordinate(3444, 3544, 0),
+            new Coordinate(3437, 3544, 0),
+            new Coordinate(3437, 3540, 0)
+    );
+    public static Area Bats = new Area.Polygonal(
+            new Coordinate(3334, 3485, 0),
+            new Coordinate(3334, 3471, 0),
+            new Coordinate(3347, 3470, 0),
+            new Coordinate(3357, 3481, 0),
+            new Coordinate(3378, 3471, 0),
+            new Coordinate(3375, 3478, 0),
+            new Coordinate(3372, 3490, 0),
+            new Coordinate(3363, 3496, 0),
+            new Coordinate(3347, 3499, 0)
+    );
+    public static Area Bears = new Area.Rectangular(new Coordinate(2688, 3319, 0), new Coordinate(2716, 3354, 0));
+    public static Area Birds = new Area.Rectangular(new Coordinate(3163, 3362, 0), new Coordinate(3184, 3351, 0));
+    public static Area CaveBugs = new Area.Rectangular(new Coordinate(2710, 5239, 0), new Coordinate(2720, 5228, 0));
+    public static Area CaveCrawlers = new Area.Rectangular(new Coordinate(2780, 10005, 0), new Coordinate(2809, 9989, 0));
+    public static Area CaveSlime = new Area.Rectangular(new Coordinate(2722, 5239, 0), new Coordinate(2736, 5231, 0));
+    public static Area Cows = new Area.Rectangular(new Coordinate(3247, 3291, 0), new Coordinate(3265, 3255, 0));
+    public static Area CrawlingHands = new Area.Polygonal(
+            new Coordinate(3406, 3575, 0),
+            new Coordinate(3409, 3578, 0),
+            new Coordinate(3412, 3578, 0),
+            new Coordinate(3415, 3576, 0),
+            new Coordinate(3419, 3576, 0),
+            new Coordinate(3420, 3577, 0),
+            new Coordinate(3423, 3577, 0),
+            new Coordinate(3425, 3576, 0),
+            new Coordinate(3425, 3562, 0),
+            new Coordinate(3416, 3562, 0),
+            new Coordinate(3416, 3568, 0),
+            new Coordinate(3409, 3568, 0),
+            new Coordinate(3406, 3571, 0)
+    );
+    public static Area Dogs = new Area.Rectangular(new Coordinate(3377, 2915, 0), new Coordinate(3403, 2888, 0));
+    public static Area Dwarves = new Area.Rectangular(new Coordinate(2859, 9882, 0), new Coordinate(2871, 9869, 0));
+    public static Area Ghosts = new Area.Rectangular(new Coordinate(1684, 10068, 0), new Coordinate(1701, 10057, 0));
+    public static Area Goblins = new Area.Rectangular(new Coordinate(3138, 3310, 0), new Coordinate(3152, 3294, 0));
+    public static Area Icefiends = new Area.Rectangular(new Coordinate(2998, 3487, 0), new Coordinate(3017, 3466, 0));
+    public static Area Kalphites = new Area.Polygonal(
+            new Coordinate(3314, 9500, 0),
+            new Coordinate(3315, 9504, 0),
+            new Coordinate(3318, 9515, 0),
+            new Coordinate(3328, 9515, 0),
+            new Coordinate(3336, 9507, 0),
+            new Coordinate(3335, 9500, 0),
+            new Coordinate(3328, 9493, 0),
+            new Coordinate(3323, 9490, 0),
+            new Coordinate(3315, 9494, 0)
+    );
+    public static Area Lizards = new Area.Rectangular(new Coordinate(3402, 3064, 0), new Coordinate(3441, 3015, 0));
+    public static Area Minotaurs = new Area.Polygonal(
+            new Coordinate(1870, 5217, 0),
+            new Coordinate(1870, 5218, 0),
+            new Coordinate(1873, 5223, 0),
+            new Coordinate(1877, 5222, 0),
+            new Coordinate(1880, 5222, 0),
+            new Coordinate(1883, 5221, 0),
+            new Coordinate(1883, 5215, 0),
+            new Coordinate(1876, 5208, 0),
+            new Coordinate(1873, 5208, 0)
+    );
+    public static Area Monkeys = new Area.Rectangular(new Coordinate(2783, 3010, 0), new Coordinate(2814, 2981, 0));
+    public static Area Rats = new Area.Rectangular(new Coordinate(3228, 9872, 0), new Coordinate(3252, 9862, 0));
+    public static Area Scorpions = new Area.Rectangular(new Coordinate(3295, 3314, 0), new Coordinate(3304, 3276, 0));
+    public static Area Skeletons = new Area.Rectangular(new Coordinate(3358, 9772, 0), new Coordinate(3391, 9735, 0));
+    public static Area Sourhogs = new Area.Rectangular(new Coordinate(3150, 9704, 0), new Coordinate(3184, 9670, 0));
+    public static Area Spiders = new Area.Rectangular(new Coordinate(3153, 3260, 0), new Coordinate(3180, 3235, 0));
+    public static Area Wolves = new Area.Rectangular(new Coordinate(2835, 3509, 0), new Coordinate(2862, 3488, 0));
+    public static Area Zombies = new Area.Rectangular(new Coordinate(3609, 3531, 0), new Coordinate(3633, 3524, 0));
+    public static Area Kalphites_Lair = new Area.Rectangular(new Coordinate(3479, 9532, 2), new Coordinate(3516, 9507, 2));
+}

@@ -1,0 +1,35 @@
+package com.neck_flexed.scripts.mole;
+
+import com.runemate.game.api.hybrid.local.hud.interfaces.Chatbox;
+import com.runemate.game.api.script.framework.listeners.ChatboxListener;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "MoleHillListener")
+public class MoleHillListener implements ChatboxListener {
+    private static final Predicate<String> matcher =
+            Pattern.compile("You look inside the mole hill and see ((no)|\\d+) adventurers? inside the mole tunnels\\.").asMatchPredicate();
+    private static Pattern number = Pattern.compile("\\d+");
+    private int playerCount = -1;
+
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        if (messageEvent.getType() == Chatbox.Message.Type.SERVER && matcher.test(messageEvent.getMessage())) {
+            var m = number.matcher(messageEvent.getMessage());
+            if (m.find()) {
+                this.playerCount = Integer.parseInt(m.group());
+            } else {
+                this.playerCount = 0;
+            }
+            log.debug(String.format("See: %d players in mole hill", this.playerCount));
+        }
+    }
+
+    public int getPlayerCount() {
+        return playerCount;
+    }
+
+}

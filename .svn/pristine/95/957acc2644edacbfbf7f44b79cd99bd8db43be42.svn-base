@@ -1,0 +1,103 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.input.direct.MenuOpcode;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "PrayerFlicker")
+public class PrayerFlicker implements EngineListener {
+    private static final Pattern TOGGLE_ACTION = Pattern.compile("^(Dea|A)ctivate$");
+    private final DI di;
+    private Prayer[] activePrayers = new Prayer[0];
+    private boolean quickPray = false;
+
+    public PrayerFlicker(DI di) {
+        this.di = di;
+    }
+
+    private static InterfaceComponent getQuickPrayerToggle() {
+        return Interfaces.newQuery().containers(160).types(InterfaceComponent.Type.CONTAINER)
+                .actions(TOGGLE_ACTION).results().first();
+    }
+
+    private void directInputQuickPrayer(InterfaceComponent toggle) {
+        di.send(MenuAction.forInterfaceComponent(toggle, 0, MenuOpcode.CC_OP));
+    }
+
+    public Prayer[] getActivePrayers() {
+        return activePrayers;
+    }
+
+    public void setActivePrayers(Prayer... _activePrayers) {
+        if (!Arrays.equals(_activePrayers, activePrayers)) {
+            log.debug("Setting active prayers {}", Arrays.toString(_activePrayers));
+        }
+        activePrayers = _activePrayers;
+        quickPray = false;
+    }
+
+    public void disable() {
+        this.activePrayers = new Prayer[0];
+    }
+
+    public void setQuickPrayers(Prayer... _activePrayers) {
+        if (!Arrays.equals(_activePrayers, activePrayers)) {
+            log.debug("Setting quick prayers {}", Arrays.toString(_activePrayers));
+        }
+        Prayer.setQuickPrayers(_activePrayers);
+        activePrayers = _activePrayers;
+        quickPray = true;
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            if (quickPray) {
+                var interfaceT = getQuickPrayerToggle();
+                if (interfaceT == null) {
+                    log.error("no quick prayer toggle");
+                } else {
+                    if (Prayer.getActivePrayers().size() > 0)
+                        directInputQuickPrayer(interfaceT);
+                    Execution.delay(10, 16);
+                    if (getActivePrayers().length > 0)
+                        directInputQuickPrayer(interfaceT);
+                    return;
+                }
+            }
+            // turn off
+            for (Prayer p :
+                    Prayer.getActivePrayers()) {
+                di.send(MenuAction.forInterfaceComponent(p.getComponent(), 0, MenuOpcode.CC_OP));
+            }
+            // flick
+            for (Prayer p : getActivePrayers()) {
+                di.send(MenuAction.forInterfaceComponent(p.getComponent(), 0, MenuOpcode.CC_OP));
+            }
+        } catch (Exception e) {
+            log.error("Prayer flicker", e);
+        }
+
+
+    }
+
+    public Prayer getActiveProtectionPrayer() {
+        for (var p : this.activePrayers) {
+            if (p.equals(Prayer.PROTECT_FROM_MELEE)
+                    || p.equals(Prayer.PROTECT_FROM_MAGIC)
+                    || p.equals(Prayer.PROTECT_FROM_MISSILES)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+}

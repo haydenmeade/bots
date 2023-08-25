@@ -1,0 +1,68 @@
+package com.neck_flexed.scripts.plank;
+
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<PlankState> {
+    private final planker bot;
+    private String error;
+    private Path path;
+
+    public TraverseState(planker bot) {
+        super(bot, PlankState.TRAVERSING);
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return planker.getOperator() != null;
+    }
+
+
+    @Override
+    public void executeLoop() {
+        if (planker.isNearLumberYard()) {
+            if (path == null) {
+                this.path = BresenhamPath.buildTo(planker.lumberYard);
+            }
+            if (path == null || !path.step()) {
+                path = null;
+            }
+        } else {
+            teleWithRing();
+        }
+    }
+
+    private void teleWithRing() {
+        final String name = "Ring of the elements";
+        var ring = Equipment.getItemIn(Equipment.Slot.RING);
+        if (ring == null || !ring.getDefinition().getName().equals(name)) {
+            bot.updateStatus("unable to find ring");
+            bot.pause("unable to find ring");
+            return;
+        }
+//        di.send(MenuAction.forSpriteItem(ring, "Earth Altar"));
+        if (ring.interact("Earth Altar"))
+            Execution.delayUntil(() ->
+                            planker.isNearLumberYard()
+                                    && Players.getLocal() != null
+                    , 4000, 6000);
+        Execution.delay(600, 700);
+    }
+}

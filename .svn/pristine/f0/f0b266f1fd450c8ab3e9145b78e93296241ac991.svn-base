@@ -1,0 +1,23 @@
+package com.neck_flexed.scripts.slayer;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.Nullable;
+
+@Getter
+@RequiredArgsConstructor
+public enum SlayerFinishItem {
+    None(""),
+    BagOfSalt("Bag of salt"),
+    IceCooler("Ice cooler"),
+    RockHammer("Rock hammer"),
+    Fungicide("Fungicide spray", "Fungicide"),
+    ;
+    private final String useItem;
+    private final @Nullable String reloadItem;
+
+    SlayerFinishItem(String s) {
+        this.useItem = s;
+        this.reloadItem = null;
+    }
+}

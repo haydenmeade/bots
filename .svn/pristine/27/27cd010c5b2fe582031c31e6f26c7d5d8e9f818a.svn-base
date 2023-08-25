@@ -1,0 +1,214 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.SpotAnimation;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.SpotAnimations;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+@Log4j2(topic = "FightState2")
+public class FightState2 implements LoopState<CerbState>, EngineListener {
+    private final CerbListener cerbListener;
+    private final PrayerFlicker prayerFlicker;
+    private final cerb bot;
+
+    private final Loadouts loadouts;
+    private final WildPieListener wildPieListener;
+    private Prayer[] boostPrayers;
+    private CombatStyle combatStyle;
+    private Loadout spec;
+
+    private boolean done = false;
+    private Coordinate best;
+    private long lastMove = 0;
+
+    public FightState2(CerbListener cerbListener,
+                       PrayerFlicker prayerFlicker,
+                       cerb bot
+    ) {
+        this.cerbListener = cerbListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.combatStyle = this.loadouts.getEquipped().getStyle();
+        this.boostPrayers = util.getBoostPrayersA(combatStyle);
+        this.spec = this.loadouts.getSpecLoadout();
+        if (cerbListener.getCerberus() == null)
+            cerbListener.init();
+        this.wildPieListener = new WildPieListener(bot, CerbState.RESTORING, 91);
+
+    }
+
+    private static void initMove(Coordinate c) {
+        var p = Players.getLocal();
+        if (p == null) return;
+        if (!p.isMoving() && !p.getServerPosition().equals(c)) {
+            util.moveTo(c);
+        }
+    }
+
+    private LocatableEntityQueryResults<SpotAnimation> getLavas() {
+        return SpotAnimations
+                .newQuery()
+                .ids(1246)
+                .results();
+    }
+
+    @Override
+    public void onTickStart() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        try {
+            var dog = this.cerbListener.getCerberus();
+            util.boostIfNeeded(this.combatStyle);
+            var startTile = this.combatStyle.equals(CombatStyle.Melee)
+                    ? cerb.centerSpawnTile
+                    : cerb.rangingStartTile;
+            if (dog == null) {
+                initMove(startTile);
+                return;
+            }
+            var npc = dog.getNpc();
+            if (npc == null) return;
+            if (npc.getId() == cerb.IdStartNoAttack) {
+                initMove(startTile);
+                return;
+            }
+
+            if (cerbListener.getGhosts().size() > 0) {
+                var ghostLoadout = loadouts.getForName("Ghost");
+                if (ghostLoadout != null)
+                    loadouts.equip(ghostLoadout);
+                var pp = ghostLoadout != null && ghostLoadout.isHasSpectral() ? 10 : 15;
+
+                if (Prayer.getPoints() < 3 * pp + 1) {
+                    util.restorePrayer();
+                }
+            }
+
+            if (this.spec != null && SpecialAttack.getEnergy() >= this.spec.getSpecEnergy() && dog.getHp() > 400) {
+                loadouts.equip(spec);
+                util.activateSpec();
+            } else if (cerbListener.getGhosts().size() == 0 || loadouts.getForName("Ghost") == null) {
+                loadouts.equip(loadouts.getForName(CombatStyle.Melee));
+            }
+            var target = p.getTarget();
+            if (target == null && (this.best == null || p.getServerPosition().equals(best))) {
+                cerb.attack();
+            }
+
+
+            var lavas = getLavas();
+            if (!lavas.isEmpty()) {
+                var moovables = this.combatStyle.equals(CombatStyle.Melee)
+                        ? getMeleeCoordinates(npc.getArea())
+                        : npc.getArea().grow(1, 1).getSurroundingCoordinates();
+                this.best = moovables.stream()
+                        .filter(c -> lavas.stream().noneMatch(l -> l.getArea().grow(1, 1).contains(c)))
+                        .min(Comparator.comparingDouble(c -> c.distanceTo(p))).orElse(null);
+                log.debug("lava move to: {}", best);
+                if (this.best != null && !p.getServerPosition().equals(best) && !p.isMoving()) {
+                    if (System.currentTimeMillis() - lastMove > 500) {
+                        util.moveTo(best);
+                        lastMove = System.currentTimeMillis();
+                    }
+                }
+            } else {
+                this.best = null;
+                var attcks = this.cerbListener.getUpcomingAttacks();
+                if (attcks.size() > 0) {
+                    var attck = attcks.get(0);
+                    if (attck.getAttack().equals(Cerberus.Attack.LAVA)) {
+                        // Lava coming up
+                        log.debug("Lava coming up");
+                        var moovables = this.combatStyle.equals(CombatStyle.Melee)
+                                ? getMeleeCoordinates(npc.getArea())
+                                : npc.getArea().grow(1, 1).getSurroundingCoordinates();
+                        this.best = moovables.stream()
+                                .filter(c -> c.distanceTo(p.getServerPosition()) >= 2)
+                                .min(Comparator.comparingDouble(c -> c.distanceTo(p))).orElse(null);
+                        if (best != null && System.currentTimeMillis() - lastMove > 500) {
+                            util.moveTo(best);
+                            lastMove = System.currentTimeMillis();
+                        }
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+
+    }
+
+    private List<Coordinate> getMeleeCoordinates(Area a) {
+        if (a == null) return new ArrayList<>();
+        var rect = a.toRectangular();
+        var melees = rect.getSurroundingCoordinates();
+        melees.remove(rect.getTopLeft());
+        melees.remove(rect.getTopRight());
+        melees.remove(rect.getBottomLeft());
+        melees.remove(rect.getBottomRight());
+        return melees;
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        log.debug("deactivate");
+        if (this.bot.settings().wildPieCount() > 0)
+            d.removeListener(wildPieListener);
+        if (this.cerbListener.isDead()) {
+            Action.set(Action.None);
+            this.prayerFlicker.setActivePrayers();
+            return CerbState.LOOTING;
+        } else if (this.done)
+            return CerbState.WALK_UNDER;
+        return CerbState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        Action.set(Action.None);
+        bot.updateStatus("Fighting");
+        this.prayerFlicker.setActivePrayers(util.joinPrayers(this.boostPrayers, Prayer.PROTECT_FROM_MAGIC));
+
+        if (this.bot.settings().wildPieCount() > 0)
+            d.addListener(wildPieListener);
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.cerbListener.isDead() || done;
+    }
+
+    @Override
+    public void executeLoop() {
+//        log.debug("best attack to pray: {}, prayer: {}", cerberusAttack.getAttack(), prayer);
+        this.prayerFlicker.setActivePrayers(util.joinPrayers(this.boostPrayers, this.cerbListener.getBestProtectionPrayer()));
+
+    }
+}

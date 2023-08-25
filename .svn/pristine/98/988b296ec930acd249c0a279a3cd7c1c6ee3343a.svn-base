@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import lombok.Getter;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Getter
+public class NeckInventory {
+    private static final Predicate<String> degradable = Pattern.compile(".*\\(\\d\\)$").asMatchPredicate();
+    private static final Pattern charges = Pattern.compile("\\(\\d\\)$");
+    private final Map<Pattern, Integer> map;
+
+    private NeckInventory(Map<Pattern, Integer> map) {
+        this.map = map;
+    }
+
+    @Contract(" -> new")
+    public static @NotNull NeckInventory createInventory() {
+        var map = new HashMap<Pattern, Integer>();
+        var items = Inventory.getItems();
+        for (var i : items) {
+            var def = i.getDefinition();
+            if (def == null) continue;
+            Pattern pattern = isDegradable(def)
+                    ? degradableReplaceCharges(def)
+                    : Pattern.compile(def.getName(), Pattern.CASE_INSENSITIVE | Pattern.LITERAL);
+            if (map.containsKey(pattern)) continue;
+            var stackable = def.stacks() || def.isNoted();
+            var count = stackable ? 0 : Inventory.getQuantity(def.getId());
+            map.put(pattern, count);
+        }
+        return new NeckInventory(map);
+    }
+
+    private static @NotNull Pattern degradableReplaceCharges(ItemDefinition def) {
+        var name = def.getName();
+        return Pattern.compile(charges.matcher(name).replaceAll("(.*)"));
+    }
+
+    private static boolean isDegradable(@NotNull ItemDefinition def) {
+        return degradable.test(def.getName());
+    }
+
+    @Override
+    public String toString() {
+        var b = new StringBuilder();
+        b.append("Inventory: ");
+        for (var kv : this.map.entrySet()) {
+            b.append(kv.getKey().toString());
+            b.append(" (");
+            b.append(kv.getValue());
+            b.append(");;");
+        }
+        return b.toString();
+    }
+}

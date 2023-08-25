@@ -1,0 +1,123 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.traverse.HouseJewelleryBoxTraverse;
+import com.neck_flexed.scripts.common.traverse.ItemTraverse;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.local.hud.interfaces.NpcContact;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.regex.Pattern;
+
+@Log4j2()
+public class TuraelTaskGetterState implements LoopState<TuraelState> {
+
+    private static final Coordinate TURAEL_LOCATION = new Coordinate(2930, 3536, 0);
+    private final com.neck_flexed.scripts.turael.bot bot;
+    private final Traverser traverser;
+    private boolean done = false;
+    private String startTask;
+    private Path currentPath;
+
+
+    public TuraelTaskGetterState(bot bot) {
+        this.bot = bot;
+
+        this.traverser = new Traverser(
+                bot,
+                HouseConfig.parse(bot.settings()),
+                TURAEL_LOCATION,
+                new int[]{11319, 11575, 11574,},
+                null,
+                new ItemTraverse(Pattern.compile("Games necklace.*"), "Rub", "Burthorpe"),
+                new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.Burthorpe)
+        );
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.startTask = SlayerTask.getCurrent();
+        bot.updateStatus("Getting task from turael");
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        var task = SlayerTask.getCurrent();
+        log.debug("Got slayer task from Turael: {} count: {}", task, SlayerTask.getCount());
+        var skipFor = bot.settings().skipForTurael();
+        if (!bot.settings().skipForStreak() && !"".equals(skipFor) && bot.doesTaskMatch(task, skipFor)) {
+            var msg = String.format("Got Task we wanted: %s %s from Turael", SlayerTask.getCount(), task);
+            log.info(msg);
+            bot.updateStatus(msg);
+            ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+            bot.stop(msg);
+            return TuraelState.BREAKING;
+        }
+        if (bot.doWeNeedToRestock())
+            return TuraelState.RESTORING;
+        return TuraelState.TRAVERSING;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.GET_TURAEL_TASK;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (util.canNpcContact()) {
+            this.done = bot.npcContactSlayerTaskFrom(NpcContact.OSRS.TURAEL, startTask);
+        } else {
+            // TODO use house occult altar
+            this.done = this.pathToTuraelSlayerTask(startTask);
+        }
+    }
+
+    private boolean pathToTuraelSlayerTask(String startTask) {
+        if (Monster.fromSlayerTask().isPresent()) return true;
+        if (ChatDialog.isOpen()) {
+            return bot.slayerTaskDialogue(startTask);
+        }
+
+        var turael = Npcs.newQuery()
+                .names("Turael")
+                .actions("Assignment")
+                .results()
+                .first();
+        if (turael == null) {
+            traverser.executeLoop();
+            return false;
+        }
+        DirectInput.send(MenuAction.forNpc(turael, "Assignment"));
+
+        Execution.delayUntil(
+                () -> Monster.fromSlayerTask().isPresent()
+                        || ChatDialog.isOpen(),
+                util::playerMoving, 3000, 4000);
+        return false;
+    }
+
+}

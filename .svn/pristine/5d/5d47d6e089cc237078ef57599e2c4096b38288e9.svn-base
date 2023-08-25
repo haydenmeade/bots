@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.TraverseOverride;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class KaraluumDungeonOverrider implements TraverseOverride {
+    // s1=29
+    private boolean canShortcut1() {
+        if (Skill.AGILITY.getCurrentLevel() < 29) return false;
+        var pos = Players.getLocal().getServerPosition();
+        return pos.getY() <= 3777;
+    }
+
+    private GameObject getShortcut1() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1324, 3778, 0))
+                .names("Rocks")
+                .actions("Climb")
+                .results()
+                .first();
+    }
+
+    // s2=62
+    private boolean canShortcut2() {
+        if (Skill.AGILITY.getCurrentLevel() < 62) return false;
+        var pos = Players.getLocal().getServerPosition();
+        return pos.getY() <= 3788;
+    }
+
+    private GameObject getShortcut2() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1324, 3788, 0))
+                .names("Rocks")
+                .actions("Climb")
+                .results()
+                .first();
+    }
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        if (canShortcut1()) {
+            var s = getShortcut1();
+            if (s != null) {
+                DirectInput.send(MenuAction.forGameObject(s, "Climb"));
+                Execution.delayUntil(
+                        () -> Players.getLocal().getServerPosition().equals(new Coordinate(1324, 3785, 0)),
+                        util::playerAnimatingOrMoving, 3000, 4000
+                );
+                return true;
+            }
+        }
+        if (canShortcut2()) {
+            var s = getShortcut2();
+            if (s != null) {
+                DirectInput.send(MenuAction.forGameObject(s, "Climb"));
+                Execution.delayUntil(
+                        () -> Players.getLocal().getServerPosition().equals(new Coordinate(1324, 3795, 0)),
+                        util::playerAnimatingOrMoving, 3000, 4000
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+}

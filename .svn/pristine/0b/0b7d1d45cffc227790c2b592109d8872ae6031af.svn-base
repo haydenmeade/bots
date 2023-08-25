@@ -1,0 +1,60 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.Instance;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import org.jetbrains.annotations.Nullable;
+
+public class PostLootState extends BaseState<HydraState> {
+    private final com.neck_flexed.scripts.hydra.bot bot;
+    private final HydraListener hydraListener;
+    private final PrayerFlicker prayerFlicker;
+    private final Coordinate startTile;
+
+    public PostLootState(com.neck_flexed.scripts.hydra.bot bot, HydraListener hydraListener
+            , PrayerFlicker prayerFlicker) {
+        super(HydraState.POST_LOOT);
+        this.bot = bot;
+        this.hydraListener = hydraListener;
+        this.prayerFlicker = prayerFlicker;
+        this.startTile = Instance.toInstancedFirst(new Coordinate(1377, 10263, 0));
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Post Loot Waiting");
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.hydraListener.getHydra() != null && this.hydraListener.getHydra().getNpc() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Players.getLocal().getPosition().equals(startTile) &&
+                !Players.getLocal().isMoving()) {
+            util.moveTo(startTile);
+        }
+        util.eatIfHpAllows(Food.getAny());
+        Execution.delay(600, 700);
+        bot.loadouts.equip(bot.loadouts.getAnyCombat());
+        if (this.hydraListener.getTicksUntilRespawn() < 2) {
+            this.prayerFlicker.setActivePrayers(
+                    util.joinPrayers(bot.loadouts.getEquipped().getBoostPrayers(), Prayer.PROTECT_FROM_MISSILES)
+            );
+        }
+
+    }
+}

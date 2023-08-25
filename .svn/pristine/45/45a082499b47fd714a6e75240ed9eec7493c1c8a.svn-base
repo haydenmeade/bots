@@ -1,0 +1,259 @@
+package com.neck_flexed.scripts.slayer.encounters;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.slayer.Monster;
+import com.neck_flexed.scripts.slayer.SlayerBotImpl;
+import com.runemate.game.api.hybrid.entities.Actor;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.collections.Pair;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import javax.annotation.Nullable;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+@Log4j2
+public class ShamanEncounter implements EncounterOverride, NpcListener, PlayerListener {
+    static final int NPC_ID_SPAWN = 6768;
+    private static final Monster lizard = (Monster) Monster.getByEnum(Task.LIZARDMEN).get();
+    private static final Collection<Coordinate> BLOCKED = List.of(
+            new Coordinate(1289, 10093, 0)
+            , new Coordinate(1296, 10093, 0)
+            , new Coordinate(1296, 10094, 0)
+            , new Coordinate(1289, 10100, 0)
+            , new Coordinate(1290, 10100, 0)
+            , new Coordinate(1296, 10100, 0)
+    );
+    private static final Collection<Coordinate> safespots = util.joinLists(
+            new Area.Rectangular(new Coordinate(1295, 10093, 0), new Coordinate(1290, 10093, 0)).getCoordinates(),
+            new Area.Rectangular(new Coordinate(1289, 10094, 0), new Coordinate(1289, 10099, 0)).getCoordinates()
+    );
+    final int explosionRadius = 1;
+    private Pair<Npc, Coordinate> jump;
+    private SlayerBotImpl<?> bot;
+
+    public static boolean isExplodingAnimation(Actor actor) {
+        return actor.getAnimationId() == AnimationID.LIZARDMAN_SHAMAN_SPAWN_EXPLOSION;
+    }
+
+    private static LocatableEntityQueryResults<Npc> getSpawns() {
+        return Npcs.newQuery()
+                .within(lizard.getArea())
+                .ids(NPC_ID_SPAWN)
+                .results();
+    }
+
+    public static boolean doWeGoThroughDanger(List<Coordinate> unsafes, List<Coordinate> path, Coordinate current) {
+        return path.stream().takeWhile(coordinate -> unsafes.stream().anyMatch(r -> r.equals(coordinate))).count() > 3;
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        if (!Objects.equals(event.getSource(), Players.getLocal())) return;
+        if (event.getHitsplat().getDamage() == 0) return;
+        log.debug("Player damaged: {} classification {}", event.getHitsplat().getDamage(), event.getHitsplat().getClassification());
+    }
+
+    public void initiate(SlayerBotImpl<?> bot) {
+        this.bot = bot;
+    }
+
+    private boolean isActive() {
+        var t = Monster.fromSlayerTask(bot.barrageTasksAvailable(), bot.getOverrideTask()).orElse(null);
+        return bot != null && t != null && t.getTask().equals(Task.LIZARDMEN) && lizard.getArea().contains(Players.getLocal().getServerPosition());
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        try {
+            if (!isActive()) return;
+            if (event.getAnimationId() == 7152) {
+                var npc = (Npc) event.getSource();
+                if (!lizard.getArea().contains(npc.getServerPosition())) return;
+                log.debug("Jump {}", npc);
+                var p = Players.getLocal().getServerPosition();
+                this.jump = new Pair<>(npc, p);
+            }
+            executeLoop(null);
+        } catch (Exception e) {
+            log.error(e);
+        }
+    }
+
+    @Override
+    public boolean executeLoop(Npc target) {
+        if (!isActive()) return false;
+        target = getTarget(target);
+
+        Stopwatch timer = Stopwatch.createStarted();
+        if (target != null)
+            log.debug("Target {}, Animation {}, Stance {}, Visible {}", target, target.getAnimationId(), target.getStanceId(), target.isVisible());
+        var spawns = getSpawns();
+        log.debug("Spawns {}", spawns);
+        var danger = getDanger(target, spawns);
+        var p = Players.getLocal().getServerPosition();
+        if (isSafe(p, danger) && safespots.contains(p)) {
+            log.debug("Safe");
+            return false;
+        }
+
+        var best = getBest(danger);
+        if (target == null) {
+            log.debug("No target {}", best);
+        }
+
+        log.debug("LizDone in {} ms best {}", timer.elapsed(TimeUnit.MILLISECONDS), best);
+        if (best.isEmpty()) return false;
+
+        if (!p.equals(best.get()))
+            DI.get().sendMovement(best.get());
+
+        return Execution.delayUntil(() -> Players.getLocal().getServerPosition().equals(best.get()), util::playerMoving, 650, 800);
+    }
+
+    private Npc getTarget(Npc target) {
+        if (target != null && target.isValid()) return target;
+        return lizard.getNpcsQuery().filter(n -> Objects.equals(n.getTarget(), Players.getLocal())).results().first();
+    }
+
+    public boolean isSafe(Coordinate c) {
+        var danger = getDanger((Npc) Players.getLocal().getTarget(), getSpawns());
+        return isSafe(c, danger);
+    }
+
+    public boolean isSafe(Coordinate c, Collection<Coordinate> danger) {
+        return !danger.contains(c) && c.isReachable() && !BLOCKED.contains(c);
+    }
+
+    private Optional<Coordinate> getBest(Collection<Coordinate> danger) {
+        var options = lizard.getArea()
+                .getCoordinates()
+                .stream()
+                .filter(c -> isSafe(c, danger))
+                .map(this::getCoordWithWeight)
+                .min(Comparator.comparingDouble(Pair::getRight));
+        //var best = getOptimalMoveTo(options);
+        return options.map(Pair::getLeft);
+    }
+
+    private @NotNull Pair<Coordinate, Double> getCoordWithWeight(Coordinate c) {
+        var dist = c.distanceTo(Players.getLocal().getServerPosition());
+        var isSafespot = safespots.contains(c);
+        return new Pair<>(c, dist * (isSafespot ? 0.5 : 4.3));
+    }
+
+    @Override
+    public void onNpcDeath(DeathEvent event) {
+        try {
+            if (!isActive()) return;
+            var npcDead = (Npc) event.getSource();
+            if (jump != null && Objects.equals(npcDead, jump.getLeft())) {
+                jump = null;
+            }
+        } catch (Exception e) {
+            log.error(e);
+        }
+    }
+
+    @NotNull
+    private Collection<Coordinate> getDanger(@Nullable Npc target, LocatableEntityQueryResults<Npc> spawns) {
+        var explodeCoords = spawns.stream()
+                .filter(ShamanEncounter::isExplodingAnimation)
+                .map(s -> s.getServerPosition().getArea().grow(explosionRadius, explosionRadius).getCoordinates())
+                .flatMap(Collection::stream)
+                .distinct()
+                .collect(Collectors.toList());
+        log.debug("Exploding on: {}", explodeCoords.toString());
+        var danger = new ArrayList<Coordinate>();
+        
+        if (jump != null) {
+            Area jumpArea = buildJumpArea(jump.getRight());
+            danger.addAll(jumpArea.getCoordinates());
+            log.debug("Jump on: {}", jumpArea.toString());
+        } else if (target != null) {
+            var a = target.getArea();
+            if (a != null) {
+                danger.addAll(a.getCoordinates());
+                danger.addAll(a.getSurroundingCoordinates());
+                log.debug("Melee on: {}", a.toString());
+            }
+        }
+        danger.addAll(explodeCoords);
+        return danger.stream().distinct().collect(Collectors.toList());
+    }
+
+    private Area buildJumpArea(Coordinate c) {
+        return Area.rectangular(c, c).grow(2, 2);
+    }
+
+    private Coordinate getOptimalMoveTo(Collection<Coordinate> options) {
+        var results = new CoordinateQueryResults(options);
+        return results.nearest();
+    }
+
+
+//    private void validMovementTiles(Actor actor, int dx, int dy) {
+//        WorldArea area = actor.getWorldArea();
+//
+//        if (area == null) {
+//            return;
+//        }
+//
+//        if (area.canTravelInDirection(client, dx, dy)) {
+//            LocalPoint lp = actor.getLocalLocation();
+//
+//            if (lp == null) {
+//                return;
+//            }
+//
+//            lp = new LocalPoint(
+//                    lp.getX() + dx * Perspective.LOCAL_TILE_SIZE + dx * Perspective.LOCAL_TILE_SIZE * (area.getWidth() - 1) / 2,
+//                    lp.getY() + dy * Perspective.LOCAL_TILE_SIZE + dy * Perspective.LOCAL_TILE_SIZE * (area.getHeight() - 1) / 2);
+//
+//            Polygon poly = Perspective.getCanvasTilePoly(client, lp);
+//
+//            if (poly == null) {
+//                return;
+//            }
+//
+//            if (isExplodingAnimation(actor)) {
+//                renderPolygon(graphics, poly, 1, plugin.getExplosionBorderColor(), plugin.getExplosionFillColor());
+//            } else if (plugin.getSpawnOverlayConfig().equals(SpawnOverlayConfig.ALWAYS)) {
+//                renderPolygon(graphics, poly, 1, plugin.getSpawnWalkableBorderColor(), plugin.getSpawnWalkableFillColor());
+//            }
+//        }
+//    }
+//
+//    private void renderValidMovement(Graphics2D graphics) {
+//        for (NPC npc : client.getNpcs()) {
+//            if (!isSpawnNpc(npc)) {
+//                continue;
+//            }
+//
+//            for (int dx = -explosionRadius; dx <= explosionRadius; dx++) {
+//                for (int dy = -explosionRadius; dy <= explosionRadius; dy++) {
+//                    if (dx == 0 && dy == 0) {
+//                        continue;
+//                    }
+//
+//                    renderTileIfValidForMovement(graphics, npc, dx, dy);
+//                }
+//            }
+//        }
+//    }
+
+}

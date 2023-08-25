@@ -1,0 +1,48 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.TraverseOverride;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class SlayerTowerBasementTraverseOverride implements TraverseOverride {
+    public final Coordinate monsterDestination;
+    private Traverser regionTraverser;
+
+    GameObject getLadder() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3417, 3535, 0))
+                .names("Ladder")
+                .actions("Climb-down")
+                .results()
+                .first();
+    }
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        var ladder = getLadder();
+        if (ladder != null) {
+            DirectInput.send(MenuAction.forGameObject(ladder, "Climb-down"));
+            Execution.delayUntil(
+                    () -> Players.getLocal().getServerPosition().getPlane() == 3,
+                    util::playerAnimatingOrMoving, 1000, 2000);
+            return true;
+        }
+        var pos = Players.getLocal().getServerPosition();
+        if (pos.getPlane() == 3 && pos.getContainingRegionId() == 13723) {
+            if (this.regionTraverser == null)
+                this.regionTraverser = Traverser.regionPathTraverser(monsterDestination);
+            regionTraverser.executeLoop();
+            return true;
+        }
+        return false;
+    }
+}

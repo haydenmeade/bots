@@ -1,0 +1,85 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.awt.event.KeyEvent;
+
+@Log4j2
+public class ConstructionCapeTraverse implements TraverseMethod {
+    private final Destination dest;
+
+    public ConstructionCapeTraverse(Destination dest) {
+        this.dest = dest;
+    }
+
+    @Override
+    public boolean hasSupport(HouseConfig houseConfig) {
+        return Inventory.contains(items.constructionCape) || Equipment.contains(items.constructionCape);
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var item = Inventory.contains(items.constructionCape)
+                ? Inventory.getItems(items.constructionCape).first()
+                : Equipment.getItems(items.constructionCape).first();
+        if (item == null) {
+            log.error("Unable to construction cape tele");
+            return false;
+        }
+        if (dest.equals(Destination.Home)) {
+            if (!item.interact(items.conCapeTelePoh)) {
+                log.error("Unable to construction cape tele house");
+                return false;
+            }
+            var res = Execution.delayUntil(
+                    House::isInside,
+                    util::playerAnimating,
+                    5000, 6050);
+            Execution.delay(2000, 4000);
+            return res;
+        }
+        var currReg = startPosition.getContainingRegionId();
+        try {
+            Keyboard.pressKey(dest.getKey());
+            if (!item.interact("Teleport")) {
+                log.error("Unable to construction cape tele");
+                return false;
+            }
+            return Execution.delayUntil(
+                    () -> Players.getLocal().getServerPosition().getContainingRegionId() != currReg,
+                    util::playerAnimating,
+                    2000, 3050);
+        } finally {
+            Keyboard.releaseKey(dest.getKey());
+        }
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    public enum Destination {
+        Home(KeyEvent.VK_1),
+        Rimmington(KeyEvent.VK_2),
+        Taverley(KeyEvent.VK_3),
+        Pollnivneach(KeyEvent.VK_4),
+        Hosidius(KeyEvent.VK_5),
+        Rellekka(KeyEvent.VK_6),
+        Brimhaven(KeyEvent.VK_7),
+        Yanille(KeyEvent.VK_8),
+        Prifddinas(KeyEvent.VK_9),
+        ;
+        private final int key;
+
+    }
+}

@@ -1,0 +1,94 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Comparator;
+
+@Log4j2(topic = "OffTickState")
+public class OffTickState implements LoopState<DkState>, EngineListener {
+    private final DkListener dkListener;
+    private final dk bot;
+    private boolean done = false;
+    private King inProgress;
+    private Coordinate moveInProgress;
+
+    public OffTickState(DkListener dkListener,
+                        dk bot
+    ) {
+        this.dkListener = dkListener;
+        this.bot = bot;
+    }
+
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        return DkState.FIGHTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        Action.set(Action.None);
+        bot.updateStatus(String.format("Offticking"));
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.OFF_TICK;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void onTickStart() {
+        var toOffTick = dkListener.needToOffTick();
+        if (toOffTick.isEmpty()) return;
+
+        var p = Players.getLocal();
+        if (this.inProgress == null || !toOffTick.contains(inProgress)) {
+            this.inProgress = toOffTick.stream()
+                    .min(Comparator.comparingDouble(k -> k.getNpc().getServerPosition().distanceTo(p))).get();
+            moveInProgress = null;
+        }
+
+        if (p != null
+                && inProgress.getNpc() != null
+                && inProgress.getNpc().getArea() != null
+                && inProgress.getNpc().getArea().contains(p)) {
+            this.dkListener.notifyDidOffTick(this.inProgress);
+        }
+
+        if (moveInProgress == null
+                || !p.getPosition().equals(moveInProgress)
+                || !inProgress.getNpc().getArea().contains(p)) {
+            var npc = inProgress.getNpc();
+            log.debug(String.format("Trying to offtick %s", inProgress.getName()));
+            this.moveInProgress = npc.getPosition();
+            util.moveTo(moveInProgress);
+        }
+    }
+
+    @Override
+    public void executeLoop() {
+        done = dkListener.needToOffTick().isEmpty();
+        if (inProgress != null) {
+            bot.updateStatus(String.format("Offticking: %s", inProgress.getName()));
+        }
+    }
+}

@@ -1,0 +1,7 @@
+# TODO
+
+- Fix the DI timeout when stopping bot
+- Add more fight strategies for Sire,KQ,Cerb
+- Fix looting (Drop or consume supplies)
+- Break handler
+- Remove logic in resume/pause handlers

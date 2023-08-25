@@ -1,0 +1,83 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collection;
+
+@Log4j2
+public class KalphiteLairTraverse implements TraverseMethod {
+    public static final int LAIR_REGION_ID = 13972;
+    private Traverser traverser;
+
+    private static GameObject getTunnelEntranceNoRope() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3227, 3108, 0))
+                .names("Tunnel entrance")
+                .results().first();
+    }
+
+    private static GameObject getTunnelEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3227, 3108, 0))
+                .names("Tunnel entrance")
+                .actions("Climb-down")
+                .results().first();
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return new FairyRingTraverse(FairyRing.BIQ).requirements(houseConfig);
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        if (Players.getLocal().getServerPosition().getContainingRegionId() == LAIR_REGION_ID) return true;
+        if (this.traverser == null) {
+            this.traverser = new Traverser(
+                    null,
+                    houseConfig,
+                    new Coordinate(3231, 3107, 0),
+                    new int[]{12848, 13104, 13105},
+                    this::overrideWebPath,
+                    new FairyRingTraverse(FairyRing.BIQ)
+            );
+        }
+        return traverser.executeLoop();
+    }
+
+    private boolean overrideWebPath(Coordinate destination) {
+        var te = getTunnelEntrance();
+        var teNoRope = getTunnelEntranceNoRope();
+        if (te == null && teNoRope == null) return false; // web traversal
+        if (te == null) {
+            var rope = Inventory.getItems(items.rope).first();
+            if (rope == null) {
+                var def = teNoRope.getActiveDefinition();
+                if (def != null && def.getActions().contains("Climb-down")) {
+                    DirectInput.send(MenuAction.forGameObject(teNoRope, "Climb-down"));
+                    Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == LAIR_REGION_ID, util::playerMoving, 2000, 3500);
+                    return true;
+                }
+                log.error("no rope found");
+                return false;
+            }
+            DirectInput.sendItemUseOn(rope, teNoRope);
+            Execution.delayUntil(() -> getTunnelEntrance() != null, util::playerMoving, 4500, 5500);
+            return true;
+        }
+        DirectInput.send(MenuAction.forGameObject(te, "Climb-down"));
+        Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == LAIR_REGION_ID, util::playerMoving, 2000, 3500);
+        return true;
+    }
+}

@@ -1,0 +1,135 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+
+import java.util.EventListener;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "SarachnisMain")
+public class bot extends NeckBot<SarachnisSettings, SarachnisState> {
+    public static final String Sarachnis = "Sarachnis";
+    private SarachnisListener sarachnisListener;
+    private Consumeables<SarachnisSettings, SarachnisState> consumeables;
+    @SettingsProvider(updatable = true)
+    private SarachnisSettings settings;
+
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Food.countInventory() < settings().minFood()) {
+            return true;
+        }
+        return false;
+    }
+
+
+    public void resetKill() {
+        Action.set(Action.None);
+        this.sarachnisListener.reset();
+    }
+
+    @Override
+    protected void initFromSettings(SarachnisSettings settings) {
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().specEquipment(), Loadout.LoadoutRole.SpecDps, "Spec"),
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, "Combat")
+        );
+        consumeables.setDharok(this.loadouts.getDharoks() != null);
+
+        this.breakManager = new BreakManager(settings);
+        updateItemFilter(util.concatenate(
+                util.toPatternArray(new String[]{items.houseTab,
+                        settings.food().gameName()}),
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling, items.dramenStaff,},
+                util.toItemList(settings.equipment()),
+                util.toItemList(settings.specEquipment())
+        ));
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, sarachnisListener, junkDropper};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        sarachnisListener = new SarachnisListener(this);
+        consumeables = new Consumeables(this, 35, SarachnisState.RESTORING, false);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings());
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires a slash weapon or a knife to slash the webs on the way\n" +
+                        "HouseBank: Requires house teleport runes, ornate pool, and jewellery box\n" +
+                        "FeroxBank: Requires dueling ring\n" +
+                        "Traverse method in house requires mounted xeric's"
+        ));
+    }
+
+
+    protected LoopState<SarachnisState> getState(SarachnisState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case FIGHTING:
+                return new FightState(this, this.sarachnisListener, this.prayerFlicker);
+            case LOOTING:
+                return new LootState(this.sarachnisListener, this, this.breakManager);
+            case POST_LOOT:
+                return new PostLootState(this, this.sarachnisListener);
+            case RESTORING:
+                return new RestoreState(this, breakManager);
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), SarachnisState.STARTING, SarachnisState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, SarachnisState.BREAKING, SarachnisState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<SarachnisState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected SarachnisState getBreakStateEnum() {
+        return SarachnisState.BREAKING;
+    }
+
+    @Override
+    protected SarachnisState getStartStateEnum() {
+        return SarachnisState.STARTING;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Sarachnis KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public SarachnisSettings settings() {
+        return settings;
+    }
+}

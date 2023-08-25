@@ -1,0 +1,240 @@
+package com.neck_flexed.scripts.sire;
+
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.ui.DefaultUI;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "util")
+public class u {
+
+    public static void moveTo(Coordinate c) {
+        if (c == null) return;
+        log.debug(String.format("MoveTo: %s", c.toString()));
+        DirectInput.sendMovement(c);
+        Action.set(Action.Move);
+    }
+
+    public static void equipRanged() {
+        util.equip(SireState.getSettings().phase1Equipment());
+    }
+
+    public static void equipMelee() {
+        util.equip(SireState.getSettings().phase2Equipment());
+    }
+
+    public static void equipSpec() {
+        util.equip(SireState.getSettings().specEquipment());
+    }
+
+
+    public static void attackSire() {
+        var s = getSire();
+        if (s == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(s, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static boolean stunSire() {
+        log.debug("stunning");
+        sire.updateStatus(String.format("stunning sire"));
+        var s = getSire();
+        if (s == null) {
+            moveTo(Phase2.tile1);
+            return false;
+        }
+        if (s.getId() == sire.SireId_Phase2or3_Walk) {
+            return false;
+        }
+        if (s.getId() == sire.SireId_Phase1_Stunned) {
+            SireState.startStunTimer();
+            return true;
+        }
+
+        var mxp = Skill.MAGIC.getExperience();
+        DirectInput.sendSpellCastOn(Magic.Ancient.SHADOW_BARRAGE, s);
+        if (Execution.delayUntil(() -> Skill.MAGIC.getExperience() > mxp || SireState.getFightState() != FightState.Phase1, 600)) {
+            SireState.startStunTimer();
+            return true;
+        }
+        return false;
+    }
+
+    public static @Nullable Coordinate attackClosestRespiratory() {
+        log.debug("attackClosestRespiratory");
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearest();
+        if (nearestResp != null && sire.fightArea.contains(nearestResp)) {
+            log.debug("sending attack input on respiratory");
+            if (Players.getLocal().getTarget() == null ||
+                    !nearestResp.getPosition().equals(Players.getLocal().getTarget().getPosition()))
+                DirectInput.send(MenuAction.forNpc(nearestResp, "Attack"));
+            return nearestResp.getPosition();
+        } else {
+            var p = Players.getLocal().getPosition();
+            if (sire.leftSide.distanceTo(p) < sire.rightSide.distanceTo(p)) {
+                // move right.
+                var c = new Coordinate(2973, 4776);
+                moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c) ||
+                        Npcs.getLoaded(sire.RespId).nearest() != null ||
+                        SireState.getFightState() == FightState.Phase2, 1200);
+
+            } else {
+                // move left.
+                var c = new Coordinate(2966, 4775);
+                moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c) ||
+                        Npcs.getLoaded(sire.RespId).nearest() != null ||
+                        SireState.getFightState() == FightState.Phase2, 1200);
+            }
+            return null;
+        }
+    }
+
+
+    public static boolean isRespDead(Coordinate c) {
+        if (c == null) return true;
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearestTo(c);
+        if (nearestResp == null) return true;
+        if (c.distanceTo(nearestResp) > 2) return true;
+        return false;
+    }
+
+    public static void waitUntilRespiratoryDead(Coordinate c) {
+        if (c == null) {
+            return;
+        }
+        var nearestResp = Npcs.getLoaded(sire.RespId).nearestTo(c);
+        if (nearestResp == null) {
+            log.debug("null nearestResp waitUntilRespiratoryDead");
+            return;
+        }
+        if (c.equals(nearestResp.getPosition())) {
+            log.debug("waiting until resp dead");
+            Execution.delayUntil(() -> isRespDead(c) || !SireState.isStunned(), 600, 1200);
+        }
+    }
+
+    public static boolean hasSpec() {
+        return SpecialAttack.getEnergy() == 100;
+    }
+
+    public static boolean isRestored() {
+        return !Health.isPoisoned() &&
+                Health.getCurrentPercent() == 100 &&
+                Prayer.getMaximumPoints() == Prayer.getPoints() &&
+                hasSpec();
+    }
+
+    public static Npc getSire() {
+        return Npcs.getLoaded(sire.Sire).nearest();
+    }
+
+    public static Prayer getRangedBoostPrayer() {
+        if (SireState.getSettings() == null || SireState.getSettings().isPhase1RangedSetup())
+            return Prayer.RIGOUR.isActivatable() ? Prayer.RIGOUR :
+                    Prayer.EAGLE_EYE.isActivatable() ? Prayer.EAGLE_EYE :
+                            Prayer.HAWK_EYE;
+        else
+            return Prayer.AUGURY.isActivatable() ? Prayer.AUGURY :
+                    Prayer.MYSTIC_MIGHT.isActivatable() ? Prayer.MYSTIC_MIGHT :
+                            Prayer.MYSTIC_LORE;
+    }
+
+    public static void killRespiratory() {
+        if (SireState.getFightState() == FightState.Phase1) {
+            if (!SireState.isStunned()) {
+                if (!stunSire()) return;
+            }
+            sire.updateStatus(String.format("resp dead: %d", SireState.getRespiratoryKilled()));
+            var c = attackClosestRespiratory();
+            waitUntilRespiratoryDead(c);
+        }
+    }
+
+    public static void addListener(EventListener l) {
+        if (!SireState.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            SireState.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public static void removeListener(EventListener l) {
+        SireState.getEventDispatcher().removeListener(l);
+    }
+
+    public static boolean needToHop() {
+        return Players.getLoaded().stream().count() > 1;
+    }
+
+    public static void removeFightListeners() {
+        for (EventListener l :
+                SireState.getEventDispatcher().getListeners()) {
+            if (l.getClass().getName().equals(Phase2Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase31Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase32Fighter.class.getName())) {
+                SireState.getEventDispatcher().removeListener(l);
+            }
+        }
+    }
+
+    public static void updateItemFilter() {
+        try {
+
+            var s = SireState.getSettings();
+            if (s == null) return;
+
+            Pattern[] x = util.concatenate(
+                    items.antiPoisonPPattern.toArray(new Pattern[0]),
+                    util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                            SireState.getFood()}),
+                    new Pattern[]{Pattern.compile("Stamina potion.*")},
+                    util.toItemList(SireState.getSettings().phase1Equipment()),
+                    util.toItemList(SireState.getSettings().phase2Equipment()),
+                    util.toItemList(SireState.getSettings().specEquipment())
+            );
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(SireState.getBot(),
+                    (e -> {
+                        if (SireState.get() == SireState.RESTOCKING) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+}

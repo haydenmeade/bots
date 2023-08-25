@@ -1,0 +1,100 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.Xeric;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<BarrageState> {
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private final Monster monster;
+    private String error;
+    private Path path;
+    private boolean hasClickedMove = false;
+
+    public TraverseState(com.neck_flexed.scripts.barrage.bot bot) {
+        this.bot = bot;
+        this.monster = bot.settings().monster();
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public BarrageState deactivate(EventDispatcher d) {
+        var p = Players.getLocal();
+        this.bot.getBarrageListener().init();
+        if (p == null) return BarrageState.STARTING;
+        if (monster.getArea().contains(Players.getLocal())) {
+            if (util.anyOtherPlayersWithin(monster.getArea()))
+                return BarrageState.HOPPING;
+            return BarrageState.LURING;
+        }
+        return BarrageState.STARTING;
+    }
+
+    @Override
+    public BarrageState get() {
+        return BarrageState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return monster.getArea().contains(Players.getLocal());
+    }
+
+    @Override
+    public void executeLoop() {
+        var ts = bot.settings().traverseStrategy();
+        var p = Players.getLocal();
+        if (p == null) return;
+        if (areas.isInTraverseRegion()) {
+            var dest = monster.getArea().getCenter();
+            if (dest.isLoaded()) {
+                if (!hasClickedMove || !p.isMoving()) {
+                    util.moveTo(dest);
+                    hasClickedMove = true;
+                    Execution.delay(600, 800);
+                }
+                return;
+            }
+            if (this.path == null)
+                this.path = WebPath.buildTo(dest);
+            if (path != null) {
+                if (!path.step())
+                    path = null;
+            } else {
+                log.error("Could not generate path to web1");
+            }
+        } else if (ts.equals(TraverseStrategy.HouseXeric)) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+            } else {
+                HouseUtil.xericsTo(Xeric.Heart);
+            }
+        } else if (ts.equals(TraverseStrategy.HousePortal)) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+            } else {
+                HouseUtil.teleKourend();
+            }
+        } else if (ts.equals(TraverseStrategy.Xeric)) {
+            util.xericsTo(Xeric.Heart);
+        }
+    }
+}

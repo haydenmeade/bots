@@ -1,0 +1,119 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+import java.util.List;
+
+public enum BotState {
+    STARTING(),
+    TRAVERSING(),
+    FIGHTING(),
+    LOOTING(),
+    RESTORING(),
+    RESTOCKING(),
+    ;
+    private static BotState botState;
+    private static EventDispatcher eventDispatcher;
+
+    private static List<Prayer> activePrayers;
+    private static int ticksUntilAttack;
+    private static int alchCooldown;
+    private static Action lastAction;
+
+    private static Coordinate taking;
+    private static int takingId;
+    private static Area jumpArea;
+
+    private BotState() {
+
+    }
+
+    public static List<Prayer> getActivePrayers() {
+        return activePrayers;
+    }
+
+    public static void setActivePrayers(List<Prayer> _activePrayers) {
+        activePrayers = _activePrayers;
+    }
+
+    public static boolean inLizardRoom() {
+        return lizard.areaCentre.contains(Players.getLocal().getPosition());
+    }
+
+    public static boolean nearLizardRoom() {
+        return lizard.nearArea.contains(Players.getLocal().getPosition());
+    }
+
+    public static boolean inLizardTemple() {
+        return lizard.temple.contains(Players.getLocal().getPosition());
+    }
+
+    public static int getTicksUntilAttack() {
+        return BotState.ticksUntilAttack;
+    }
+
+    public static void setTicksUntilAttack(int ticksUntilAttack) {
+        BotState.ticksUntilAttack = ticksUntilAttack;
+    }
+
+    public static void addToTicksUntilAttack(int add) {
+        BotState.ticksUntilAttack += add;
+    }
+
+    public static void tick() {
+        if (BotState.ticksUntilAttack > 0) {
+            BotState.ticksUntilAttack -= 1;
+        }
+        if (BotState.alchCooldown > 0) {
+            BotState.alchCooldown -= 1;
+        }
+    }
+
+    public static boolean isInCombat() {
+        return Players.getLocal().getTarget().getName() == lizard.LIZ;
+    }
+
+    public static int getAlchCooldown() {
+        return alchCooldown;
+    }
+
+    public static void setAlchCooldown(int alchCooldown) {
+        BotState.alchCooldown = alchCooldown;
+    }
+
+    public static Action getLastAction() {
+        return lastAction;
+    }
+
+    public static void setLastAction(Action lastAction) {
+        BotState.lastAction = lastAction;
+    }
+
+    public static BotState getBotState() {
+        return botState;
+    }
+
+    public static void setBotState(BotState botState) {
+        BotState.botState = botState;
+    }
+
+    public static Area getJumpArea() {
+        return jumpArea;
+    }
+
+    public static void setJumpArea(Area jumpArea) {
+        BotState.jumpArea = jumpArea;
+    }
+
+    public static EventDispatcher getEventDispatcher() {
+        return eventDispatcher;
+    }
+
+    public static void setEventDispatcher(EventDispatcher eventDispatcher) {
+        BotState.eventDispatcher = eventDispatcher;
+    }
+}

@@ -1,0 +1,20 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public interface LoopState<T extends Enum> {
+
+    void activate(EventDispatcher d);
+
+    T deactivate(EventDispatcher d);
+
+    T get();
+
+    @Nullable String fatalError();
+
+    boolean done();
+
+    void executeLoop();
+
+}

@@ -1,0 +1,128 @@
+package com.neck_flexed.scripts.plank;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "PlankMain")
+public class planker extends NeckBot<PlankSettings, PlankState> implements SettingsListener {
+
+    public static final Coordinate lumberYard = new Coordinate(3302, 3490, 0);
+    public static final Area nearLumberYard = new Area.Rectangular(new Coordinate(3270, 3495, 0), new Coordinate(3318, 3458, 0));
+    public BreakManager breakManager;
+    protected boolean started = false;
+    @SettingsProvider(updatable = true)
+    private PlankSettings settings;
+
+    public static boolean isNearLumberYard() {
+        return nearLumberYard.contains(Players.getLocal());
+    }
+
+    public static Npc getOperator() {
+        return Npcs.newQuery()
+                .on(new Coordinate(3302, 3492, 0))
+                .ids(3101)
+                .actions("Buy-plank")
+                .results()
+                .first();
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        this.getEventDispatcher().addListener(this);
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "\n"
+        ));
+        this.inactivity.disable();
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var plank = settings().plank();
+        if (!Inventory.contains(plank.getGameName()) && !Inventory.contains(plank.getLogName())) {
+            return true;
+        }
+        if (plank.hasPlanks()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[0];
+    }
+
+    @Override
+    public void resetKill() {
+    }
+
+    @Override
+    protected void initFromSettings(PlankSettings settings) {
+        breakManager = new BreakManager(settings, this);
+        this.ignoreLoadouts = true;
+    }
+
+    protected LoopState<PlankState> getState(PlankState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case PLANKING:
+                return new PlankingState(this);
+            case RETURNTOBANK:
+                return new ReturnToBankState(this);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, PlankState.BREAKING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    protected LoopState<PlankState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    protected PlankState getBreakStateEnum() {
+        return PlankState.BREAKING;
+    }
+
+    protected PlankState getStartStateEnum() {
+        return PlankState.STARTING;
+    }
+
+    @Override
+    protected IStateManager<PlankState> createStateManager() {
+        return new PlankStateManager(this);
+    }
+
+    public void updateStatus(String s) {
+        log.debug(s);
+        DefaultUI.setStatus(s);
+    }
+
+    public PlankSettings settings() {
+        return this.settings;
+    }
+}

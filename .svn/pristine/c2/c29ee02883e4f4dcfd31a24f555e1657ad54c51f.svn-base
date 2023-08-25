@@ -1,0 +1,416 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.neck_flexed.scripts.slayer.*;
+import com.neck_flexed.scripts.slayer.turael.overrides.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
+
+
+@RequiredArgsConstructor
+@Getter
+public enum TuraelMonster implements SlayerMonster {
+    Banshees("Banshees",
+            new String[]{"Banshee", "Screaming banshee", "Screaming twisted banshee", "Twisted Banshee"},
+            TraverseMethod.SLAYER_TOWER_REGIONS,
+            areas.Banshees,
+            TraverseMethod.SLAYER_TOWER,
+            null,
+            null,
+            true),
+    Bats("Bats",
+            new String[]{"Bat", "Giant bat", "Deathwing"},
+            new int[]{13110, 13109, 13365, 13364, 13108, 133366},
+            areas.Bats,
+            new TraverseMethod[]{
+                    new ItemTraverse(items.ringOfTheElements, "Rub", "Earth Altar"),
+                    new ItemTraverse(items.digsitePendant, "Digsite"),
+                    new HouseDigsiteTraverse(HouseDigsiteTraverse.Destination.Digsite),
+                    new HousePortalTraverse(PortalNexusTeleport.Senntisten)
+            },
+            new Coordinate(3352, 3490, 0),
+            null,
+            true),
+    Bears("Bears",
+            new String[]{"Bear", "Grizzly bear cub", "Bear cub", "Grizzly bear"},
+            new int[]{10804, 10547, 10803, 10548},
+            areas.Bears,
+            new TraverseMethod[]{
+                    new ItemTraverse(items.questCape, "Teleport"),
+                    new FairyRingTraverse(FairyRing.BLR),
+                    new HousePortalTraverse(PortalNexusTeleport.Ardougne),
+                    new TeleportTraverse(Magic.ARDOUGNE_TELEPORT, 51, Rune.WATER, Rune.LAW),
+            },
+            new Coordinate(2701, 3331, 0),
+            null,
+            true),
+    Birds("Birds",
+            new String[]{"Bird", "Duck", "Chicken", "Undead chicken", "Rooster", "Seagull", "Duckling"},
+            new int[]{12596, 12852, 12853, 12597},
+            areas.Birds,
+            new TraverseMethod[]{
+                    new ItemTraverse("Chronicle", "Teleport"),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.ChampionsGuild),
+                    TeleportTraverse.VARROCK_TRAVERSE,
+                    new TeleportTraverse(Magic.VARROCK_TELEPORT, 35, Rune.AIR, Rune.FIRE, Rune.LAW),
+            },
+            new Coordinate(3176, 3360, 0),
+            null,
+            true),
+    CaveBugs("Cave bugs",
+            new String[]{"Cave bug"},
+            new int[]{10833},
+            areas.CaveBugs,
+            new TraverseMethod[]{
+                    new FairyRingTraverse(FairyRing.AJQ)
+            },
+            new Coordinate(2714, 5235, 0),
+            null,
+            true),
+    CaveCrawlers("Cave crawlers",
+            new String[]{"Cave crawler", "Chasm Crawler"},
+            TraverseMethod.FREM_SLAYER_REGIONS,
+            areas.CaveCrawlers,
+            TraverseMethod.FREM_SLAYER_TRAVERSES,
+            null,
+            null,
+            true),
+    CaveSlime("Cave slimes",
+            new String[]{"Cave slime"},
+            new int[]{10833},
+            areas.CaveSlime,
+            new TraverseMethod[]{
+                    new FairyRingTraverse(FairyRing.AJQ)
+            },
+            null,
+            null,
+            true),
+    Cows("Cows",
+            new String[]{"Cow", "Cow calf"},
+            new int[]{12850, 12851, 13106, 13107},
+            areas.Cows,
+            new TraverseMethod[]{
+                    new HousePortalTraverse(PortalNexusTeleport.Lumbridge),
+                    TeleportTraverse.LUMBRIDGE_TRAVERSE,
+            },
+            new Coordinate(3258, 3279, 0),
+            null,
+            true),
+    CrawlingHands("Crawling Hands",
+            new String[]{"Crawling Hand", "Crushing hand"},
+            TraverseMethod.SLAYER_TOWER_REGIONS,
+            areas.CrawlingHands,
+            TraverseMethod.SLAYER_TOWER,
+            null,
+            null,
+            true),
+    Dogs("Dogs",
+            new String[]{"Dog", "Jackal", "Guard dog", "Wild dog", "Reanimated dog"},
+            new int[]{13613, 13357, 13614, 13358, 13615},
+            areas.Dogs,
+            new TraverseMethod[]{
+                    new ItemTraverse(items.desertAmulet4, "Nardah"),
+                    new FairyRingTraverse(FairyRing.DLQ),
+            },
+            new Coordinate(3387, 2905, 0),
+            null,
+            false),
+    Dwarves("Dwarves",
+            new String[]{"Dwarf", "Black Guard", "Chaos Dwarf", "Dwarf gang member"},
+            new int[]{11316, 11575, 11318, 11574, 11418, 11829, 11572, 11828, 11573},
+            areas.Dwarves,
+            new TraverseMethod[]{
+                    new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Taverley),
+                    new ItemTraverse("Taverly teleport", "Break"),
+                    new HouseLocationTraverse(House.Location.TAVERLEY),
+                    new GamesNecklaceTraverse(GamesNecklaceTraverse.Destination.Burthorpe),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.Burthorpe),
+                    new TeleportTraverse(Magic.FALADOR_TELEPORT, 48, Rune.AIR, Rune.WATER, Rune.LAW)
+            },
+            new Coordinate(2865, 9877, 0),
+            null,
+            true),
+    Ghosts("Ghosts",
+            new String[]{"Ghost"},
+            TraverseMethod.CATACOMBS_REGIONS,
+            areas.Ghosts,
+            TraverseMethod.CATACOMBS_TRAVERSES,
+            null,
+            null,
+            true),
+    Goblins("Goblins",
+            new String[]{"Goblin"},
+            new int[]{12340, 12339, 12595, 12596, 12338, 12594, 12850, 12851},
+            areas.Goblins,
+            new TraverseMethod[]{
+                    new HousePortalTraverse(PortalNexusTeleport.DraynorManor),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.DraynorVillage),
+                    TeleportTraverse.LUMBRIDGE_TRAVERSE
+            },
+            new Coordinate(3145, 3302, 0),
+            null,
+            true),
+    Icefiends("Icefiends",
+            new String[]{"Icefiend"},
+            new int[]{11830, 12086, 12342, 12598, 12341, 12085, 12343, 12087},
+            areas.Icefiends,
+            new TraverseMethod[]{
+                    TeleportTraverse.LASSAR_TRAVERSE,
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.EdgevilleMonastery),
+                    new FairyRingTraverse(FairyRing.DKR)
+            },
+            new Coordinate(3007, 3476, 0),
+            Prayer.PROTECT_FROM_MELEE,
+            true),
+    Kalphites("Kalphites", new String[]{"Kalphite", "Kalphite Worker"},
+            new int[]{12848, 13104, 13204},
+            areas.Kalphites,
+            new TraverseMethod[]{
+                    new ItemTraverse(items.desertAmulet4, "Kalphite cave"),
+                    new FairyRingTraverse(FairyRing.BIQ)
+            },
+            new Coordinate(3323, 9502, 0),
+            null,
+            true),
+    Kalphites_Lair("Kalphites", new String[]{"Kalphite", "Kalphite Worker"},
+            new int[]{KalphiteLairTraverse.LAIR_REGION_ID},
+            areas.Kalphites_Lair,
+            new TraverseMethod[]{
+                    new KalphiteLairTraverse(),
+            },
+            new Coordinate(3501, 9522, 2),
+            null,
+            true),
+    Lizards("Lizards",
+            new String[]{"Lizard", "Desert Lizard", "Small Lizard", "Sulphur Lizard"},
+            new int[]{13615},
+            areas.Lizards,
+            new TraverseMethod[]{
+                    new FairyRingTraverse(FairyRing.DLQ),
+            },
+            new Coordinate(3411, 3033, 0),
+            null,
+            false),
+    Minotaurs("Minotaurs",
+            new String[]{},
+            new int[]{12341, 12342, 7505},
+            areas.Minotaurs,
+            new TraverseMethod[]{
+                    new ItemTraverse(items.skullSceptre, "Invoke"),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.Edgeville),
+                    new FairyRingTraverse(FairyRing.DKR)
+            },
+            new Coordinate(1876, 5217, 0),
+            null,
+            true),
+    Monkeys("Monkeys",
+            new String[]{"Monkey", "Karamjan Monkey"},
+            new int[]{11054},
+            areas.Monkeys,
+            new TraverseMethod[]{
+                    new FairyRingTraverse(FairyRing.CKR)
+            },
+            new Coordinate(2793, 2994, 0),
+            null,
+            true),
+    Rats("Rats",
+            new String[]{"Rat", "Giant rat", "Dungeon rat"},
+            new int[]{12853, 12854, 12954},
+            areas.Rats,
+            new TraverseMethod[]{
+                    new HousePortalTraverse(PortalNexusTeleport.Varrock),
+                    TeleportTraverse.VARROCK_TRAVERSE
+            },
+            new Coordinate(3237, 9866, 0),
+            null,
+            true),
+    Scorpions("Scorpions",
+            new String[]{"Scorpion"},
+            new int[]{13106, 13107, 12850},
+            areas.Scorpions,
+            new TraverseMethod[]{
+                    new DuelingRingTraverse(DuelingRingTraverse.Destination.PvPArena),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.PvpArena),
+                    TeleportTraverse.LUMBRIDGE_TRAVERSE
+
+            },
+            new Coordinate(3298, 3299, 0),
+            null,
+            true),
+    Skeletons("Skeletons",
+            new String[]{"Skeleton"},
+            new int[]{13365, 13364, 13109, 13108},
+            areas.Skeletons,
+            new TraverseMethod[]{
+                    new HousePortalTraverse(PortalNexusTeleport.Senntisten),
+                    new ItemTraverse(items.digsitePendant, "Rub", "Digsite"),
+                    new HouseDigsiteTraverse(HouseDigsiteTraverse.Destination.Digsite),
+            },
+            new Coordinate(3376, 9749, 0),
+            null,
+            true),
+    Sourhogs("Sourhogs",
+            new String[]{"Sourhog"},
+            new int[]{12340, 12339, 12338, 12594, 12595, 12596, 12695, 12850, 12851},
+            areas.Sourhogs,
+            new TraverseMethod[]{
+                    new HousePortalTraverse(PortalNexusTeleport.DraynorManor),
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.DraynorVillage),
+                    TeleportTraverse.LUMBRIDGE_TRAVERSE
+            },
+            new Coordinate(3167, 9695, 0),
+            Prayer.PROTECT_FROM_MISSILES,
+            false),
+    Spiders("Spiders",
+            new String[]{"Spider", "Giant spider"},
+            new int[]{12338, 12339, 12594, 12850},
+            areas.Spiders,
+            new TraverseMethod[]{
+                    new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.DraynorVillage),
+                    new HousePortalTraverse(PortalNexusTeleport.Lumbridge),
+                    TeleportTraverse.LUMBRIDGE_TRAVERSE,
+            },
+            new Coordinate(3168, 3244, 0),
+            null,
+            true),
+    Wolves("Wolves",
+            new String[]{"Wolf", "Big Wolf", "Desert Wolf", "Ice wolf", "Jungle wolf", "White wolf"},
+            new int[]{11318},
+            areas.Wolves,
+            new TraverseMethod[]{
+                    new GliderTraverse(GliderTraverse.Destination.Sindarpos),
+            },
+            new Coordinate(2845, 3498, 0),
+            Prayer.PROTECT_FROM_MELEE,
+            false
+    ),
+    Zombies("Zombies",
+            new String[]{"Zombie", "Undead chicken", "Undead cow"},
+            new int[]{14647, 14646, 14391, 14390},
+            areas.Zombies,
+            new TraverseMethod[]{
+                    new ItemTraverse("Ectophial", "Empty"),
+                    new FairyRingTraverse(FairyRing.ALQ)
+            },
+            new Coordinate(3621, 3529, 0),
+            null,
+            true),
+    ;
+
+
+    @Setter
+    private static @Nullable TuraelMonster DEBUG_MONSTER = null;
+    private final String monsterName;
+    private final String[] alternatives;
+    private final int[] pathRegions;
+    private final Area area;
+    private final TraverseMethod[] traverseMethods;
+    private final @Nullable Coordinate cannon;
+    private final @Nullable Prayer prayer;
+    private final boolean isInSafeArea;
+
+    public static Optional<SlayerMonster> fromSlayerTask() {
+        if (DEBUG_MONSTER != null) {
+            return Optional.of(DEBUG_MONSTER);
+        }
+
+        var task = SlayerTask.getCurrent();
+        if (task == null) return Optional.empty();
+        if (task.equalsIgnoreCase("Kalphite")) {
+            if (SlayerTask.getLocation() == null)
+                return Optional.of(Kalphites);
+            if (SlayerTask.getLocation().equalsIgnoreCase("kalphite lair")) {
+                return Optional.of(Kalphites_Lair);
+            }
+            return Optional.of(Kalphites);
+        }
+        return Arrays.stream(TuraelMonster.values())
+                .filter(m -> Arrays.stream(m.getAllNames()).anyMatch(n -> n.equalsIgnoreCase(task)))
+                .map(m -> (SlayerMonster) m)
+                .findFirst();
+    }
+
+    @Override
+    public String toString() {
+        return this.monsterName;
+    }
+
+    @Override
+    public String[] getSuperiorNames() {
+        if (this.equals(CaveCrawlers))
+            return new String[]{"Chasm Crawler"};
+        return new String[0];
+    }
+
+    @Override
+    public SlayerFinishItem getFinishItem() {
+        if (this.equals(Lizards))
+            return SlayerFinishItem.IceCooler;
+        return null;
+    }
+
+    @Override
+    public SlayerProtectionItem getProtection() {
+        return null;
+    }
+
+    @Override
+    public boolean needsLightSource() {
+        return this.equals(CaveBugs) || this.equals(CaveSlime);
+    }
+
+    @Override
+    public TraverseOverride getTraverseOverride() {
+        switch (this) {
+            case Minotaurs:
+                return new MinotaurOverride();
+            case Cows:
+                return new CowOverride();
+            case Skeletons:
+                return new SkeletonOverride();
+            case Rats:
+                return new RatOverride();
+            case Sourhogs:
+                return new SourhogOverride();
+        }
+
+        return null;
+    }
+
+    @Override
+    public boolean isLeafBladed() {
+        return false;
+    }
+
+    @Override
+    public boolean isBarrageMonster() {
+        return false;
+    }
+
+    @Override
+    public Map<Pattern, Integer> getTraverseItems() {
+        if (this.equals(Skeletons)) {
+            return Map.of(Pattern.compile(items.rope), 1);
+        } else if (this.equals(Kalphites_Lair) && !AchievementDiary.DESERT.isHardComplete()) {
+            return Map.of(Pattern.compile(items.rope), 1);
+        }
+        return SlayerMonster.super.getTraverseItems();
+    }
+}

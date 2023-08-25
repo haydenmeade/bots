@@ -1,0 +1,15 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+@Getter
+public enum SlayerRingDestination {
+    StrongholdSlayerCave("Teleport to the Stronghold Slayer Cave"),
+    SlayerTower("Teleport to the Morytania Slayer Tower"),
+    FremennikSlayerDungeon("Teleport to the Rellekka Slayer Caves"),
+    TarnsLair("Teleport to Tarn's Lair"),
+    DarkBeasts("Teleport to Dark Beasts");
+    private final String destination;
+}

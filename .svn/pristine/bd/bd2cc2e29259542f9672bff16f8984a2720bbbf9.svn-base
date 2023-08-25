@@ -1,0 +1,36 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import com.runemate.ui.DefaultUI;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseTask")
+public class TraverseTask extends LeafTask {
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        var p = Players.getLocal();
+        if (p == null) return;
+        if (sire.abyssalNexus.contains(p)) {
+            log.debug("traversing in nexus");
+            DefaultUI.setStatus(String.format("Traversing in nexus"));
+            Traverse.traverseToSire();
+            SireState.setBotState(SireState.getInitialState());
+        } else if (House.isInside()) {
+            log.debug("traversing in house");
+            DefaultUI.setStatus(String.format("Traversing in house"));
+            Execution.delay(600, 1200);
+            Traverse.fairyRingBack();
+            //} else if (sire.castleWars.contains(p)) {
+        } else if (!sire.abyssalNexus.isLoaded()) {
+            log.debug("traversing");
+            DefaultUI.setStatus(String.format("Traversing"));
+            Traverse.breakHouseTab();
+        }
+    }
+
+}

@@ -1,0 +1,23 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.sire.sire</main-class>
+    <name>Abyssal Sire Slayer</name>
+    <tag-line>Slays the sire</tag-line>
+    <description>
+        Kills the abyssal sire until slayer task is complete.
+        Requires: Abyssal Sire or Abyssal demon slayer task, Ornate pool in house, Jewellery box in house, fairy ring in
+        house, shadow barrage.
+    </description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>0.0.1</version>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.sire.SireSettings</exclude>
+    </obfuscation>
+</manifest>

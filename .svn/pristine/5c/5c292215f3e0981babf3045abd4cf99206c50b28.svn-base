@@ -1,0 +1,36 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.input.direct.MenuOpcode;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "PrayerFlicker")
+
+public class PrayerFlicker implements EngineListener {
+
+    @Override
+    public void onTickStart() {
+        try {
+            // turn off
+            for (Prayer p :
+                    Prayer.getActivePrayers()) {
+                DirectInput.send(MenuAction.forInterfaceComponent(p.getComponent(), 0, MenuOpcode.CC_OP));
+                Execution.delay(10, 16);
+            }
+            // flick
+            for (Prayer p : SireState.getActivePrayers()) {
+                DirectInput.send(MenuAction.forInterfaceComponent(p.getComponent(), 0, MenuOpcode.CC_OP));
+                Execution.delay(10, 16);
+            }
+        } catch (Exception e) {
+            log.error("Prayer flicker", e);
+        }
+
+
+    }
+
+}

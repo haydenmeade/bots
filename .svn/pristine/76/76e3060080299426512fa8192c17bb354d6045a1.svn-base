@@ -1,0 +1,52 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public class PostLootWaiting implements LoopState<KqState> {
+    private final kq bot;
+    private final PrayerFlicker prayerFlicker;
+
+    public PostLootWaiting(kq bot, PrayerFlicker prayerFlicker) {
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Waiting for respawn");
+        this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+    }
+
+    // 3478,9500,0
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        return KqState.FIGHTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.POST_LOOT_WAITING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return kq.getKq() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+        util.eatIfHpAllows(Food.getAny());
+        bot.loadouts.equip(bot.loadouts.getForName(KqPhase.Phase1));
+    }
+}

@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.common;
+
+import java.util.regex.Pattern;
+
+public enum Antipoison {
+    ANTIPOISONPP("Antipoison++.*"),
+    ANTIPOISON("Antipoison\\(.*"),
+    SUPER_ANTIPOISON("Superantipoison.*"),
+    ;
+    private final Pattern pattern;
+
+    Antipoison(String pattern) {
+        this.pattern = Pattern.compile(pattern);
+    }
+
+    public Pattern pattern() {
+        return pattern;
+    }
+}

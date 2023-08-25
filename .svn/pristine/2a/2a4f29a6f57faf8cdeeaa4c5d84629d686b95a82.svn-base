@@ -1,0 +1,64 @@
+package com.neck_flexed.scripts.kq;
+
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "KqState")
+public enum KqState {
+    STARTING(),
+    TRAVERSING(),
+    ENTERING_LAIR(),
+    SEARCHING_LAIR(),
+    FIGHTING(),
+    LOOTING(),
+    POST_LOOT_WAITING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+    WALK_UNDER,
+    BREAKING();
+
+    private static KqSettings settings = null;
+    private static boolean isPaused = true;
+    private static kq bot;
+    private static int kqKilled = 0;
+
+    private KqState() {
+    }
+
+    public static String getFood() {
+        return KqState.getSettings() == null ? "Shark" : KqState.getSettings().food().gameName();
+    }
+
+    public static KqSettings getSettings() {
+        return settings;
+    }
+
+    public static void setSettings(KqSettings settings) {
+        KqState.settings = settings;
+    }
+
+    public static boolean isPaused() {
+        return KqState.isPaused;
+    }
+
+    public static void setPaused(boolean paused) {
+        KqState.isPaused = paused;
+    }
+
+    public static kq getBot() {
+        return bot;
+    }
+
+    public static void setBot(kq bot) {
+        KqState.bot = bot;
+    }
+
+    public static int getKqKilled() {
+        return kqKilled;
+    }
+
+    public static void setKqKilled(int kqKilled) {
+        KqState.kqKilled = kqKilled;
+    }
+
+}

@@ -1,0 +1,15 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import java.util.Set;
+
+public interface SlayerBot {
+    void addDeathTile(Coordinate position);
+
+    SlayerMonster getPreviousTask();
+
+    void setPreviousTask(SlayerMonster previousTask);
+
+    Set<Coordinate> getDeathTiles();
+}

@@ -1,0 +1,164 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.RegionPath;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Traverse")
+public class Traverse {
+    public static final String houseTab = "Teleport to house";
+    public static final String dramenStaff = "Dramen staff";
+    public static final String lunarStaff = "Lunar staff";
+    public static final String DIP = "Last-destination (DIP)";
+
+    public static void breakHouseTab() {
+        log.debug("break house tab");
+        var item = Inventory.getItems(houseTab).first();
+        if (item != null)
+            DirectInput.send(MenuAction.forSpriteItem(item, "Break"));
+    }
+
+    public static void restoreStatsAndRerun() {
+        sire.updateStatus(String.format("Restoring and running back"));
+        breakHouseTab();
+        restoreStatsInHouse();
+        fairyRingBack();
+        traverseToSire();
+    }
+
+    public static void traverseToSire() {
+        var destination1 = Area.rectangular(new Coordinate(2989, 4750), new Coordinate(2990, 4751));
+        if (!sire.fightArea.contains(Players.getLocal())) {
+            while (!destination1.contains(Players.getLocal()) && !Phase2.tile1.isLoaded()) {
+                if (SireState.isPaused()) return;
+                var path1 = RegionPath.buildTo(destination1);
+                if (path1 != null) {
+                    path1.step();
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate path1 in traverseToSire");
+                }
+            }
+        }
+        var destinationx = Area.rectangular(new Coordinate(Phase2.tile2.getX(), 4785), new Coordinate(Phase2.tile1.getX(), Phase3.tile1S.getY()));
+        while (u.getSire() == null && !destinationx.contains(Players.getLocal().getPosition())) {
+            if (SireState.isPaused()) return;
+            var pathx = RegionPath.buildTo(destinationx);
+            if (pathx != null) {
+                pathx.step();
+                Execution.delay(600, 1200);
+            } else {
+                log.debug("Could not generate pathx in traverseToSire");
+            }
+        }
+        var destination2 = Phase2.tile1;
+        while (u.getSire() == null && !destination2.equals(Players.getLocal().getPosition())) {
+            if (SireState.isPaused()) return;
+            var path2 = RegionPath.buildTo(destination2);
+            if (path2 != null) {
+                path2.step();
+                Execution.delay(600, 1200);
+            } else {
+                log.debug("Could not generate path2 in traverseToSire");
+            }
+        }
+    }
+
+    public static void fairyRingBack() {
+        log.debug("finding fairy ring");
+        var f = getFairyRing().nearest();
+        if (f != null) {
+            if (!AchievementDiary.LUMBRIDGE.isEliteComplete()) {
+                while (Equipment.getItemIn(Equipment.Slot.WEAPON).getDefinition().getName() != Traverse.dramenStaff ||
+                        Equipment.getItemIn(Equipment.Slot.WEAPON).getDefinition().getName() != Traverse.lunarStaff) {
+                    u.equipDramen();
+                    Execution.delay(1600, 3600);
+                }
+            }
+            if (!f.getActiveDefinition().getActions().contains(DIP)) {
+                while (InterfaceContainers.getAt(398) == null) {
+                    f.interact("Configure");
+                    Execution.delay(1600, 3600);
+                }
+                if (Execution.delayUntil(() -> InterfaceContainers.getAt(398) != null, 10000)) {
+                    InterfaceContainers.getAt(398).getComponent(19).interact("Rotate clockwise");
+                    Execution.delay(1600, 3600);
+                    InterfaceContainers.getAt(398).getComponent(26).interact("Confirm");
+                    Execution.delayUntil(() -> sire.abyssalNexus.contains(Players.getLocal()), 10000);
+                    Execution.delay(1600, 3600);
+                } else {
+                    throw new RuntimeException("stuck at fairy ring");
+                }
+            } else {
+                DirectInput.send(MenuAction.forGameObject(f, DIP));
+                if (!Execution.delayUntil(() -> sire.abyssalNexus.contains(Players.getLocal()), 2000, 4000)) {
+                    DirectInput.send(MenuAction.forGameObject(f, DIP));
+                    Execution.delayUntil(() -> sire.abyssalNexus.contains(Players.getLocal()), 10000);
+                }
+            }
+            Execution.delay(1200);
+            u.equipRanged();
+
+        } else {
+            throw new RuntimeException("no fairy ring");
+        }
+    }
+
+
+    public static LocatableEntityQueryResults<GameObject> getPools() {
+        return (LocatableEntityQueryResults) GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Ornate pool of Rejuvenation"}).actions(new String[]{"Drink"}).results();
+    }
+
+    public static LocatableEntityQueryResults<GameObject> getFairyRing() {
+        var fr = GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Fairy ring"}).actions(new String[]{"Zanaris"}).results();
+        if (fr.isEmpty())
+            return GameObjects.newQuery().types(
+                    new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Spirit tree & fairy ring"}).actions(new String[]{"Zanaris"}).results();
+        return fr;
+    }
+
+    public static LocatableEntityQueryResults<GameObject> getJewelleryBox() {
+        return GameObjects.newQuery().types(
+                new GameObject.Type[]{GameObject.Type.PRIMARY}).names(new String[]{"Ornate Jewellery Box"}).actions(new String[]{"Teleport Menu"}).results();
+    }
+
+    public static void restoreStatsInHouse() {
+        log.debug("restoring");
+        if (!Execution.delayUntil(() -> House.isInside(), 5000)) {
+            throw new RuntimeException("Unable to get to house");
+        }
+        Execution.delay(2000);
+
+        if (!u.isRestored()) {
+
+            if (!Execution.delayUntil(() -> !getPools().isEmpty(), 5000)) {
+                throw new RuntimeException("Unable to pool lll");
+            }
+            var pool = getPools().first();
+            if (pool == null) {
+                throw new RuntimeException("Unable to find pool");
+            }
+
+            DirectInput.send(MenuAction.forGameObject(pool, "Drink"));
+            if (!Execution.delayUntil(() -> u.isRestored(), 10000)) {
+                throw new RuntimeException("Unable to restore");
+            }
+            Execution.delay(1200);
+        }
+    }
+}

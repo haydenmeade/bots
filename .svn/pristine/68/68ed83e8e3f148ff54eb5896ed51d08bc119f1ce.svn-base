@@ -1,0 +1,64 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Restore")
+public class Restore {
+
+    public static void execute() {
+        MoleState.getBot().setActivePrayers();
+        Mole.updateStatus(String.format("Restoring"));
+        log.debug("restoring");
+        if (MoleState.getSettings().RestoreAndBankStrategy() == RestoreAndBankStrategy.House) {
+
+            util.teleToHouse();
+            if (!House.isInside()) {
+                return;
+            }
+
+            Execution.delay(2000, 2200);
+            util.restoreStatsInHouse(MoleState.getEventDispatcher());
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            if (!Execution.delayUntil(() -> !util.getJewelleryBox().isEmpty(), 5000)) {
+                throw new RuntimeException("Unable to find jewellery box");
+            }
+            var jb = util.getJewelleryBox().nearest();
+            if (!jb.getActiveDefinition().getActions().contains("Castle Wars")) {
+                while (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                    jb.interact("Teleport Menu");
+                    Execution.delay(1600, 3600);
+                }
+                if (Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null, 10000)) {
+                    InterfaceContainers.getAt(util.jb_interface_id).getComponent(2).getChild(6).interact("Castle Wars");
+                    Execution.delay(1600, 3600);
+                } else {
+                    throw new RuntimeException("stuck at jewellery box");
+                }
+            } else {
+                while (!util.castleWars.contains(Players.getLocal())) {
+                    jb.interact("Castle Wars");
+                    Execution.delay(1600, 3600);
+                }
+            }
+
+        } else {
+            if (!util.ringOfDuelingToEnclave()) {
+                throw new RuntimeException("Unable to tele to ferox");
+            }
+            if (!util.restoreAtFerox(MoleState.getEventDispatcher())) {
+                throw new RuntimeException("Unable to restore at ferox");
+            }
+            Execution.delay(1600, 3600);
+        }
+
+    }
+}

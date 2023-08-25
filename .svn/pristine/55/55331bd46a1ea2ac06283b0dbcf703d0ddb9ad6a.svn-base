@@ -1,0 +1,76 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.WaypointPath;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+import java.util.List;
+import java.util.Objects;
+
+import static com.neck_flexed.scripts.slayer.traverse.SteelDragonTraverseOverride.inCatacomds;
+
+public class AnkouCatacombsOverride implements TraverseOverride {
+    private WaypointPath path;
+    private List<Locatable> pathCoords1 = List.of(
+            new Coordinate(1667, 10047, 0),
+            new Coordinate(1676, 10047, 0),
+            new Coordinate(1687, 10047, 0),
+            new Coordinate(1689, 10038, 0),
+            new Coordinate(1691, 10027, 0),
+            new Coordinate(1691, 10015, 0),
+            new Coordinate(1690, 10006, 0),
+            new Coordinate(1687, 9999, 0),
+            new Coordinate(1681, 9996, 0),
+            new Coordinate(1672, 9996, 0),
+            new Coordinate(1662, 9996, 0),
+            new Coordinate(1654, 9996, 0),
+            new Coordinate(1640, 9994, 0)
+    );
+
+    private List<Locatable> pathCoordsAgil = List.of(
+            new Coordinate(1663, 10043, 0),
+            new Coordinate(1663, 10035, 0),
+            new Coordinate(1663, 10026, 0),
+            new Coordinate(1660, 10023, 0),
+            new Coordinate(1649, 10023, 0),
+            new Coordinate(1648, 10011, 0)
+    );
+
+    private static GameObject getCrack() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1648, 10008, 0))
+                .names("Crack")
+                .actions("Squeeze-through")
+                .results().first();
+    }
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        var p = Players.getLocal().getServerPosition();
+        if (!inCatacomds(p)) return false;
+        if (p.getY() < 10005) {
+            bot.di.sendMovement(destination);
+            Execution.delayUntil(() -> Objects.equals(Players.getLocal().getServerPosition(), destination), util::playerMoving, 1200, 1400);
+            return true;
+        }
+        if (Skill.AGILITY.getCurrentLevel() >= 17) {
+            if (bot.di.doDiInteractObstacleReachableArea(AnkouCatacombsOverride::getCrack, "Squeeze-through", pl -> pl.getServerPosition().getY() < 10005))
+                if (this.path == null)
+                    this.path = WaypointPath.create(pathCoordsAgil);
+            path.step(Traverser.OPTS);
+        } else {
+            if (this.path == null)
+                this.path = WaypointPath.create(pathCoords1);
+            path.step(Traverser.OPTS);
+        }
+        return true;
+    }
+}

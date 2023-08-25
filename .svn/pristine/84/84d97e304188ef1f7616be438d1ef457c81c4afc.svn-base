@@ -1,0 +1,109 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerState;
+import com.neck_flexed.scripts.slayer.SlayerUtil;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class TuraelStateManager extends StateManager<bot, SlayerState> {
+    public TuraelStateManager(bot bot) {
+        super(bot);
+    }
+
+    @Override
+    public SlayerState getNextState(SlayerState initiator) {
+        var skipFor = bot.settings().skipFor();
+        var task = SlayerTask.getCurrent();
+        var monster = TuraelMonster.fromSlayerTask();
+        var hasTask = SlayerTask.hasTask();
+
+        switch (initiator) {
+            case RESTORING:
+                if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+                    return SlayerState.BREAKING;
+                break;
+            case FIGHTING:
+                return SlayerState.GET_NEW_TASK;
+            case GET_NEW_TASK:
+                if (bot.settings().skipForStreak()) {
+                    // Skipping for streak
+                    if (hasTask && monster.isEmpty()) {
+                        // Error State
+                        var msg = String.format("Error State, unable to do tasks for streak with task: %s", SlayerTask.getCurrent());
+                        log.error(msg);
+                        bot.startPauseAndEndBotTimeout(msg);
+                        return SlayerState.STARTING;
+                    }
+
+                    var streakGoal = bot.settings().skipUntil();
+                    var streak = SlayerTask.getStreak();
+                    if (((streak + 1) % streakGoal) == 0) {
+                        // ending
+                        var msg = String.format("Got Task Streak we wanted: %s", streak);
+                        log.info(msg);
+                        bot.updateStatus(msg);
+                        ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+                        bot.stop(msg);
+                        return SlayerState.BREAKING;
+                    }
+                    // get turael task
+                } else if (!hasTask) {
+                    // get master task
+                    return SlayerState.GET_MASTER_TASK;
+                }
+                return SlayerState.GET_TURAEL_TASK;
+        }
+
+        var skipForTurael = bot.settings().skipForTurael();
+        if (!bot.settings().skipForStreak() && SlayerUtil.doesTaskMatch(task, skipForTurael)) {
+            var msg = String.format("Got Task we wanted: %s %s from Turael", SlayerTask.getCount(), task);
+            log.info(msg);
+            bot.updateStatus(msg);
+            ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+            bot.stop(msg);
+            return SlayerState.BREAKING;
+        }
+        if (!bot.settings().skipForStreak() && SlayerUtil.doesTaskMatch(task, skipFor)) {
+            var msg = String.format("Got Task we wanted: %s %s from %s", SlayerTask.getCount(), task, bot.settings().master());
+            log.info(msg);
+            bot.updateStatus(msg);
+            ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+            bot.stop(msg);
+            return SlayerState.BREAKING;
+        }
+
+        if (Bank.isOpen()) return SlayerState.RESTOCKING;
+
+        boolean needsRestock = bot.doWeNeedToRestock();
+
+        if (monster.isPresent() && !needsRestock) {
+            // has turael task
+            if (monster.get().getArea().contains(Players.getLocal())) {
+                if (util.anyOtherPlayersWithin(monster.get().getArea()))
+                    return SlayerState.HOPPING;
+                return SlayerState.FIGHTING;
+            } else {
+                return SlayerState.TRAVERSING;
+            }
+        }
+
+        if (Health.isPoisoned() || Health.getCurrentPercent() < 50) {
+            return SlayerState.RESTORING;
+        }
+
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return SlayerState.RESTOCKING;
+            return SlayerState.RESTORING;
+        }
+        return SlayerState.GET_NEW_TASK;
+    }
+}

@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.barrage;
+
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "BarrageState")
+public enum BarrageState {
+    STARTING(),
+    BREAKING(),
+    TRAVERSING(),
+    FIGHTING(),
+    LOOTING(),
+    LURING(),
+    STACKING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+    ;
+
+}

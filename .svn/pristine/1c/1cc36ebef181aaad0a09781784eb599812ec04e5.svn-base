@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.dk;
+
+public enum TraverseStrategy {
+    FremennikBoots4("Fremennik Sea Boots 4"),
+    RellekkaHouse("Rellekka House"),
+    WaterbirthHousePortal("Waterbirth House Portal"),
+    LunarHousePortal("Lunar Isle House Portal [BUGGY]");
+
+    private final String name;
+
+    TraverseStrategy(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+}

@@ -1,0 +1,72 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.BreakSettings;
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.LightSource;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.annotation.open.SettingsSection;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup()
+public interface MoleSettings extends Settings, BreakSettings {
+
+
+    @SettingsSection(title = "Breaking", description = "Settings for breaking and stopping", order = 2)
+    String breaking = "Breaking";
+
+    @Setting(key = "Region", title = "World Region", order = 0)
+    default WorldRegion worldRegion() {
+        return WorldRegion.AUSTRALIA;
+    }
+
+    @Setting(key = "Boost", title = "Stat Boost", order = 1)
+    default Boost boost() {
+        return Boost.Ranging;
+    }
+
+    @Setting(key = "BoostCount", title = "Stat Boost Amount", order = 2)
+    default int boostAmount() {
+        return 4;
+    }
+
+    @Setting(key = "StamCount", title = "Stamina Amount", order = 3)
+    default int staminaAmount() {
+        return 4;
+    }
+
+    @Setting(key = "Food", title = "Food", order = 4)
+    default Food food() {
+        return Food.Shark;
+    }
+
+
+    @Setting(key = "LightSource", title = "Light Source", order = 5)
+    default LightSource light() {
+        return LightSource.KandarinHeadgear;
+    }
+
+    @Setting(key = "RestoreAndBankStrategy", title = "Restore And Bank Strategy", order = 6)
+    default RestoreAndBankStrategy RestoreAndBankStrategy() {
+        return RestoreAndBankStrategy.House;
+    }
+
+    @Setting(key = "Equipment", title = "Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 7)
+    default EquipmentLoadout equipment() {
+        return null;
+    }
+
+    @Setting(key = "Spec", title = "Spec Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 8)
+    default EquipmentLoadout specEquipment() {
+        return null;
+    }
+
+    @Setting(key = "reboost", title = "Reboost if Boost under", order = 9)
+    default int reboost() {
+        return 10;
+    }
+
+}

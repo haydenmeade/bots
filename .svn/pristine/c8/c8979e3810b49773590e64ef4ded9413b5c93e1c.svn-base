@@ -1,0 +1,539 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.BankTraverser;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.neck_flexed.scripts.slayer.*;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.Items;
+import com.runemate.game.api.hybrid.util.collections.Pair;
+import com.runemate.game.api.osrs.local.RunePouch;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends BaseState<SlayerState> {
+    private static final int minRune = 6000;
+    private static final int maxRune = 14000;
+    private final SlayerMonster monster;
+    private final HouseConfig houseConfig;
+    private final boolean preferHouse;
+    private final com.neck_flexed.scripts.slayer.bot bot;
+    private final Loadout loadout;
+    private final HashSet<Rune> activeRunes = new HashSet<>();
+    private final Magic.Book desiredSpellbook;
+    private final BankTraverser traverser;
+    private final NeckBank bank;
+    private final Collection<TeleportSpellInfo> teleports = new ArrayList<>();
+    protected String error = null;
+    private boolean done;
+    private boolean loopDone = false;
+    private boolean didRunePouch = false;
+    private boolean emptiedRunePouch = false;
+    private Collection<Rune> optimalRunes;
+    private Map<Pattern, Integer>[] withdraw;
+    private Pattern[] except;
+    private List<SpriteItem> src;
+
+    public RestockState(com.neck_flexed.scripts.slayer.bot bot, HouseConfig houseConfig, boolean preferHouse) {
+        super(bot, SlayerState.RESTOCKING);
+        this.bot = bot;
+        this.houseConfig = houseConfig;
+        this.preferHouse = preferHouse;
+        this.monster = Monster.fromSlayerTask(bot.getOverrideTask()).orElse(null);
+        bot.prayerFlicker.disable();
+        this.loadout = monster != null
+                ? monster.getLoadout(bot)
+                : bot.loadouts.getForName(SlayerLoadout.MELEE_LOADOUT);
+
+        bot.loadouts.invalidateCurrent();
+
+        this.desiredSpellbook = bot.getDesiredSpellbook(monster, houseConfig);
+        this.traverser = new BankTraverser(bot, Players.getLocal().getServerPosition());
+        this.bot.setLoadoutOverriders();
+        this.bank = new NeckBank(bot);
+    }
+
+    private static boolean needToEmptyRunePouch(Collection<Rune> activeRunes) {
+
+        var rp = Inventory.getItems(items.runePouch).first();
+        if (rp == null) return false;
+        boolean isDivine = isDivine(rp);
+        for (var s : RunePouch.Slot.values()) {
+            if (!isDivine && s.equals(RunePouch.Slot.FOUR)) continue;
+            var r = RunePouch.getRune(s);
+            if (r == null) continue;
+            if (r.getQuantity(new ArrayList<>(Inventory.getItems())) >= maxRune) return true;
+            if (activeRunes.stream().noneMatch(a -> r.equals(a) || r.getReplacedRunes().contains(a)))
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean isDivine(SpriteItem rp) {
+        if (rp == null) return false;
+        var def = rp.getDefinition();
+        if (def == null) return false;
+        return def.getName().toLowerCase().contains("divine");
+    }
+
+    private int getRpSlotsFilled(boolean isDivine) {
+        var rpSize = isDivine ? 4 : 3;
+        return isDivine ? rpSize - RunePouch.getEmptySlots() : rpSize - RunePouch.getEmptySlots() - 1;
+    }
+
+    private boolean setupRunePouch(Collection<Rune> runes) {
+        var rp = Inventory.getItems(items.runePouch).first();
+        if (rp == null) return false;
+        log.debug("Setup rune pouch with {}", runes.toString());
+        boolean isDivine = isDivine(rp);
+        var rpSize = isDivine ? 4 : 3;
+        var empty = isDivine ? RunePouch.getEmptySlots() : RunePouch.getEmptySlots() - 1;
+        int i = 0;
+        for (var r : runes.stream().filter(r -> RunePouch.getQuantity(r) > 0).collect(Collectors.toList())) {
+            useRuneOnRunePouch(rp, r);
+        }
+        for (var r : runes) {
+            if (i >= rpSize) break;
+            if (useRuneOnRunePouch(rp, r)) continue;
+            i++;
+        }
+        var used = rpSize - empty;
+        return Math.min(runes.size(), rpSize) == used;
+    }
+
+    private boolean useRuneOnRunePouch(SpriteItem rp, Rune r) {
+        var iRune = Inventory.getItems(r.getName()).first();
+        if (iRune == null) return true;
+        log.debug("Tring to put {} in rune pouch", r);
+        di.sendItemUseOn(rp, iRune);
+        Execution.delay(200, 250);
+        return false;
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        bot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public void activate() {
+        var str = "Restock";
+        if (monster != null) {
+            str += " for " + monster + " at " + monster.getLocation(bot).getLocation();
+        } else {
+            str += " for " + bot.settings().master();
+        }
+        bot.updateStatus(str);
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.loopDone && this.didRunePouch) {
+            this.done = true;
+            return;
+        }
+
+        if (this.loopDone) {
+            if (bot.loadouts.isCurrentIsDirty()) {
+                bot.loadouts.equip(loadout);
+                this.loopDone = false;
+            }
+            if (activeRunes.isEmpty() || !hasRunePouch()) {
+                this.didRunePouch = true;
+                this.emptiedRunePouch = true;
+            } else if (emptiedRunePouch || Inventory.isFull()) {
+                if (!didRunePouch) {
+                    this.didRunePouch = setupRunePouch(this.optimalRunes);
+                    if (didRunePouch) {
+                        loopDone = false;
+                    }
+                }
+            }
+            if (didRunePouch && !bot.loadouts.isCurrentIsDirty())
+                return;
+        }
+
+        if (!didRunePouch) {
+            emptyRunePouch();
+        }
+
+        if (withdraw != null && except != null && bank.checkBankCompleted(except, withdraw)) {
+            Bank.close();
+            this.loopDone = true;
+            bot.loadouts.equip(loadout);
+            return;
+        }
+
+        if (!Bank.isOpen()) {
+            traverser.traverseAndOpen();
+            return;
+        }
+        this.src = util.inventoryEquipmentBankSource();
+        bot.setItemCache(src);
+        // bank open
+        if (this.withdraw == null)
+            this.withdraw = getWithdraw();
+        if (this.except == null)
+            this.except = getExcept();
+
+        if (bank.doBankLoop(except, withdraw)) {
+            Bank.close();
+            this.loopDone = true;
+            if (!didRunePouch) {
+                emptyRunePouch();
+            }
+        } else {
+            bot.loadouts.equip(loadout);
+            bot.loadouts.invalidateCurrent();
+            if (!didRunePouch) {
+                emptyRunePouch();
+            }
+        }
+
+    }
+
+    private void emptyRunePouch() {
+        var rp = Inventory.getItems(items.runePouch).first();
+        if (rp == null) {
+            emptiedRunePouch = true;
+            return;
+        }
+        if (getRpSlotsFilled(isDivine(rp)) > Inventory.getEmptySlots()) {
+            clickEmptyRunePouch(rp);
+            this.emptiedRunePouch = false;
+            return;
+        }
+        if (rp != null && !emptiedRunePouch && needToEmptyRunePouch(activeRunes)) {
+            clickEmptyRunePouch(rp);
+            Execution.delayUntil(RunePouch::isEmpty, 3000, 4000);
+            this.emptiedRunePouch = RunePouch.isEmpty();
+        } else {
+            this.emptiedRunePouch = true;
+        }
+    }
+
+    private void clickEmptyRunePouch(SpriteItem rp) {
+        if (rp == null) return;
+        log.debug("Emptying rune pouch");
+        var ma = MenuAction.forSpriteItem(rp, "Empty");
+        if (ma == null) return;
+        di.send(ma);
+    }
+
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        Stopwatch timer = Stopwatch.createStarted();
+        var l = new ArrayList<Map<Pattern, Integer>>();
+        var houseConfig = bot.getHouseConfig();
+
+        if (monster != null) {
+            handleTraverseBank(l, this.getBestTraverseBank(List.of(monster.getLocation(bot).getTraverseMethods()), bot.settings().preferHouseTraverse(), monster.toString()));
+        }
+        handleMasterBank(l, bot.settings().master());
+        if (bot.settings().skipTasksEnabled() && bot.settings().skipTasksWithTurael()) {
+            handleMasterBank(l, SlayerMaster.TURAEL);
+        }
+
+        // MISC ITEMS
+        for (var item : util.parseCsvRegexString(bot.settings().miscItems())) {
+            if (Items.contains(src, item))
+                l.add(NeckBank.toMap(1, item));
+        }
+        // ALCHING
+        if (desiredSpellbook.equals(Magic.Book.STANDARD) && util.parseCsvRegexString(bot.settings().alchItems()).length > 0) {
+            activeRunes.add(Rune.FIRE);
+            activeRunes.add(Rune.NATURE);
+        }
+
+        // SPELLBOOK SWAP
+        if (!houseConfig.getAltar().equals(HouseConfig.Altar.None)) {
+            this.teleports.add(TeleportSpellInfo.HOUSE);
+        }
+
+        log.debug("traverse load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        if (monster != null)
+            handleMonsterBank(l, monster);
+
+
+        // traverseBank tele
+
+        // restore tele
+        if (houseConfig.getPool().equals(HouseConfig.Pool.Ornate) && util.hasHouseTeleport(src)) {
+            this.teleports.add(TeleportSpellInfo.HOUSE);
+        } else {
+            l.add(NeckBank.toMap(1, items.ringOfDueling));
+        }
+
+        l.add(handleTeleportBank(teleports));
+
+        if (this.activeRunes.size() > 0) {
+            var rb = this.getRuneBank(l, activeRunes);
+            l.add(rb.getLeft());
+            this.optimalRunes = rb.getRight();
+
+            if (Items.contains(src, items.runePouch)) {
+                l.add(NeckBank.toMap(1, items.runePouch));
+            }
+        }
+
+        // FOOD Last
+        if (monster != null && monster.needsFood(bot))
+            l.add(NeckBank.toMap(monster.getFood(bot), bot.settings().food().gameName()));
+
+        log.debug("withdraw load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        return l.toArray(Map[]::new);
+    }
+
+    private Map<Pattern, Integer> handleTeleportBank(Collection<TeleportSpellInfo> teleportsList) {
+        var teleports = teleportsList.stream().distinct().collect(Collectors.toList());
+        var m = new HashMap<Pattern, Integer>();
+        for (var t : teleports) {
+            if (t.equals(TeleportSpellInfo.HOUSE) && !bot.settings().altar().equals(HouseConfig.Altar.None)) {
+                if (Magic.Book.STANDARD.isCurrent() && Magic.Book.STANDARD.equals(desiredSpellbook)) {
+                    activeRunes.addAll(TeleportSpellInfo.HOUSE.getRunes().keySet());
+                } else {
+                    m.putAll(util.getHouseTeleport(Magic.Book.ANCIENT, 10).getItems());
+                }
+            } else if (desiredSpellbook.equals(t.getBook())) {
+                activeRunes.addAll(t.getRunes().keySet());
+            } else {
+                m.put(t.getTeleportTab(), t.equals(TeleportSpellInfo.HOUSE) ? 10 : 1);
+            }
+        }
+        return m;
+    }
+
+    private void handleMonsterBank(ArrayList<Map<Pattern, Integer>> l, @NotNull SlayerMonster monster) {
+        var location = monster.getLocation(bot);
+        var isBarrageTask = location.isBarrage() && bot.barrageTasksAvailable();
+
+        var l1 = monster.getLoadout(bot);
+        if (l1 != null)
+            l.add(l1.getBank(bot.loadouts.getLoadoutOverriders()));
+
+        if (monster.getBoneType() != null && !monster.getBoneType().equals(BoneType.None)) {
+            if (monster.getBoneType().equals(BoneType.Bones)
+                    && bot.settings().bonecrusher()
+                    && Items.contains(src, items.bonecrusher)) {
+                l.add(NeckBank.toMap(1, items.bonecrusher));
+            } else if (monster.getBoneType().equals(BoneType.Ashes)
+                    && bot.settings().ashSanctifier()
+                    && Items.contains(src, items.ashSanctifier)) {
+                l.add(NeckBank.toMap(1, items.ashSanctifier));
+            }
+        }
+        if (monster.getProtection() != null)
+            l.add(monster.getProtection().getBank());
+        if (monster.getFinishItem() != null)
+            l.add(monster.getFinishItem().getBank());
+        if (monster.needsLightSource())
+            l.add(NeckBank.toMap(1, getLightSource(src)));
+        if (location.getTraverseItems() != null && !location.getTraverseItems().isEmpty())
+            l.add(location.getTraverseItems());
+        if (monster.isDragon())
+            l.add(bot.settings().antifire().getBank(1));
+        var antiAmount = monster.getTask().equals(Task.LIZARDMEN) ? 2 : 1;
+        if (monster.isPoisonous())
+            l.add(bot.settings().antipoison().getBank(antiAmount));
+        var boost = bot.getBoost(loadout);
+        var boostAmnt = monster.getTask().equals(Task.LIZARDMEN) ? 4 : getBoostAmount(monster);
+        if (!boost.equals(Boost.None))
+            l.add(boost.getBank(boostAmnt, !monster.needsFood(bot)));
+
+        if (isBarrageTask) {
+            // barrage+lure equipment
+            var l2 = bot.loadouts.getForName(SlayerLoadout.LURE_LOADOUT);
+            if (l2 != null)
+                l.add(l2.getBank(bot.loadouts.getLoadoutOverriders()));
+
+            // add barrage runes
+            this.activeRunes.addAll(bot.settings().spell().getRunes());
+            if (NeckSpell.getBestBlood() != null)
+                this.activeRunes.addAll(NeckSpell.getBestBlood().getRunes());
+
+        } else {
+            if (monster.supportsSpec(bot)) {
+                var l2 = bot.loadouts.getForName(SlayerLoadout.SPEC_LOADOUT);
+                if (l2 != null)
+                    l.add(l2.getBank(bot.loadouts.getLoadoutOverriders()));
+            }
+
+            if (monster.getLocation(bot).getCannonSpot() != null && bot.settings().useCannon()) {
+                if (bot.getCannon() != null && !bot.getCannon().isCannonPlaced()) {
+                    l.add(util.cannonBank());
+                } else {
+                    l.add(NeckBank.toMap(0, Pattern.compile("^Cannonball|Granite cannonball$")));
+                }
+            }
+        }
+    }
+
+    private int getBoostAmount(SlayerMonster monster) {
+        var taskAmount = SlayerTask.getCount();
+        if (taskAmount == 0) taskAmount = 99;
+        var loadout = monster.getLoadout(bot);
+        if (loadout.getName().equals(SlayerLoadout.MELEE_LOADOUT.toString())) {
+            var bankBoostsPer = bot.settings().bankBoostsPer();
+            if (bankBoostsPer <= 0) bankBoostsPer = 100;
+            return (int) Math.ceil((double) taskAmount / bankBoostsPer);
+        }
+        return 1;
+    }
+
+    private void handleMasterBank(ArrayList<Map<Pattern, Integer>> l, SlayerMaster master) {
+        if (bot.settings().npcContactEnabled() && bot.canSpellbookSwap(Magic.Book.LUNAR) && Skill.MAGIC.getCurrentLevel() >= 67) {
+            activeRunes.add(Rune.AIR);
+            activeRunes.add(Rune.ASTRAL);
+            activeRunes.add(Rune.COSMIC);
+        } else {
+            handleTraverseBank(l, this.getBestTraverseBank(List.of(master.getTraverses()), bot.settings().preferHouseTraverse(), master.toString()));
+        }
+    }
+
+    private Pattern getLightSource(Collection<SpriteItem> items) {
+        for (var l : LightSource.values()) {
+            if (l.equals(LightSource.None)) continue;
+
+            if (Items.contains(items, l.getPattern()))
+                return l.getPattern();
+        }
+        return Pattern.compile("");
+    }
+
+    private boolean hasRunePouch() {
+        return Bank.contains(items.runePouch) || Inventory.contains(items.runePouch);
+    }
+
+    private void handleTraverseBank(ArrayList<Map<Pattern, Integer>> l, TraverseMethod.TraverseBank traverseBank) {
+        if (traverseBank != null) {
+            if (traverseBank.getInfo() != null) {
+                this.teleports.add(traverseBank.getInfo());
+            }
+            l.add(traverseBank.getItems());
+            this.activeRunes.addAll(traverseBank.getRunes());
+        }
+    }
+
+    private Pair<Map<Pattern, Integer>, Collection<Rune>> getRuneBank(ArrayList<Map<Pattern, Integer>> l, Collection<Rune> runes) {
+        var m = new HashMap<Pattern, Integer>();
+        var items = new ArrayList<>(NeckBank.getItemSourceFromBank(l));
+        var runesWithInfiniteSourceRemoved = runes.stream()
+                .filter(r -> !NeckBank.hasInfiniteSource(items, r))
+                .collect(Collectors.toList());
+        var optimal = getOptimalRunes(runesWithInfiniteSourceRemoved);
+        for (var r : optimal) {
+            var expectedCount = getBestRuneCount(r, minRune, maxRune);
+            m.put(Pattern.compile(r.getName()), expectedCount);
+        }
+        return new Pair<>(m, optimal);
+    }
+
+    private int getBestRuneCount(Rune r, int min, int max) {
+        var onMe = r.getQuantity();
+        if (onMe > min && onMe < max) {
+            return onMe;
+        }
+        var absMin = 50;
+        var total = getRuneCountTotal(r);
+        if (total < absMin) {
+            log.error("Out of runes {}", r);
+            return total;
+        }
+        return Math.min(max, total);
+    }
+
+    private Collection<Rune> getOptimalRunes(Collection<Rune> runes) {
+        if (runes == null) return Collections.emptyList();
+        var comboRunes = Arrays.stream(Rune.values()).filter(Rune::isCombinationRune)
+                .filter(
+                        r -> getRuneCountTotal(r) >= 460
+                ).collect(Collectors.toList());
+        var runesDistinct = runes.stream().filter(Objects::nonNull)
+                .distinct().collect(Collectors.toList());
+        var loadout = monster == null ? bot.loadouts.getEquipped() : monster.getLoadout(bot);
+        if (loadout != null && Objects.equals(loadout.getName(), SlayerLoadout.BARRAGE_LOADOUT.toString())) {
+            log.debug("Bursting don't use combo runes");
+            return runesDistinct;
+        }
+        log.debug("Runes {}", runesDistinct.toString());
+        log.debug("Available Combo Runes {}", comboRunes.toString());
+        var bestRunes = getOptimalRunes(runesDistinct, comboRunes);
+        log.debug("Best Runes {}", bestRunes.toString());
+        return bestRunes;
+    }
+
+    private Collection<Rune> getOptimalRunes(Collection<Rune> runes, List<Rune> comboRunes) {
+        return comboRunes.stream().map(
+                c -> getRunesWithCombo(runes, c)
+        ).min(Comparator.comparingInt(Collection::size)).orElse(runes);
+    }
+
+    protected int getRuneCountTotal(Rune r) {
+        return r.getQuantity() + Bank.getQuantity(r.getName());
+    }
+
+    private Collection<Rune> getRunesWithCombo(Collection<Rune> runes, Rune combo) {
+        return runes.stream()
+                .map(r -> combo.getReplacedRunes().contains(r) ? combo : r).distinct().collect(Collectors.toList());
+    }
+
+    private TraverseMethod.TraverseBank getBestTraverseBank(Collection<TraverseMethod> traverses, boolean preferHouse, String to) {
+        var items = src;
+        var maxPriority = traverses.stream()
+                .filter(t -> t.getPriority() > 0)
+                .filter(t -> t.meetsRequirement(houseConfig, items))
+                .max(Comparator.comparingInt(TraverseMethod::getPriority));
+        if (maxPriority.isPresent()) return maxPriority.get().getBank(houseConfig, this.preferHouse);
+
+        if (preferHouse) {
+            for (var traverse : traverses.stream().filter(t -> t.isHouse(houseConfig)).collect(Collectors.toList())) {
+                if (traverse.meetsRequirement(houseConfig, src)) {
+                    return traverse.getBank(this.houseConfig, this.preferHouse);
+                }
+            }
+        }
+        for (var traverse : traverses) {
+            if (traverse.meetsRequirement(houseConfig, src)) {
+                return traverse.getBank(this.houseConfig, this.preferHouse);
+            }
+        }
+        var msg = String.format("Unable to find a traverse to %s, options are %s", to, util.toString(traverses));
+        log.error(msg);
+        bot.startPauseAndEndBotTimeout(msg);
+        return null;
+    }
+
+    protected Pattern[] getExcept() {
+        return new Pattern[0];
+    }
+
+
+}

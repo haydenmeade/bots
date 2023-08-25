@@ -1,0 +1,51 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+
+public class HydraStateManager extends StateManager<bot, HydraState> {
+    private final HydraListener hydraListener;
+
+    public HydraStateManager(bot bot, HydraListener hydraListener) {
+        super(bot);
+        this.hydraListener = hydraListener;
+    }
+
+    @Override
+    public HydraState getNextState(HydraState initiator) {
+        switch (initiator) {
+            case POST_LOOT:
+                return HydraState.FIGHTING;
+            case LOOTING:
+                if (bot.breakManager.breaking() || bot.breakManager.stopBot() || bot.doWeNeedToRestock())
+                    return HydraState.RESTORING;
+                return HydraState.POST_LOOT;
+        }
+
+        if (com.neck_flexed.scripts.hydra.bot.inBossRoom()) {
+            if (bot.getHydra() == null || bot.getHydra().getNpc() == null)
+                return HydraState.LOOTING;
+            return HydraState.FIGHTING;
+        }
+        if (com.neck_flexed.scripts.hydra.bot.inHydraInstance()) {
+            return HydraState.ENTERING_LAIR;
+        }
+
+        if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+            return HydraState.BREAKING;
+
+        if (Bank.isOpen()) return HydraState.RESTOCKING;
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (Health.getCurrentPercent() == 100 && Prayer.getPoints() > 20 && SpecialAttack.getEnergy() >= 80 && !Banks.getLoaded().isEmpty())
+                return HydraState.RESTOCKING;
+            return HydraState.RESTORING;
+        }
+
+        return HydraState.TRAVERSING;
+    }
+}

@@ -1,0 +1,61 @@
+package com.neck_flexed.scripts.common;
+
+import com.neck_flexed.scripts.sire.Traverse;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class HouseUtil {
+    public static final String FaladorPark = "Falador Park";
+
+    public static boolean JbToCastleWars() {
+        if (!Execution.delayUntil(() -> !util.getJewelleryBox().isEmpty(), 5000)) {
+            return false;
+        }
+        var jb = Traverse.getJewelleryBox().nearest();
+        if (!jb.getActiveDefinition().getActions().contains("Castle Wars")) {
+            while (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                jb.interact("Teleport Menu");
+                Execution.delay(1600, 3600);
+            }
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null, 10000)) {
+                InterfaceContainers.getAt(util.jb_interface_id).getComponent(2).getChild(6).interact("Castle Wars");
+                Execution.delay(1600, 3600);
+            } else {
+                return false;
+            }
+        } else {
+            while (!util.castleWars.contains(Players.getLocal())) {
+                jb.interact("Castle Wars");
+                Execution.delay(1600, 3600);
+            }
+        }
+        return true;
+    }
+
+    public static boolean JbToFallyPark() {
+        if (!Execution.delayUntil(() -> !util.getJewelleryBox().isEmpty(), 5000)) {
+            return false;
+        }
+        var jb = Traverse.getJewelleryBox().nearest();
+        if (!jb.getActiveDefinition().getActions().contains(FaladorPark)) {
+            while (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                jb.interact("Teleport Menu");
+                Execution.delay(1600, 3600);
+            }
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null, 10000)) {
+                InterfaceContainers.getAt(util.jb_interface_id).getComponent(6).getChild(7).interact(FaladorPark);
+                Execution.delay(1600, 3600);
+            } else {
+                return false;
+            }
+        } else {
+            while (House.isInside()) {
+                jb.interact(FaladorPark);
+                Execution.delay(1600, 3600);
+            }
+        }
+        return true;
+    }
+}

@@ -1,0 +1,25 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.Execution;
+
+public class junk {
+    public static final String[] junkList = new String[]{
+            "Vial",
+            "Pie dish",
+            "Bowl",
+            "Jug"
+    };
+
+    public static void dropJunk() {
+        var junks = Inventory.getItems(junkList);
+        if (junks.isEmpty()) return;
+        junks.forEach(s -> {
+                    DirectInput.send(MenuAction.forSpriteItem(s, "Drop"));
+                    Execution.delay(100, 200);
+                }
+        );
+    }
+}

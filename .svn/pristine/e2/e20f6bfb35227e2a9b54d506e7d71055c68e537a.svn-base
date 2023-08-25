@@ -1,0 +1,213 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<SarachnisState> {
+    private static final Area entryArea = new Area.Rectangular(new Coordinate(1840, 9919, 0), new Coordinate(1847, 9912, 0));
+    private final com.neck_flexed.scripts.sarachnis.bot bot;
+    private final Traverser traverser;
+    private boolean needToHop = false;
+    private String error;
+    private Path path1;
+    private Path path2;
+
+    public TraverseState(com.neck_flexed.scripts.sarachnis.bot bot) {
+        this.bot = bot;
+        this.traverser = new Traverser(bot,
+                createHouseConfig(bot.settings()),
+                new Coordinate(1702, 3575, 0),
+                new int[]{6711, 6455, 6967, 6966, 6712},
+                null,
+                new XericTraverse(Xeric.Glade),
+                new ItemTraverse(items.bookOfDead, "Reminisce", "Lunch by the Lancalliums", "'Lunch by the Lancalliums' - Hosidius"),
+                new HouseXericTraverse(Xeric.Glade),
+                new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Hosidius),
+                new HouseLocationTraverse(House.Location.KOUREND)
+        );
+    }
+
+    private static GameObject getWeb(int x, int y) {
+        return GameObjects.newQuery()
+                .on(new Coordinate(x, y, 0))
+                .names("Web")
+                .actions("Slash")
+                .results().first();
+    }
+
+    // Webs: // Turns to Slashed web after slashed
+    // Web 1
+    // Web 1833,9944 - Slash
+    private static GameObject getWeb1() {
+        return getWeb(1833, 9944);
+    }
+
+    // Web 2
+    // Web 1841,9933 - Slash
+    private static GameObject getWeb2() {
+        return getWeb(1841, 9933);
+    }
+
+    // Web 3
+    // Web 1847,9919 - Slash/Peek
+    private static GameObject getWeb3() {
+        return getWeb(1847, 9919);
+    }
+
+    private static GameObject getTempleDoor() {
+        // to go from west to east side
+        return GameObjects.newQuery()
+                .on(new Coordinate(1825, 9973, 0))
+                .ids(34843)
+                .actions("Open")
+                .results().first();
+    }
+    // Web 4
+    // Thick Web  - "Quick-enter"
+
+    private static GameObject getLadderDungeonEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1702, 3574, 0))
+                .ids(34862)
+                .actions("Climb-down")
+                .results().first();
+    }
+
+    private static GameObject getBossRoomEntry() {
+        return GameObjects.newQuery()
+                .names("Thick Web")
+                .actions("Quick-enter")
+                .results().first();
+    }
+
+    private static GameObject getStairsDungeonEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1669, 3567, 0))
+                .ids(34865)
+                .actions("Climb-down")
+                .results().first();
+    }
+
+    private HouseConfig createHouseConfig(SarachnisSettings settings) {
+        return new HouseConfig(
+                settings.hasOrnateJewelleryBox() ? HouseConfig.JewelleryBox.Ornate : HouseConfig.JewelleryBox.None,
+                HouseConfig.Altar.None,
+                settings.hasOrnatePool() ? HouseConfig.Pool.Ornate : HouseConfig.Pool.None,
+                false, false, settings.hasMountedXerics());
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public SarachnisState deactivate(EventDispatcher d) {
+        if (areas.isInBossRoom()) {
+            return SarachnisState.FIGHTING;
+        }
+        if (needToHop)
+            return SarachnisState.HOPPING;
+        return SarachnisState.STARTING;
+    }
+
+    @Override
+    public SarachnisState get() {
+        return SarachnisState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return needToHop || areas.isInBossRoom();
+    }
+
+    private boolean inEntryArea() {
+        return entryArea.contains(Players.getLocal());
+    }
+
+    @Override
+    public void executeLoop() {
+        var p = Players.getLocal().getServerPosition();
+        var bre = getBossRoomEntry();
+        if (inEntryArea() && bre != null) {
+            if (!Players.newQuery().within(areas.bossRoom).results().isEmpty()) {
+                needToHop = true;
+                return;
+            }
+            bre.interact("Quick-enter");
+            this.bot.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MISSILES);
+            Execution.delayUntil(areas::isInBossRoom, util::playerAnimatingOrMoving, 3000, 4000);
+        } else if (areas.isInForthosDungeon()) {
+            // south of web2 cut web 3
+            if (p.getY() < 9933) {
+                var web3 = getWeb3();
+                if (web3 != null) {
+                    DirectInput.send(MenuAction.forGameObject(web3, "Slash"));
+                    Execution.delayUntil(() -> getWeb3() == null, util::playerAnimatingOrMoving, 1000, 3000);
+                    return;
+                }
+                util.moveTo(new Coordinate(1842, 9912, 0));
+                Execution.delayUntil(this::inEntryArea, 1000, 2000);
+                // south of web1 cut web 2
+            } else if (p.getY() < 9944) {
+                var web2 = getWeb2();
+                if (web2 != null) {
+                    DirectInput.send(MenuAction.forGameObject(web2, "Slash"));
+                    Execution.delayUntil(() -> getWeb2() == null, util::playerAnimatingOrMoving, 1000, 3000);
+                    return;
+                }
+                util.moveTo(new Coordinate(1843, 9927, 0));
+                Execution.delayUntil(() -> getWeb3() != null, util::playerAnimatingOrMoving, 2000, 4000);
+                // cut web 1
+            } else {
+                var web1At = new Coordinate(1833, 9944, 0);
+                var web1 = getWeb1();
+                if (web1 == null && p.getY() > 9950) {
+                    // move to web 1
+                    if (this.path2 == null)
+                        this.path2 = BresenhamPath.buildTo(web1At);
+                    if (path2 != null) {
+                        if (!path2.step())
+                            path2 = null;
+                    } else {
+                        log.error("Could not generate path to web1");
+                    }
+                } else if (web1 != null) {
+                    DirectInput.send(MenuAction.forGameObject(web1, "Slash"));
+                    Execution.delayUntil(() -> getWeb1() == null, util::playerAnimatingOrMoving, 5000, 6000);
+                } else {
+                    util.moveTo(new Coordinate(1838, 9936, 0));
+                    Execution.delayUntil(() -> getWeb2() != null, util::playerAnimatingOrMoving, 2000, 4000);
+                }
+            }
+
+        } else if (getLadderDungeonEntrance() != null) {
+            var le = getLadderDungeonEntrance();
+            if (le == null) return;
+            DirectInput.send(MenuAction.forGameObject(le, "Climb-down"));
+            Execution.delayUntil(areas::isInForthosDungeon, util::playerAnimatingOrMoving, 5000, 6000);
+        } else {
+            traverser.executeLoop();
+        }
+    }
+}

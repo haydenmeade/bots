@@ -1,0 +1,42 @@
+package com.neck_flexed.scripts.common;
+
+import java.util.ArrayList;
+import java.util.regex.Pattern;
+
+public enum Boost {
+    None(""),
+    Ranging("Ranging potion"),
+    Ranging_Divine("Divine ranging potion"),
+    ImbuedHeart(items.imbuedHeart.toString()),
+    Combat("Super combat potion"),
+    Combat_Divine("Divine super combat potion"),
+    Super_Set("Super strength", "Super attack", "Super defence"),
+    Super_Set_Divine("Divine super defence potion", "Divine super attack potion", "Divine super strength potion"),
+    ;
+
+    private final Pattern[] patternAny;
+    private final Pattern[] patternFull;
+
+    Boost(String... patterns) {
+        var patternsAny = new ArrayList<Pattern>();
+        var patternsFull = new ArrayList<Pattern>();
+        for (var p : patterns) {
+            if (p == null || p.isEmpty()) break;
+            patternsAny.add(Pattern.compile(p + ".*"));
+            if (p.equals(items.imbuedHeart.toString()))
+                patternsFull.add(Pattern.compile(p));
+            else
+                patternsFull.add(Pattern.compile(p + "\\(4\\)"));
+        }
+        this.patternAny = patternsAny.toArray(new Pattern[0]);
+        this.patternFull = patternsFull.toArray(new Pattern[0]);
+    }
+
+    public Pattern[] patternFull() {
+        return patternFull;
+    }
+
+    public Pattern[] patternAny() {
+        return patternAny;
+    }
+}

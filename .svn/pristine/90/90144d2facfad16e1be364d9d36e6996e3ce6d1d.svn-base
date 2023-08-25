@@ -1,0 +1,30 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.sire.sire</main-class>
+    <name>Necks Abyssal Sire Slayer</name>
+    <tag-line>Slays the sire</tag-line>
+    <description>Kills the abyssal sire for you.</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>0.0.24</version>
+    <internal-id>AbyssalSire</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.sire.SireSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>slayer</tag>
+        <tag>boss</tag>
+        <tag>abyssal sire</tag>
+        <tag>sire</tag>
+    </tags>
+</manifest>

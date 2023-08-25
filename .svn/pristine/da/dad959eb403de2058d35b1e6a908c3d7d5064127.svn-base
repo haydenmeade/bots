@@ -1,0 +1,190 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.slayer.SlayerState;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.Objects;
+
+@Log4j2(topic = "FightState")
+public class FightState extends BaseState<SlayerState> implements EngineListener {
+    private final com.neck_flexed.scripts.slayer.turael.bot bot;
+    private final PrayerFlicker prayerFlicker;
+    private final Loadouts loadouts;
+    private final TuraelMonster turaelMonster;
+    private final Prayer[] boostPrayers;
+    private final Loadout loadout;
+    private int tick = 0;
+    private boolean done = false;
+    private Cannon cannon;
+    private Npc currentTarget;
+
+    public FightState(com.neck_flexed.scripts.slayer.turael.bot bot) {
+        super(SlayerState.FIGHTING);
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.loadout = loadouts.getAnyCombat();
+        this.turaelMonster = TuraelMonster.fromSlayerTask().orElse(null);
+        this.prayerFlicker = bot.prayerFlicker;
+        this.boostPrayers = loadout.getBoostPrayers();
+        if (turaelMonster.getCannon() != null && Cannon.hasCannon()) {
+            this.cannon = new Cannon();
+        }
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        var l = new ArrayList<EventListener>();
+        l.add(this);
+        if (this.cannon != null)
+            l.add(cannon);
+        return l.toArray(new EventListener[0]);
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        bot.prayerFlicker.setActivePrayers();
+        if (this.cannon != null && this.cannon.isCannonPlaced()) {
+            if (!this.cannon.pickup()) {
+                log.error("unable to pickup cannon in deactivate");
+            }
+        }
+        if (!SlayerTask.hasTask()) {
+            bot.addKill();
+        }
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Fighting %s, count %s", turaelMonster, SlayerTask.getCount()));
+        loadouts.equip(loadout);
+        bot.prayerFlicker.setActivePrayers(util.joinPrayers(loadout.getBoostPrayers(), turaelMonster.getPrayer()));
+        bot.setPreviousTuraelMonster(turaelMonster);
+    }
+
+    @Override
+    public String fatalError() {
+        if (turaelMonster == null)
+            return "Unable to find slayer monster from task: " + SlayerTask.getCurrent();
+        if (turaelMonster.equals(TuraelMonster.Lizards) && !Inventory.contains("Ice cooler")) {
+            return "Lizards require ice coolers";
+        }
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            tick++;
+            var p = Players.getLocal();
+            if (p == null) return;
+            var pos = p.getServerPosition();
+            if (pos == null) return;
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void executeLoop() {
+        this.done = !SlayerTask.hasTask();
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        if (this.cannon != null) {
+            if (!cannon.isCannonPlaced()) {
+                if (pos.equals(turaelMonster.getCannon())) {
+                    cannon.place();
+                    Execution.delayUntil(
+                            () -> cannon.isCannonPlaced(),
+                            util::playerMoving,
+                            4000, 5000);
+                } else {
+                    util.moveTo(turaelMonster.getCannon());
+                    Execution.delayUntil(
+                            () -> Players.getLocal().getServerPosition().equals(turaelMonster.getCannon()),
+                            util::playerMoving,
+                            1000, 2000);
+                }
+                return;
+            }
+            if (!cannon.isStarted()) {
+                cannon.startUp();
+                Execution.delayUntil(() -> cannon.isStarted(), 2000, 3600);
+                return;
+            }
+            if (cannon.isReloading()) {
+                return;
+            }
+        }
+
+        util.boostIfNeeded(loadout.getStyle(), bot.settings().reboost());
+        if (currentTarget != null && !turaelMonster.getArea().contains(currentTarget)) {
+            currentTarget = null;
+        }
+
+        var attackingMeOther = Npcs.newQuery()
+                .within(turaelMonster.getArea())
+                .filter(n -> Objects.equals(p, n.getTarget())
+                        && Arrays.stream(turaelMonster.getAllNames()).noneMatch(s -> s.equalsIgnoreCase(n.getName())))
+                .results().nearest();
+        var attackingMe = Npcs.newQuery()
+                .within(turaelMonster.getArea())
+                .filter(n -> Objects.equals(p, n.getTarget()))
+                .results().nearest();
+        if (attackingMeOther != null) {
+            currentTarget = attackingMeOther;
+        } else if (attackingMe != null && !attackingMe.equals(currentTarget)) {
+            currentTarget = attackingMe;
+        }
+
+        if (turaelMonster.equals(TuraelMonster.Lizards) && currentTarget != null && currentTarget.getHealthGauge() != null
+                && currentTarget.getHealthGauge().getPercent() * 40 <= 4) {
+            var iceCooler = Inventory.getItems("Ice cooler").first();
+            if (iceCooler != null) {
+                DirectInput.sendItemUseOn(iceCooler, currentTarget);
+                Execution.delay(1200, 1800);
+                currentTarget = null;
+                return;
+            }
+        }
+        if (loadouts.isCurrentIsDirty())
+            loadouts.equip(loadout);
+        if (this.currentTarget == null || !this.currentTarget.isValid() ||
+                (currentTarget.getHealthGauge() != null && currentTarget.getHealthGauge().getPercent() == 0))
+            this.currentTarget = turaelMonster.getNpcsWithin().nearest();
+        var target = p.getTarget();
+        if (!Objects.equals(target, currentTarget)) {
+            util.attack(currentTarget);
+        }
+        Execution.delay(600, 800);
+
+        if (Traversal.getRunEnergy() < 45 && !Traversal.isStaminaEnhanced() && SlayerTask.getCount() > 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+        if (!Traversal.isRunEnabled() && Traversal.getRunEnergy() > 10)
+            Traversal.toggleRun();
+
+    }
+}

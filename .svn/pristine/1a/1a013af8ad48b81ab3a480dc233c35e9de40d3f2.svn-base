@@ -1,0 +1,47 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.Loadout;
+import com.neck_flexed.scripts.common.Loadouts;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+
+public interface SlayerMonster {
+
+
+    Loadout getLoadout(Loadouts loadouts, boolean canBarrage);
+
+    boolean isMonster(Npc npc);
+
+    String[] getAllNames();
+
+    NpcQueryBuilder getNpcsQuery();
+
+    LocatableEntityQueryResults<Npc> getNpcsWithin();
+
+    String getMonsterName();
+
+    String[] getSuperiorNames();
+
+    int[] getPathRegions();
+
+    com.runemate.game.api.hybrid.location.Area getArea();
+
+    com.neck_flexed.scripts.common.traverse.TraverseMethod[] getTraverseMethods();
+
+    com.runemate.game.api.hybrid.location.Coordinate getCannon();
+
+    com.runemate.game.api.osrs.local.hud.interfaces.Prayer getPrayer();
+
+    SlayerFinishItem getFinishItem();
+
+    SlayerProtectionItem getProtection();
+
+    boolean isInSafeArea();
+
+    TraverseOverride getTraverseOverride();
+
+    boolean isLeafBladed();
+
+    boolean isBarrageMonster();
+}

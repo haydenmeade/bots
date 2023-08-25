@@ -1,0 +1,32 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.cerberus.cerb</main-class>
+    <name>Necks Cerberus</name>
+    <tag-line>Kills the 3 head doggo</tag-line>
+    <description>Kills Cerberus</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>0.0.40</version>
+    <open-source>true</open-source>
+    <internal-id>Neck_Cerb</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.cerberus.CerbSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>cerberus</tag>
+        <tag>boss</tag>
+        <tag>slayer</tag>
+        <tag>dog</tag>
+        <tag>pet</tag>
+    </tags>
+</manifest>

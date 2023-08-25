@@ -1,0 +1,111 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.TeleportSpellInfo;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+public interface TraverseMethod {
+
+    Collection<Requirement> requirements(HouseConfig houseConfig);
+
+    boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition);
+
+    default boolean isHouse(HouseConfig houseConfig) {
+        return requirements(houseConfig).stream().anyMatch(Requirement::isHouse);
+    }
+
+    default int getPriority() {
+        return 0;
+    }
+
+    default boolean meetsRequirement(HouseConfig houseConfig, Collection<SpriteItem> itemsSource) {
+        for (var r : this.requirements(houseConfig)) {
+            if (r.meetsRequirement(houseConfig, itemsSource)) {
+                if (r.isHouse() && !util.hasHouseTeleport(itemsSource))
+                    continue;
+                var items = r.items();
+                if (items == null || items.isEmpty() || util.hasItemsForTraverse(items, itemsSource))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    default TraverseBank getBank(HouseConfig houseConfig, boolean preferHouse) {
+        var reqs = this.requirements(houseConfig);
+        Requirement useRequirement = null;
+
+        if (preferHouse) {
+            for (var r : reqs.stream().filter(Requirement::isHouse).collect(Collectors.toList())) {
+                if (r.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                    useRequirement = r;
+                    break;
+                }
+            }
+        }
+
+        if (useRequirement == null)
+            for (var r : reqs) {
+                if (r.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                    useRequirement = r;
+                    break;
+                }
+            }
+
+        if (useRequirement == null) return null;
+        var itemMap = NeckBank.toMap(1, useRequirement.items().toArray(new Pattern[0]));
+        var runes = useRequirement.runes();
+        return new TraverseBank(itemMap, runes, useRequirement.isHouse() ? TeleportSpellInfo.HOUSE : useRequirement.spellInfo());
+    }
+
+    @RequiredArgsConstructor
+    public static class TraverseBank {
+        @Getter
+        private final Map<Pattern, Integer> items;
+        private final Collection<Rune> runes;
+
+        @Getter
+        private final TeleportSpellInfo info;
+
+        public TraverseBank() {
+            items = Collections.emptyMap();
+            runes = Collections.emptyList();
+            info = null;
+        }
+
+        public TraverseBank(Map<Pattern, Integer> items, Collection<Rune> runes) {
+            this.items = items;
+            this.runes = runes;
+            this.info = null;
+        }
+
+        public TraverseBank(Map<Pattern, Integer> items) {
+            this.items = items;
+            runes = Collections.emptyList();
+            info = null;
+        }
+
+        public static TraverseBank getHouseBank(Magic.Book onBook, int count) {
+            return new TraverseBank(Collections.emptyMap(), Collections.emptyList(), TeleportSpellInfo.HOUSE);
+        }
+
+        public Collection<Rune> getRunes() {
+            return runes;
+        }
+
+    }
+}
+

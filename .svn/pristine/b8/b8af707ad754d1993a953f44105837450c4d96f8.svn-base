@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockTask")
+public class RestockState extends com.neck_flexed.scripts.common.state.RestockState<SireSettings, SireState> {
+
+    public RestockState(sireBot sireBot) {
+        super(sireBot, SireState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+                NeckBank.getBoostsNeeded(1,
+                        false,
+                        bot.settings().phase1Boost(),
+                        bot.settings().phase2Boost()
+                ),
+                Bank.contains(items.stamina4Dose)
+                        ? NeckBank.toMap(1, items.stamina4Dose)
+                        : Collections.emptyMap(),
+                NeckBank.toMap(1, bot.settings().antipoison().pattern()),
+                NeckBank.dramenStaffIfNoAchievementDiary(),
+                bot.settings().hasHouseFairyRing() ?
+                        Collections.emptyMap() :
+                        NeckBank.toMap(1, items.ringOfDueling),
+                NeckBank.toMap(0, bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Blood rune", "Death rune", "Soul rune", "Air rune",
+                        "Unsired",}),
+                new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape, items.argdougneCloak, items.questCape, items.dramenStaff, items.ashSanctifier, items.houseTab,},
+                util.toItemList(this.bot.settings().phase1Equipment()),
+                util.toItemList(this.bot.settings().phase2Equipment()),
+                util.toItemList(this.bot.settings().specDefenceEquipment()),
+                util.toItemList(this.bot.settings().specDpsEquipment())
+        );
+    }
+
+}

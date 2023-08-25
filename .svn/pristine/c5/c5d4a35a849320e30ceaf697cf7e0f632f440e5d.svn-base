@@ -1,0 +1,157 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.collections.Pair;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class GetNewTaskState implements LoopState<TuraelState> {
+    private static final Map<Pattern, String> infiniteTeleItemMap = Map.of(
+            items.questCape, "Teleport",
+            Pattern.compile(items.desertAmulet4), "Nardah",
+            Pattern.compile(items.royalSeedPod), "Commune"
+    );
+    private final com.neck_flexed.scripts.turael.bot bot;
+    private boolean done = false;
+    private boolean didError;
+
+    public GetNewTaskState(bot bot) {
+        this.bot = bot;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Get New Task");
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        var monster = Monster.fromSlayerTask();
+        var hasTask = SlayerTask.hasTask();
+        if (bot.settings().skipForStreak()) {
+
+            if (hasTask && monster.isEmpty()) {
+                // Error State
+                if (this.didError) return TuraelState.STARTING;
+                this.didError = true;
+                var msg = String.format("Error State, unable to do tasks for streak with task: %s", SlayerTask.getCurrent());
+                log.error(msg);
+                bot.startPauseAndEndBotTimeout(msg);
+                return TuraelState.STARTING;
+            }
+
+            var streakGoal = bot.settings().skipUntil();
+            var streak = SlayerTask.getStreak();
+            if (((streak + 1) % streakGoal) == 0) {
+                // ending
+                var msg = String.format("Got Task Streak we wanted: %s", streak);
+                log.info(msg);
+                bot.updateStatus(msg);
+                ClientUI.showAlert(ClientUI.AlertLevel.INFO, msg);
+                bot.stop(msg);
+                return TuraelState.BREAKING;
+            }
+
+            return TuraelState.GET_TURAEL_TASK;
+        } else if (!hasTask && monster.isEmpty()) {
+            // get master task
+            return TuraelState.GET_MASTER_TASK;
+        }
+        return TuraelState.GET_TURAEL_TASK;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.GET_NEW_TASK;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        // decide if in safe place or go to one.
+        var p = Players.getLocal();
+        if (p == null) return;
+        var playerLevel = p.getCombatLevel();
+        boolean isSafe = (bot.getPreviousMonster() == null || bot.getPreviousMonster().isInSafeArea())
+                && Npcs.newQuery().
+                filter(n -> {
+                    // if will agro
+                    var willAggro = (n.getLevel() * 2 + 1) >= playerLevel;
+                    // if any already targeting
+                    var targetingMe = Objects.equals(n.getTarget(), p);
+                    // filter out if none of these
+                    return willAggro || targetingMe;
+                })
+                .results()
+                .isEmpty();
+
+        if (isSafe) {
+            done = true;
+            return;
+        }
+
+        var infiniteTeleItem = getInfiniteTeleItem();
+        var goToHouse = Inventory.contains(items.constructionCape)
+                || Equipment.contains(items.constructionCape);
+        if (goToHouse) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                Execution.delayUntil(House::isInside, util::playerAnimating, 6000, 10000);
+                Execution.delay(600, 1200);
+                this.done = true;
+            }
+        } else if (infiniteTeleItem != null) {
+            var r = p.getServerPosition().getContainingRegionId();
+            infiniteTeleItem.getLeft().interact(infiniteTeleItem.getRight());
+            Execution.delayUntil(
+                    () -> r != Players.getLocal().getServerPosition().getContainingRegionId(), util::playerAnimating, 3000, 4000);
+            Execution.delay(600, 1200);
+            this.done = true;
+        } else {
+            var r = p.getServerPosition().getContainingRegionId();
+            util.ringOfDuelingToEnclave();
+            Execution.delayUntil(
+                    () -> r != Players.getLocal().getServerPosition().getContainingRegionId(), util::playerAnimating, 3000, 4000);
+            Execution.delay(600, 1200);
+            this.done = true;
+        }
+    }
+
+    private @Nullable Pair<SpriteItem, String> getInfiniteTeleItem() {
+        for (var kv : infiniteTeleItemMap.entrySet()) {
+            var item = Inventory.contains(kv.getKey())
+                    ? Inventory.getItems(kv.getKey()).first()
+                    : Equipment.getItems(kv.getKey()).first();
+            if (item != null) {
+                return new Pair<>(item, kv.getValue());
+            }
+        }
+        return null;
+    }
+}

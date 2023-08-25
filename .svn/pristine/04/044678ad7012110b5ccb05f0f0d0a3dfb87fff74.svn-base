@@ -1,0 +1,24 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.entities.details.Locatable;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RespiratoryListener")
+public class RespiratoryListener implements NpcListener {
+    public int getId(Locatable o) {
+        var identifiable = (Identifiable) o;
+        return (o == null) ? 0 : identifiable.getId();
+    }
+
+    @Override
+    public void onNpcDeath(DeathEvent event) {
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && getId(event.getSource()) == sire.RespId) {
+            log.debug(String.format("Respiratory system DEAD on: %s", event.getSource().getPosition()));
+            SireState.setRespiratoryKilled(SireState.getRespiratoryKilled() + 1);
+        }
+    }
+}

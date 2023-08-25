@@ -1,0 +1,45 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.slayer.barrage.bot</main-class>
+    <name>Necks Barrager</name>
+    <tag-line>Necks Nechs</tag-line>
+    <description>Barrage / Burst monsters in Kourend dungeon</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>1.0.6</version>
+    <internal-id>NECK_Barrage</internal-id>
+    <open-source>true</open-source>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>SLAYER</category>
+        <category>COMBAT</category>
+        <category>MAGIC</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.slayer.barrage.BarrageSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.breaking.BreakSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.loot.LootSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.traverse.HouseSettingsFairyRing</exclude>
+        <exclude>com.neck_flexed.scripts.common.traverse.HouseSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>barrage</tag>
+        <tag>burst</tag>
+        <tag>nechryael</tag>
+        <tag>abyssal</tag>
+        <tag>abyssal demon</tag>
+        <tag>demon</tag>
+        <tag>jelly</tag>
+        <tag>dust devil</tag>
+        <tag>devil</tag>
+        <tag>dust</tag>
+        <tag>nech</tag>
+        <tag>neck</tag>
+        <tag>slayer</tag>
+        <tag>magic</tag>
+    </tags>
+</manifest>

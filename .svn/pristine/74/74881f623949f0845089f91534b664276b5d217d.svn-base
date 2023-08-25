@@ -1,0 +1,100 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<CerbState> {
+    private static final Coordinate destTile = new Coordinate(1292, 1253, 0);
+    private static final Area dangerArea =
+            Area.rectangular(new Coordinate(2814, 9854, 0), new Coordinate(2877, 9802, 0));
+    private final PrayerFlicker prayerFlicker;
+    private String error;
+
+    public TraverseState(PrayerFlicker prayerFlicker) {
+        this.prayerFlicker = prayerFlicker;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        cerb.updateStatus("Traversing");
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        if (cerb.atLairEntrance() || (cerb.isInBossRoomIncludingEntrance() && !cerb.isInBossRoom())) {
+            prayerFlicker.setActivePrayers();
+            return CerbState.ENTERING_LAIR;
+        } else if (cerb.isInBossRoom()) {
+            return CerbState.FIGHTING;
+        }
+        return CerbState.STARTING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return destTile.equals(Players.getLocal().getPosition())
+                || cerb.isInBossRoom()
+                || cerb.isInBossRoomIncludingEntrance()
+                || cerb.atLairEntrance();
+    }
+
+    @Override
+    public void executeLoop() {
+        // traverse from bank to cerb room entrance.
+        if (House.isInside() && House.getCurrent() != House.Location.TAVERLEY) {
+            ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires house in taverly");
+        }
+        if (House.isInside() && House.getCurrent() == House.Location.TAVERLEY) {
+            var portal = House.getPortals().nearest();
+            if (portal != null) {
+                portal.interact("Enter");
+            }
+        }
+        if (!House.isInside()
+                && !cerb.isAboveGround()
+                && !cerb.isInBossRoomIncludingEntrance()
+                && !cerb.atLairEntrance()
+                && !cerb.inCerbDungeonArea()
+                && !cerb.inTaverlyDungeon()) {
+            util.teleToHouse();
+            Execution.delayUntil(() -> House.isInside(), 5000, 6000);
+            return;
+        }
+        if (dangerArea.contains(Players.getLocal())) {
+            prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+        } else {
+            prayerFlicker.setActivePrayers();
+        }
+
+        var path = WebPath.buildTo(destTile);
+        if (path != null) {
+            path.step();
+            Action.set(Action.Move);
+        } else {
+            log.error("Could not generate path to cerb lair");
+        }
+    }
+}

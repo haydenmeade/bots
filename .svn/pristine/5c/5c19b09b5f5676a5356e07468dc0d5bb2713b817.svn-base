@@ -1,0 +1,512 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.WaypointPath;
+import com.runemate.game.api.hybrid.queries.GameObjectQueryBuilder;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.GroundItems;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.util.collections.Pair;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.Objects;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<DkState> implements EngineListener {
+    private static final Coordinate destTile = dkAreas.safespotTile;
+    private static final int PET_ROCK_GROUND_ID = 3695;
+    private static final int PET_ROCK_NPC_ID = 5983;
+    static String down = "Climb-down";
+    static String up = "Climb-up";
+    static String ladder = "Ladder";
+    private final dk bot;
+    private final Loadouts loadouts;
+    private final PrayerFlicker prayerFlicker;
+    private final Traverser traverser;
+    private final Coordinate traverserDest = new Coordinate(2524, 3740, 0);
+    int ladderIdx = 0;
+    private Traverser webTraverser;
+    private String error;
+    private Path path2;
+    private Path path3;
+    private Path pathThrowAxe;
+
+    public TraverseState(dk bot, Loadouts loadouts, PrayerFlicker prayerFlicker) {
+        super(DkState.TRAVERSING);
+        this.bot = bot;
+        this.loadouts = loadouts;
+        this.prayerFlicker = prayerFlicker;
+        this.traverser = new Traverser(
+                bot, bot.getHouseConfig(),
+                traverserDest,
+                new int[]{10042, 10553, 10297, 10552, 10808, 10809, 10810, 11064, 10554},
+                null,
+                new TeleportTraverse(Magic.Lunar.WATERBIRTH_TELEPORT, 72, Rune.WATER, Rune.ASTRAL, Rune.LAW),
+                new ItemTraverse(items.enchantedLyre, "Play", "Waterbirth Island"),
+                new HousePortalTraverse(PortalNexusTeleport.WaterbirthIsland),
+                new TeleportTraverse(Magic.Lunar.MOONCLAN_TELEPORT, 69, Rune.EARTH, Rune.ASTRAL, Rune.LAW),
+                new HousePortalTraverse(PortalNexusTeleport.LunarIsle),
+                new ItemTraverse(items.fremBoots4, "Teleport"),
+                new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Rellekka),
+                new HouseLocationTraverse(House.Location.RELLEKKA)
+        );
+    }
+
+    static List<Pair<GameObjectQueryBuilder, Coordinate>> laddersInReverse() {
+        return Arrays.asList(
+                getLadder(down, 1890, 4407, 1)
+                , getLadder(down, 1864, 4388, 2)
+                , getLadder(up, 1863, 4371, 1)
+                , getLadder(down, 1826, 4362, 2)
+                , getLadder(up, 1802, 4369, 1)
+                , getLadder(down, 1797, 4382, 2)
+                , getLadder(up, 1799, 4388, 1)
+                , getLadder(down, 1811, 4394, 2)
+                , getLadder(down, 1834, 4389, 3)
+                , getLadder(up, 1823, 4404, 2)
+                , getLadder(down, 1808, 4405, 3));
+    }
+
+    static Pair<GameObjectQueryBuilder, Coordinate> getLadder(String upOrDown, int x, int y, int z) {
+        return new Pair(getLadder(upOrDown, new Coordinate(x, y, z)), new Coordinate(x, y, z));
+    }
+
+    static GameObjectQueryBuilder getLadder(String upOrDown, Coordinate pos) {
+        return GameObjects.newQuery()
+                .on(pos)
+                .names(ladder)
+                .actions(upOrDown);
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this};
+    }
+
+    @Override
+    public void onTickStart() {
+        doPrayers();
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return destTile.equals(Players.getLocal().getServerPosition())
+                || dkAreas.inBossRoom();
+    }
+
+    private boolean NpcHasName(LocatableEntityQueryResults<Npc> npcs, String name) {
+        for (var n : npcs) {
+            if (n == null) continue;
+            var def = n.getActiveDefinition();
+            if (def == null) continue;
+            var npcName = def.getName();
+            if (npcName == null) continue;
+            if (npcName.equals(name)) return true;
+        }
+        return false;
+
+    }
+
+    private boolean NpcHasIds(LocatableEntityQueryResults<Npc> npcs, int... ids) {
+        for (var n : npcs) {
+            if (n == null) continue;
+            var def = n.getActiveDefinition();
+            if (def == null) continue;
+            var npcName = def.getId();
+            if (Arrays.stream(ids).anyMatch(i -> npcName == i)) return true;
+        }
+        return false;
+
+    }
+
+    private void doPrayers() {
+        var npcs = Npcs.newQuery()
+                .names("Dagannoth", "Giant Rock Crab", "Rock lobster", "Wallasalki", "Boulder")
+                .reachable()
+                .results();
+
+        if (npcs == null || npcs.isEmpty()) {
+            this.prayerFlicker.disable();
+            return;
+        }
+        if (NpcHasName(npcs, "Wallasalki")) {
+            this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MAGIC);
+            return;
+        }
+        if (NpcHasName(npcs, "Dagannoth") && NpcHasIds(npcs, 5942)) {
+// 3185 = melee dag
+            this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MISSILES);
+            return;
+        }
+        this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+    }
+
+    Coordinate getNextLadderCoord() {
+        if (Players.getLocal() == null || Players.getLocal().getServerPosition() == null) return null;
+        var z = Players.getLocal().getServerPosition().getPlane();
+        var ladders = laddersInReverse();
+        var realIdx = ladders.size() - ladderIdx - 1;
+        if (ladders.size() > realIdx && realIdx >= 0) {
+            return ladders.get(realIdx).getRight();
+        }
+        return null;
+    }
+
+    Pair<GameObject, Coordinate> getNextLadder() {
+        var s = laddersInReverse().stream()
+                .map(q -> new Pair<GameObject, Coordinate>(q.getLeft().results().first(), q.getRight()))
+                .filter(p -> p.getLeft() != null)
+                .filter(g -> g.getLeft().getPosition() != null && g.getLeft().getPosition().isReachable())
+                .findFirst();
+        return s.orElse(null);
+    }
+
+    GameObject getDungeonEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(2519, 3738, 0))
+                .names("Cave entrance")
+                .results()
+                .first();
+
+    }
+
+    private void createPathToThrowingAxe(Coordinate pos) {
+        pathThrowAxe = WaypointPath.create(
+                pos
+                , new Coordinate(3022, 4764, 0)
+                , new Coordinate(2530, 10161, 0)
+                , new Coordinate(2544, 10157, 0)
+                , dkAreas.throwAxeTile
+        );
+    }
+
+    @Override
+    public void executeLoop() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        if (!pos.isLoaded()) return;
+
+        if (dkAreas.inDungeon2()) {
+            // DUNGEON 2
+            // Climb-down "Ladder" on 1808,4405,3
+            // Climb-up "Ladder" on 1823,4404,2
+            // Climb-down "Ladder" on 1834,4389,3
+            // down 1811,4394,2
+            // up 1799,4388,1
+            // down 1797,4382,2
+            // up 1802,4369,1
+            // down 1826,4362,2
+            // up 1863,4371,1
+            // down 1864,4388,2
+            // down 1890,4407,1
+
+            var l = getNextLadder();
+            log.debug(l);
+            if (l == null || l.getLeft() == null || l.getLeft().getActiveDefinition() == null) {
+                log.debug("no next ladder found");
+                var root = EnterLairState.getRoot();
+                if (dkAreas.inPeekArea()) {
+                    util.moveTo(dkAreas.safespotTile);
+                    Execution.delayUntil(() -> dkAreas.safespotTile.equals(pos), util::playerMoving, 600, 1200);
+                    loadouts.equipStyle(CombatStyle.Melee, true);
+                } else if (root != null) {
+                    // interact root
+                    DirectInput.send(MenuAction.forGameObject(root, "Step-over"));
+                    Execution.delayUntil(() -> dkAreas.peekArea.contains(Players.getLocal()), util::playerMoving, 2400, 3600);
+                } else if (dkAreas.bottomArea.contains(Players.getLocal())) {
+                    if (this.path3 == null)
+                        this.path3 = BresenhamPath.buildTo(dkAreas.peekArea);
+                    if (path3 != null) {
+                        if (!path3.step())
+                            this.path3 = WebPath.buildTo(dkAreas.peekArea);
+                        Execution.delay(600, 1200);
+                    } else {
+                        log.error("Could not generate path to peek area");
+                    }
+
+                } else {
+                    var nextLadderCoord = getNextLadderCoord();
+                    if (nextLadderCoord == null) {
+                        log.debug("null next ladder");
+                        return;
+                    }
+                    log.debug("stepping towards ladder {}", nextLadderCoord);
+                    var path = BresenhamPath.buildTo(nextLadderCoord);
+                    if (path != null) {
+                        path.step();
+                        Execution.delay(600, 1200);
+                    } else {
+                        log.error("Could not generate path isloaded");
+                    }
+                }
+            } else {
+                var z = Players.getLocal().getPosition().getPlane();
+                if (!l.getRight().isLoaded()) {
+                    var path = BresenhamPath.buildTo(l.getRight());
+                    if (path != null) {
+                        path.step();
+                        Execution.delay(600, 1200);
+                    } else {
+                        log.error("Could not generate path isloaded2");
+                    }
+                    return;
+                }
+                var currLadder = laddersInReverse().indexOf(l);
+                if (currLadder > -1) {
+                    ladderIdx = currLadder;
+                    log.debug("setting ladderIdx to: {}", ladderIdx);
+                }
+                log.debug("ladder index: {}", ladderIdx);
+
+                var action = l.getLeft().getActiveDefinition().getActions().contains(up) ? up : down;
+                log.debug("Doing next ladder " + action);
+                DirectInput.send(MenuAction.forGameObject(l.getLeft(), action));
+                if (Execution.delayUntil(() -> z != Players.getLocal().getPosition().getPlane(),
+                        util::playerAnimatingOrMoving,
+                        1600, 2800)) {
+                    ladderIdx++;
+                    log.debug("setting ladderIdx+ to: {}", ladderIdx);
+                }
+            }
+        } else if (dkAreas.inDungeon1()) {
+            log.debug("dungeon 1");
+            if (pos.getX() >= 2491) {
+                log.debug("past door {}", pos);
+                if (areDoorSupportsDown()) {
+                    var ldr = GameObjects.newQuery()
+                            .on(new Coordinate(2546, 10143, 0))
+                            .names("Iron ladder")
+                            .results()
+                            .nearest();
+                    if (ldr == null) {
+                        log.error("no iron ladder");
+                        return;
+                    }
+                    this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MAGIC);
+                    DirectInput.send(MenuAction.forGameObject(ldr, down));
+                    Execution.delayUntil(dkAreas::inDungeon2,
+                            util::playerAnimatingOrMoving,
+                            1200, 1600);
+                } else if (dkAreas.throwAxeTile.equals(pos)) {
+                    log.debug("spec door support");
+                    specTheDoorSupport();
+                    bot.loadouts.invalidateCurrent();
+                } else {
+                    log.debug("throw axe");
+                    if (dkAreas.throwAxeTile.isLoaded() && dkAreas.throwAxeTile.isVisible()) {
+                        util.moveTo(dkAreas.throwAxeTile);
+                        Execution.delayUntil(() -> dkAreas.throwAxeTile.equals(pos),
+                                util::playerAnimatingOrMoving
+                                , 2400, 3600);
+                    } else {
+                        log.debug("throw axe walk");
+                        if (this.pathThrowAxe == null)
+                            createPathToThrowingAxe(pos);
+                        if (pathThrowAxe != null) {
+                            if (!pathThrowAxe.step())
+                                this.pathThrowAxe = null;
+                            Execution.delay(600, 1200);
+                        } else {
+                            log.error("Could not generate path to throw axe");
+                        }
+                    }
+                }
+            } else if (hasDroppedRock()) {
+                log.debug("dropped rock {}", pos);
+                if (pos.getX() >= 2491) return;
+                if (dkAreas.standRockTile.equals(pos)) {
+                    GameObject d = getDoor();
+                    if (d == null) {
+                        log.error("no door");
+                        return;
+                    }
+                    DirectInput.send(MenuAction.forGameObject(d, "Open"));
+                    Execution.delay(1200, 1400);
+                    util.moveTo(new Coordinate(2506, 10163, 0));
+                    Execution.delay(1200, 1400);
+                } else {
+                    log.debug("moving to stand on other side");
+                    util.moveTo(dkAreas.standRockTile);
+                    Execution.delayUntil(() -> dkAreas.standRockTile.equals(pos),
+                            util::playerAnimatingOrMoving
+                            , 800, 1200);
+                }
+            } else if (hasDroppedRockWrong()) {
+                log.debug("dropped rock wrong");
+                var rock = Npcs.newQuery()
+                        .ids(PET_ROCK_NPC_ID)
+                        .results()
+                        .first();
+                if (rock != null) {
+                    DirectInput.send(MenuAction.forNpc(rock, "Take"));
+                }
+                var rockGi = GroundItems.newQuery()
+                        .ids(PET_ROCK_GROUND_ID)
+                        .results()
+                        .first();
+                if (rockGi != null) {
+                    DirectInput.send(MenuAction.forGroundItem(rockGi, "Take"));
+                }
+                Execution.delay(600, 1200);
+            } else if (dkAreas.dropRockTile.equals(pos)) {
+                log.debug("dropping rock");
+                dropRock();
+            } else {
+                log.debug("path 2");
+                if (this.path2 == null)
+                    this.path2 = BresenhamPath.buildTo(dkAreas.dropRockTile);
+                if (path2 != null) {
+                    if (!path2.step())
+                        this.path2 = WebPath.buildTo(dkAreas.dropRockTile);
+                    Execution.delay(600, 1200);
+                } else {
+                    log.error("Could not generate path to drop rock");
+                }
+            }
+
+        } else if (getDungeonEntrance() != null) {
+            // "Enter" "Cave entrance" on 2519,3738,0 leads to 2442,10146,0
+            var de = getDungeonEntrance();
+            if (de == null) return;
+            log.debug("dungeon");
+            DirectInput.send(MenuAction.forGameObject(de, "Enter"));
+            Execution.delayUntil(dkAreas::inDungeon1,
+                    util::playerAnimatingOrMoving,
+                    10000, 11000);
+            Execution.delay(2400, 3600);
+        } else if (
+                dkAreas.waterbirth.contains(p)
+                        || dkAreas.frem.contains(p)
+                        || dkAreas.lunar.contains(p)
+                        || bot.settings().traverseStrategy().equals(TraverseStrategy.FremennikBoots4)
+        ) {
+            if (webTraverser == null)
+                webTraverser = Traverser.webPathTraverser(traverserDest);
+            webTraverser.executeLoop();
+        } else {
+            traverser.executeLoop();
+        }
+    }
+
+    private boolean hasDroppedRockWrong() {
+        var npc = Npcs.newQuery()
+                .ids(PET_ROCK_NPC_ID)
+                .results().first();
+        return (npc != null && !Objects.equals(npc.getServerPosition(), dkAreas.dropRockTile))
+                || !GroundItems.newQuery()
+                .ids(PET_ROCK_GROUND_ID)
+                .results()
+                .isEmpty();
+    }
+
+    private void specTheDoorSupport() {
+        // spec with throwaxe on "Destroy" "Door-support" on 2543,10143,0
+        var wpn = Equipment.getItemIn(Equipment.Slot.WEAPON);
+        if (wpn == null || wpn.getDefinition() == null) return;
+        if (!wpn.getDefinition().getName().equals(dk.runeThrowingAxe)) {
+            util.equip(dk.runeThrowingAxe);
+            Execution.delayUntil(() -> {
+                        var wpn2 = Equipment.getItemIn(Equipment.Slot.WEAPON);
+                        return wpn2 == null || wpn2.getDefinition() == null || wpn2.getDefinition().getName().equals(dk.runeThrowingAxe);
+                    }
+                    , 600, 1200);
+        } else {
+            util.activateSpec();
+            Execution.delay(60, 100);
+            var ds = Npcs.newQuery()
+                    .on(new Coordinate(2543, 10143, 0))
+                    .names("Door-support")
+                    .results()
+                    .first();
+            if (ds == null) {
+                log.error("no door support for spec");
+                return;
+            }
+            DirectInput.send(MenuAction.forNpc(ds, "Destroy"));
+            Execution.delayUntil(this::areDoorSupportsDown, 1200, 1800);
+        }
+    }
+
+    private boolean areDoorSupportsDown() {
+        // up 2256
+        // anim=2257?
+        // down=2258
+        var up = Npcs.newQuery()
+                .on(new Coordinate(2545, 10145, 0))
+                .names("Door-support")
+                .ids(2256)
+                .results()
+                .isEmpty();//true
+        var down = Npcs.newQuery()
+                .on(new Coordinate(2545, 10145, 0))
+                .ids(2257, 2256, 2255, 2958, 2258)
+                .results()
+                .isEmpty();//true
+        return up && !down;
+    }
+
+    private GameObject getDoor() {
+        // "Open" "Door"
+        return GameObjects.newQuery()
+                .names("Door")
+                .actions("Open")
+                .results()
+                .nearest();
+    }
+
+    private void dropRock() {
+        var rock = Inventory.getItems(dk.petRock).first();
+        if (rock == null) {
+            log.debug("no rock in inventory");
+            return;
+        }
+        rock.interact("Drop");
+        log.debug(String.format("Dropped rock on: %s", Players.getLocal().getServerPosition()));
+        Execution.delayUntil(this::hasDroppedRock, 600, 1200);
+    }
+
+    private boolean hasDroppedRock() {
+        var rock = Npcs.newQuery()
+                .on(dkAreas.dropRockTile)
+                .ids(PET_ROCK_NPC_ID)
+                .results()
+                .first();
+        return rock != null;
+    }
+}

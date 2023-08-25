@@ -1,0 +1,85 @@
+package com.neck_flexed.scripts.common;
+
+import com.google.common.collect.ImmutableMap;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import javax.annotation.Nullable;
+import java.util.Map;
+
+@RequiredArgsConstructor
+@Getter
+public enum SlayerLocation {
+    CatacombsofKourend("Catacombs of Kourend"),
+    StrongholdSlayerDungeon("Stronghold Slayer Dungeon"),
+    KaruulmSlayerDungeon("Karuulm Slayer Dungeon"),
+    ChasmofFire("Chasm of Fire"),
+    BrimhavenDungeon("Brimhaven Dungeon"),
+    TaverleyDungeon("Taverley Dungeon"),
+    WitchavenDungeon("Witchaven Dungeon"),
+    WaterfallDungeon("Waterfall Dungeon"),
+    SlayerTower("Slayer Tower"),
+    GodWarsDungeon("God Wars Dungeon"),
+    KalphiteLair("Kalphite Lair"),
+    TaskonlyKalphiteCave("task-only Kalphite Cave"),
+    KrakenCove("Kraken Cove"),
+    IntheLighthouse("In the Lighthouse"),
+    WaterbirthIsland("Waterbirth Island"),
+    LizardmanCanyon("Lizardman Canyon"),
+    Molch("Molch"),
+    LizardmanSettlement("Lizardman Settlement"),
+    SmokeDevilDungeon("Smoke Devil Dungeon"),
+    SmokeDungeon("Smoke Dungeon"),
+    DeathPlateau("Death Plateau"),
+    TrollStronghold("Troll Stronghold"),
+    Keldagrim("Keldagrim"),
+    SouthofMountQuidamortem("South of Mount Quidamortem"),
+    FremennikIsles("Fremennik Isles"),
+    FremennikSlayerDungeon("Fremennik Slayer Dungeon"),
+    MythsGuildDungeon("Myths' Guild Dungeon"),
+    MournerTunnels("Mourner Tunnels"),
+    LithkrenVault("Lithkren Vault"),
+    AncientCavern("Ancient Cavern"),
+    StrongholdofSecurity("Stronghold of Security"),
+    FossilIsland("Fossil Island"),
+    AsgarnianIceDungeon("Asgarnian Ice Dungeon"),
+    OgreEnclave("Ogre Enclave"),
+    BrineRatCavern("Brine Rat Cavern"),
+    Zanaris("Zanaris"),
+    EvilChickensLair("Evil Chicken's Lair"),
+    TheAbyss("The Abyss"),
+    KebosSwamp("Kebos Swamp"),
+    TheBattlefront("The Battlefront"),
+    ForthosDungeon("Forthos Dungeon"),
+    IorwerthDungeon("Iorwerth Dungeon"),
+    JormungandsPrison("Jormungand's Prison"),
+    Darkmeyer("Darkmeyer"),
+    Slepe("Slepe"),
+    MeiyerditchLaboratories("Meiyerditch Laboratories"),
+    IsleofSouls("Isle of Souls"),
+    GiantsDen("Giants' Den");
+    private static final Map<String, SlayerLocation> locations;
+
+    static {
+        ImmutableMap.Builder<String, SlayerLocation> builder = new ImmutableMap.Builder<>();
+
+        for (SlayerLocation location : values()) {
+            builder.put(location.getName().toLowerCase(), location);
+        }
+
+        locations = builder.build();
+    }
+
+    private final String name;
+
+    @Nullable
+    public static SlayerLocation getLocation(@Nullable String name) {
+        if (name == null) return null;
+        return locations.get(name.toLowerCase());
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+}

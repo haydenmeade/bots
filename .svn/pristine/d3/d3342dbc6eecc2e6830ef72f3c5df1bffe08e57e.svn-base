@@ -1,0 +1,292 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+    public static final List<Integer> rangedBoosts = Arrays.asList(
+            23742, // divine
+            23739,
+            23736,
+            23733,
+            173, // ranged
+            171,
+            169,
+            2444);
+
+    public static final List<Integer> combatBoosts = Arrays.asList(
+            23694, //1 dose divine
+            23691, //2 dose divine
+            23688, //3 dose divine
+            23685,  //4 dose divine
+            12701, //1 dose
+            12699, //2 dose
+            12697, //3 dose
+            12695  //4 dose
+    );
+    public static final List<Integer> attackBoosts = Arrays.asList(
+            23706, //1 dose divine
+            23703, //2 dose divine
+            23700, //3 dose divine
+            23697,  //4 dose divine
+            149, //1 dose
+            147, //2 dose
+            145, //3 dose
+            2436 //4 dose
+    );
+    public static final List<Integer> strengthBoosts = Arrays.asList(
+            23718, //1 dose divine
+            23715, //2 dose divine
+            23712, //3 dose divine
+            23709,  //4 dose divine
+            161, //1 dose
+            159, //2 dose
+            157, //3 dose
+            2440 //4 dose
+    );
+    public static final List<Integer> defenceBoosts = Arrays.asList(
+            23730, //1 dose divine
+            23727, //2 dose divine
+            23724, //3 dose divine
+            23721,  //4 dose divine
+            167, //1 dose
+            165, //2 dose
+            163, //3 dose
+            2442 //4 dose
+    );
+    public static final List<Integer> prayerRestores = Arrays.asList(
+            143,//1 dose prayer
+            141,//2 dose prayer
+            139,//3 dose prayer
+            2434,//4 dose prayer
+            3030,//1 dose super restore
+            3028,//2 dose super restore
+            3026,//3 dose super restore
+            3024 //4 dose super restore
+    );
+
+    public static final List<Integer> antiPoisonPP = Arrays.asList(
+            5958,
+            5956,
+            5954,
+            5952
+    );
+
+    public static final List<Pattern> antiPoisonPPattern = Arrays.asList(
+            Pattern.compile("Superantipoison.*"),
+            Pattern.compile("Antipoison.*")
+    );
+
+    public static boolean restoreHitpoints() {
+        if (consume(SireState.getFood(), "Eat", 3)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean curePoison() {
+        if (Health.isPoisoned()) {
+            if (consume(5958, "Drink", 0)) {
+            } else if (consume(5956, "Drink", 0)) {
+            } else if (consume(5954, "Drink", 0)) {
+            } else if (consume(5952, "Drink", 0)) {
+            } else if (consume(Pattern.compile("Superantipoison.*"), "Drink", 0)) {
+            } else if (consume(Pattern.compile("Antipoison.*"), "Drink", 0)) {
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    public static boolean boostPhase1IfNeeded() {
+        if (SireState.getSettings().phase1Boost() == Phase1Boost.None) return false;
+        if (SireState.getSettings().phase1Boost() == Phase1Boost.ImbuedHeart) {
+            int boostThresh = 5;
+            var boost = Skill.MAGIC.getCurrentLevel() - Skill.MAGIC.getBaseLevel();
+            if (boost < boostThresh) {
+                return invigorateHeart();
+            }
+        } else {
+            int boostThresh = 5;
+            var boost = Skill.RANGED.getCurrentLevel() - Skill.RANGED.getBaseLevel();
+            if (boost < boostThresh) {
+                return consumeRangedBoost();
+            }
+        }
+        return false;
+    }
+
+    public static boolean boostMeleeIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeMeleeBoost();
+        }
+        return false;
+    }
+
+    private static boolean consumeMeleeBoost() {
+        for (Integer b :
+                combatBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return consumeStrengthBoost() && consumeDefenceBoost() && consumeAttackBoost();
+    }
+
+    private static boolean consumeAttackBoost() {
+        for (Integer b :
+                attackBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeDefenceBoost() {
+        for (Integer b :
+                defenceBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeStrengthBoost() {
+        for (Integer b :
+                strengthBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consume(int itemId, String action, int attackTickDelay) {
+        try {
+            var si = Inventory.getItems(itemId).first();
+            if (si != null) {
+                log.debug(String.format("consuming: %s", si.getDefinition().getName()));
+                var slot = si.getIndex();
+                while (Inventory.getItemIn(slot) != null && Inventory.getItemIn(slot).getId() == si.getId()) {
+                    log.debug(String.format("clicking: %s", Inventory.getItemIn(slot)));
+                    DirectInput.send(MenuAction.forSpriteItem(si, action));
+                    Execution.delay(10, 65);
+                }
+                SireState.setLastClick(Action.Consume);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    private static boolean consume(String itemName, String action, int attackTickDelay) {
+        var si = Inventory.getItems(itemName).first();
+        if (si == null) return false;
+        return consume(si.getId(), action, attackTickDelay);
+    }
+
+    private static boolean consume(Pattern itemName, String action, int attackTickDelay) {
+        var si = Inventory.getItems(itemName).first();
+        if (si == null) return false;
+        return consume(si.getId(), action, attackTickDelay);
+    }
+
+    private static boolean invigorateHeart() {
+        for (String b :
+                new String[]{u.imbuedHeart, u.saturatedHeart}) {
+            if (consume(b, u.invigorate, 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeRangedBoost() {
+        for (Integer b :
+                rangedBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean restorePrayer() {
+        for (Integer b :
+                prayerRestores) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void eatIfHpAllows() {
+        if (Health.getMaximum() - Health.getCurrent() > 20)
+            Consumeables.restoreHitpoints();
+    }
+
+    private static void checkAndConsume() {
+        if (Health.getCurrentPercent() < 30) {
+            if (!restoreHitpoints()) {
+                SireState.setBotState(SireState.RESTORING);
+                Traverse.breakHouseTab();
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!restorePrayer()) {
+                SireState.setBotState(SireState.RESTORING);
+            }
+        }
+        if (Health.isPoisoned()) {
+            if (!curePoison())
+                SireState.setBotState(SireState.RESTORING);
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.info("death");
+        sire.updateStatus("dead");
+        SireState.setPaused(true);
+        SireState.setBotState(SireState.STOPPING);
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

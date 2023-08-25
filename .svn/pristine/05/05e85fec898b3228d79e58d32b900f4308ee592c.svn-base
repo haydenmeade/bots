@@ -1,0 +1,108 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.queries.NpcQueryBuilder;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+
+import java.util.Arrays;
+import java.util.Objects;
+
+public interface SlayerMonster {
+
+    String getMonsterName();
+
+    String[] getSuperiorNames();
+
+    int[] getPathRegions();
+
+    com.runemate.game.api.hybrid.location.Area getArea();
+
+    com.neck_flexed.scripts.common.traverse.TraverseMethod[] getTraverseMethods();
+
+    com.runemate.game.api.hybrid.location.Coordinate getCannon();
+
+    com.runemate.game.api.osrs.local.hud.interfaces.Prayer getPrayer();
+
+    SlayerFinishItem getFinishItem();
+
+    SlayerProtectionItem getProtection();
+
+    boolean needsLightSource();
+
+    boolean isInSafeArea();
+
+    TraverseOverride getTraverseOverride();
+
+    boolean isLeafBladed();
+
+    boolean isBarrageMonster();
+
+    default boolean isMonster(Npc npc) {
+        if (npc == null) return false;
+        var name = npc.getName();
+        if (name == null) return false;
+        var names = util.toPatternArray(getAllNames());
+        return Arrays.stream(names).anyMatch(a -> a.matcher(name).find());
+    }
+
+    default String[] getAllNames() {
+        return util.concatenate(getAlternatives(), new String[]{getMonsterName()}, getSuperiorNames());
+    }
+
+    default Coordinate getTraverseToTile() {
+        if (getCannon() != null) return getCannon();
+        var a = getArea();
+        var c = a.getCenter();
+        return c;
+    }
+
+    default NpcQueryBuilder getNpcsQuery() {
+        var names = util.toPatternArray(getAllNames());
+        return Npcs.newQuery()
+                .names(names)
+                .within(getArea())
+                .filter(n -> (n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                        && (n.getHealthGauge() == null || n.getHealthGauge().getPercent() > 0));
+    }
+
+    default LocatableEntityQueryResults<Npc> getNpcsWithin() {
+        return getNpcsQuery()
+                .actions("Attack")
+                .results();
+    }
+
+    default LocatableEntityQueryResults<Npc> getSuperior() {
+        var names = util.toPatternArray(getSuperiorNames());
+        return Npcs.newQuery()
+                .names(names)
+                .within(getArea())
+                .filter(n -> (n.getTarget() == null || Objects.equals(n.getTarget(), Players.getLocal()))
+                        && (n.getHealthGauge() == null || n.getHealthGauge().getPercent() > 0))
+                .actions("Attack")
+                .results();
+    }
+
+    default boolean isSuperiorPresent() {
+        return getSuperior() != null;
+    }
+
+    String[] getAlternatives();
+
+
+    default Loadout getLoadout(Loadouts loadouts, boolean canBarrage, boolean isTuraelMonster) {
+        if (isBarrageMonster() && canBarrage) {
+            return loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT);
+        } else if (isLeafBladed()) {
+            return loadouts.getForName(SlayerLoadout.LEAF_LOADOUT);
+        } else if (isTuraelMonster) {
+            return loadouts.getForName(SlayerLoadout.TURAEL_LOADOUT);
+        }
+        return loadouts.getForName(SlayerLoadout.MELEE_LOADOUT);
+    }
+}

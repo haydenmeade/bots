@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.ashes;
+
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "StartingState")
+public class StartingState extends BaseState<AshState> {
+    private final ashes bot;
+    private boolean started = false;
+
+    public StartingState(ashes m) {
+        super(m, AshState.STARTING);
+        this.bot = m;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Starting");
+        this.bot.resetKill();
+
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.0, 0.1);
+        started = true;
+        if (!AchievementDiary.WILDERNESS.isEliteComplete()) {
+            var str = "Requires Wilderness elite diary";
+            ClientUI.showAlert(ClientUI.AlertLevel.ERROR, str);
+            this.bot.updateStatus(str);
+            this.bot.pause(str);
+        }
+        if (!Magic.Book.ARCEUUS.isCurrent()) {
+            ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires arceuus book active");
+            this.bot.updateStatus("Requires arceuus book active");
+            this.bot.pause("Wrong spellbook");
+        }
+    }
+}

@@ -1,0 +1,72 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "RestoreTask")
+public class RestoreState extends BaseState<SireState> {
+
+    private final sireBot bot;
+    private final PrayerFlicker prayerFlicker;
+    private boolean done = false;
+
+    public RestoreState(sireBot bot, PrayerFlicker prayerFlicker) {
+        super(SireState.RESTORING);
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+    }
+
+    @Override
+    public void activate() {
+        this.prayerFlicker.setActivePrayers();
+        bot.updateStatus("Restoring");
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (bot.settings().hasOrnatePool() && bot.settings().hasOrnateJewelleryBox()) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                return;
+            }
+
+            if (!HouseUtil.restoreStatsInHouse(bot)) {
+                return;
+            }
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            if (!this.bot.doWeNeedToRestock()) {
+                this.done = true;
+            } else {
+                this.done = HouseUtil.JbToCastleWars();
+            }
+        } else {
+            if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                log.error("Unable to tele to ferox");
+            } else if (!util.restoreAtFerox(bot)) {
+                log.error("unable to restore at ferox");
+            } else {
+                this.done = true;
+            }
+        }
+    }
+}

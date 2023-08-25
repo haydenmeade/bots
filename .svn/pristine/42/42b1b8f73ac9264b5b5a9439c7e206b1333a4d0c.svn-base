@@ -1,0 +1,7 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+public interface TraverseOverride {
+    boolean overrideLoop(Coordinate destination);
+}

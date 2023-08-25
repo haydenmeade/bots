@@ -1,0 +1,62 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.util.calculations.Random;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+public class BreakManager {
+
+    private final BreakSettings settings;
+    private ScheduledExecutorService executor;
+    private ScheduledFuture stopBotTask;
+    private long nextBreakIn;
+    private long breakStopIn;
+    private ScheduledFuture future;
+    private boolean breaking = false;
+    private boolean stopping = false;
+
+    public BreakManager(BreakSettings settings) {
+        this.settings = settings;
+        if (settings == null) return;
+        this.executor = Executors.newScheduledThreadPool(1);
+        if (settings.enabled())
+            this.generate();
+        if (settings.stoppingEnabled())
+            this.stopBotTask = executor.schedule(this::stopBotFunc, this.breakStopIn, TimeUnit.MINUTES);
+    }
+
+    private void stopBotFunc() {
+        this.stopping = true;
+    }
+
+    private void startBreak() {
+        this.breakStopIn = Random.nextLong(this.settings.breakLengthMin(), this.settings.breakLengthMax());
+        this.future = executor.schedule(this::endBreak, this.breakStopIn, TimeUnit.MINUTES);
+        this.breaking = true;
+    }
+
+    public long timeLeft() {
+        return this.future.getDelay(TimeUnit.MINUTES);
+    }
+
+    private void endBreak() {
+        this.breaking = false;
+        this.generate();
+    }
+
+    private void generate() {
+        this.nextBreakIn = Random.nextLong(settings.timeBetweenMin(), settings.timeBetweenMax());
+        this.future = executor.schedule(this::startBreak, this.nextBreakIn, TimeUnit.MINUTES);
+    }
+
+    public boolean breaking() {
+        return this.breaking;
+    }
+
+    public boolean stopBot() {
+        return this.stopping;
+    }
+}

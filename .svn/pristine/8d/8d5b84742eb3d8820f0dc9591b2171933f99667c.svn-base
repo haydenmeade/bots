@@ -1,0 +1,113 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.breaking.BreakSettings;
+import com.neck_flexed.scripts.common.traverse.HouseSettings;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.annotation.open.SettingsSection;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup()
+public interface CerbSettings extends Settings, BreakSettings {
+
+
+    @SettingsSection(title = HouseSettings.HOUSE, description = "Settings for house setup", order = 2)
+    String House = HouseSettings.HOUSE;
+    @SettingsSection(title = "Breaking", description = "Settings for breaking and stopping", order = 3)
+    String breaking = "Breaking";
+
+    @Setting(key = "Region", title = "World Region", order = 0)
+    default WorldRegion worldRegion() {
+        return WorldRegion.AUSTRALIA;
+    }
+
+    @Setting(key = "Boost", title = "Boost", order = 1)
+    default Boost boost() {
+        return Boost.Combat;
+    }
+
+    @Setting(key = "BoostCount", title = "Stat Boost Amount", order = 2)
+    default int boostAmount() {
+        return 1;
+    }
+
+    @Setting(key = "PrayAmopunt", title = "Prayer Restore Amount", order = 3)
+    default int prayerAmount() {
+        return 5;
+    }
+
+    @Setting(key = "MinFood", title = "Min food for kill", order = 4)
+    default int minFood() {
+        return 3;
+    }
+
+    @Setting(key = "Food", title = "Food", order = 5)
+    default Food food() {
+        return Food.Shark;
+    }
+
+    @Setting(key = "FightStrategy", title = "Fight Strategy", order = 6, description = "Method to fight Cerberus")
+    default FightStrategy fightStrategy() {
+        return FightStrategy.Default;
+    }
+
+    @Setting(key = "TraverseStrategy", title = "Traverse Strategy", order = 8, description = "Method to traverse to cerberus")
+    default TraverseStrategy traverseStrategy() {
+        return TraverseStrategy.Default;
+    }
+
+    @Setting(key = "Equipment", title = "Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 9)
+    default EquipmentLoadout equipment() {
+        return null;
+    }
+
+    @Setting(key = "Spec", title = "Spec Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 10)
+    default EquipmentLoadout specEquipment() {
+        return null;
+    }
+
+    @Setting(key = "Ghost", title = "Ghost Equipment", converter = EquipmentLoadout.SettingConverter.class, order = 11)
+    default EquipmentLoadout ghostEquipment() {
+        return null;
+    }
+
+    @Setting(key = "WildPie", title = "Bring wild pies (optional)", order = 12, description = "To boost slayer if under 91")
+    default int wildPieCount() {
+        return 0;
+    }
+
+    @Setting(key = "LootAshes", title = "Loot Ashes", order = 13)
+    default boolean lootAshes() {
+        return true;
+    }
+
+    @Setting(key = "minalchvaue", title = "Loot Minimum Alch Value", order = 14)
+    default int minAlchValue() {
+        return 0;
+    }
+
+    @Setting(key = "reboost", title = "Reboost if Boost under", order = 15)
+    default int reboost() {
+        return 10;
+    }
+
+    @Setting(key = "House1", title = "House has ornate pool", order = 1, section = HouseSettings.HOUSE)
+    default boolean hasOrnatePool() {
+        return true;
+    }
+
+    @Setting(key = "House2", title = "House has ornate jewellery box", order = 2, section = HouseSettings.HOUSE)
+    default boolean hasOrnateJewelleryBox() {
+        return true;
+    }
+
+    @Setting(key = "House5", title = "House has falador teleport", order = 5, section = HouseSettings.HOUSE)
+    default boolean hasHouseFaladorPortal() {
+        return true;
+    }
+
+}

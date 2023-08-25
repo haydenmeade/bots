@@ -1,0 +1,24 @@
+package com.neck_flexed.scripts.slayer;
+
+public enum SlayerState {
+    STARTING(),
+    BREAKING(),
+    TRAVERSING(),
+
+    FIGHTING(),
+    LOOTING(),
+
+    LURING(),
+    STACKING(),
+    BARRAGING(),
+
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+
+    GET_NEW_TASK(),
+    GET_TURAEL_TASK(),
+    GET_MASTER_TASK(),
+    ;
+
+}

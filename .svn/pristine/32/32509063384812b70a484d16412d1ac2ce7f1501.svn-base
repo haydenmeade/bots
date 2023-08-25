@@ -1,0 +1,119 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.*;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "NeckBank")
+public class NeckBank {
+
+
+    public static Map<Pattern, Integer> dramenStaffIfNoAchievementDiary() {
+        return AchievementDiary.LUMBRIDGE.isEliteComplete()
+                ? Collections.emptyMap()
+                : toMap(1, items.dramenStaff);
+    }
+
+    public static Map<Pattern, Integer> toMap(int amount, Pattern... item) {
+        var map = new HashMap<Pattern, Integer>();
+        for (var p : item) {
+            map.put(p, amount);
+        }
+        return map;
+    }
+
+    public static Map<Pattern, Integer> toMap(int i, String name) {
+        return toMap(i, Pattern.compile(name));
+    }
+
+    public static Map<Pattern, Integer> getBoostsNeeded(int amount, boolean anyDose, Boost... boosts) {
+        var map = new HashMap<Pattern, Integer>();
+        if (amount == 0) return map;
+        for (var b : boosts) {
+            if (Objects.equals(b, Boost.None)) continue;
+            var patterns = anyDose ? b.patternAny() : b.patternFull();
+            for (var p : patterns) {
+                map.put(p, amount);
+            }
+        }
+        return map;
+    }
+
+    public static Map<Pattern, Integer> getBoostsNeeded(Map<Boost, Integer> boosts, boolean anyDose) {
+        var map = new HashMap<Pattern, Integer>();
+        for (var kv : boosts.entrySet()) {
+            var b = kv.getKey();
+            var patterns = anyDose ? b.patternAny() : b.patternFull();
+            for (var p : patterns) {
+                map.put(p, kv.getValue());
+            }
+        }
+        return map;
+    }
+
+    public static boolean doBankLoop(Pattern[] except, Map<Pattern, Integer>... withdraw) {
+        if (!Bank.isOpen()) return false;
+        var exceptWithWithdraw = new ArrayList<Pattern>(Arrays.asList(except));
+        exceptWithWithdraw.add(Pattern.compile("Lamp"));
+        for (var m : withdraw) {
+            for (var kv : m.entrySet()) {
+                if (Inventory.getQuantity(kv.getKey()) == kv.getValue()) {
+                    // if 0 then withdraw all, just deposit then withdraw again.
+                    exceptWithWithdraw.add(kv.getKey());
+                }
+            }
+        }
+        var exceptWithWithdrawA = exceptWithWithdraw.toArray(new Pattern[0]);
+        if (!Bank.depositAllExcept(exceptWithWithdrawA))
+            return false;
+        if (Inventory.isFull()) {
+            log.debug("Banking error");
+            return false;
+        }
+
+        for (var mm : withdraw) {
+            for (var kv : mm.entrySet()) {
+                var q = Inventory.getQuantity(kv.getKey());
+                if (q < kv.getValue()) {
+                    if (kv.getValue() != 0) {
+                        if (Bank.getQuantity(kv.getKey()) >= kv.getValue())
+                            Bank.withdraw(kv.getKey(), kv.getValue());
+                        else
+                            log.error(String.format("Out of %s", kv.getKey()));
+                        return false;
+                    }
+                } else if (q > kv.getValue()) {
+                    Bank.deposit(kv.getKey(), q - kv.getValue());
+                }
+            }
+        }
+
+
+        // check
+        var check = true;
+        for (var mmm : withdraw) {
+            for (var kv : mmm.entrySet()) {
+                if (!check) break;
+                if (kv.getValue() != 0)
+                    check = Inventory.getQuantity(kv.getKey()) == kv.getValue();
+            }
+        }
+
+        if (check) {
+            for (var mmm : withdraw) {
+                for (var kv : mmm.entrySet()) {
+                    if (kv.getValue() == 0)
+                        return Bank.withdraw(kv.getKey(), 0);
+                }
+            }
+        }
+
+        return check;
+    }
+
+
+}

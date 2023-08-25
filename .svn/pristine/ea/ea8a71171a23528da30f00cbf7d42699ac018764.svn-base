@@ -1,0 +1,147 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.region.GroundItems;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Loot")
+public class Loot {
+    public static void waitForLoot(Area area, Pattern alwaysDrops, int timeout) {
+        Area area2 = area == null ? null : area.toRectangular().grow(2, 2);
+        var giCount = getInitialGroundItems(area2, alwaysDrops);
+        if (!Execution.delayUntil(() -> {
+            var q = GroundItems.newQuery();
+            if (area2 != null) {
+                q = q.within(area2);
+            }
+            return q.names(alwaysDrops).results().size() != giCount;
+        }, timeout)) {
+            log.debug("no loot? must be someone else's kill?");
+        }
+    }
+
+    public static LootResult doLoop(Area area, List<String> ignoreList, Pattern[] suppliesCanDrop) {
+        return doLoop(area, ignoreList, suppliesCanDrop, 600);
+    }
+
+    public static LootResult doLoop(Area area, List<String> ignoreList, Pattern[] suppliesCanDrop, int timeout) {
+        return doLoop(area, ignoreList, suppliesCanDrop, timeout, 600, null, 0, null);
+    }
+
+    public static LootResult doLoop(Area area, List<String> ignoreList, Pattern[] suppliesCanDrop, int timeout, int delayPickup) {
+        return doLoop(area, ignoreList, suppliesCanDrop, timeout, delayPickup, null, 0, null);
+    }
+
+    public static LootResult doLoop(Area area,
+                                    List<String> ignoreList,
+                                    Pattern[] suppliesCanDrop,
+                                    int timeout,
+                                    int delayPickup,
+                                    Predicate<GroundItem> customFilter,
+                                    int minAlchValue,
+                                    @Nullable List<String> mustLoot
+    ) {
+        var area2 = area == null ? null : area.toRectangular().grow(2, 2);
+        var gi = getGroundItemToLoot(area2, ignoreList, suppliesCanDrop, customFilter, minAlchValue, mustLoot);
+        if (gi == null) {
+            if (Execution.delayUntil(() -> getGroundItemToLoot(area2, ignoreList, suppliesCanDrop, customFilter, minAlchValue, mustLoot) != null, timeout))
+                return LootResult.NotDone;
+            return LootResult.Done;
+        }
+        var p = gi.getPosition();
+        if (p == null) return LootResult.NotDone;
+        var id = gi.getId();
+        log.info(String.format("Looting: %s", gi));
+        if (Inventory.isFull() && !util.itemStacksAndInInvent((gi))) {
+            if (!tryToEmptySlotForLoot(suppliesCanDrop)) {
+                log.info("Invent full");
+                return LootResult.Full;
+            }
+        }
+        util.take(gi);
+        Execution.delayUntil(() -> GroundItems.newQuery().on(p).ids(id).results().isEmpty(), delayPickup, delayPickup + 100);
+        return LootResult.NotDone;
+    }
+
+    private static boolean tryToEmptySlotForLoot(Pattern[] suppliesCanDrop) {
+        var ate = Food.eatAny();
+        if (ate) return true;
+        var dropItem = Inventory.newQuery().names(suppliesCanDrop).unnoted().results().first();
+        if (dropItem != null) {
+            if (dropItem.interact("Drink"))
+                return true;
+        }
+        return false;
+    }
+
+    public static @Nullable GroundItem getGroundItemToLoot(Area area,
+                                                           List<String> ignoreLoot,
+                                                           Pattern[] suppliesCanDrop,
+                                                           Predicate<GroundItem> customFilter,
+                                                           int minAlchValue,
+                                                           List<String> mustLoot) {
+        var inventFull = Inventory.isFull();
+        var q = GroundItems.newQuery();
+        if (area != null) {
+            q = q.within(area);
+        }
+        return q.filter(shouldLoot(ignoreLoot, customFilter, minAlchValue, inventFull, mustLoot)).results().nearest();
+    }
+
+    @NotNull
+    private static Predicate<GroundItem> shouldLoot(List<String> ignoreLoot,
+                                                    Predicate<GroundItem> customFilter,
+                                                    int minAlchValue,
+                                                    boolean inventFull,
+                                                    @Nullable List<String> mustLoot) {
+        // return false to filter out
+        return groundItem -> {
+            var def = groundItem.getDefinition();
+            if (def == null) return true;
+            var name = def.getName();
+
+            var isFood = Food.isFood(def);
+            if (isFood) {
+                var isFoodAndWeHaveSpace = !inventFull;
+                if (isFoodAndWeHaveSpace) return true;
+                var isFoodAndWeCanEat = Health.getCurrentPercent() < 100;
+                if (isFoodAndWeCanEat) return true;
+                return false;
+            }
+            if (mustLoot != null && !mustLoot.isEmpty() && mustLoot.stream().anyMatch(str -> str.equalsIgnoreCase(name))) {
+                return true;
+            }
+
+            var isInIgnored = ignoreLoot.contains(name);
+            var isJunk = Junk.junkList.contains(name);
+            var isUnderShopValue = def.isTradeable() && def.getHighLevelAlchemyValue() < minAlchValue;
+            var customFilterHit = customFilter != null && customFilter.test(groundItem);
+
+            return !(isInIgnored || isJunk || customFilterHit || isUnderShopValue);
+        };
+    }
+
+    private static int getInitialGroundItems(Area area, Pattern alwaysDrops) {
+        var q = GroundItems.newQuery();
+        if (area != null) {
+            q = q.within(area);
+        }
+        return q.names(alwaysDrops).results().size();
+    }
+
+    public static enum LootResult {
+        NotDone,
+        Done,
+        Full,
+    }
+}

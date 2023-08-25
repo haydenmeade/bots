@@ -1,0 +1,55 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class StartingState implements LoopState<MoleState> {
+    private final Mole bot;
+    private boolean started = false;
+
+    public StartingState(Mole m) {
+        this.bot = m;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        boolean needsRestock = Mole.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return MoleState.RESTOCKING;
+            return MoleState.RESTORING;
+        }
+
+        return MoleState.TRAVERSING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.0, 0.1);
+        started = true;
+    }
+}

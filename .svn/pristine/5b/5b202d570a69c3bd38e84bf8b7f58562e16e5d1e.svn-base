@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreTask")
+public class RestoreTask extends LeafTask {
+    private static final int jb_interface_id = 590;
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        sire.updateStatus(String.format("Restoring"));
+        if (sire.castleWars.contains(Players.getLocal()) && u.isRestored()) {
+            SireState.setBotState(SireState.RESTOCKING);
+        } else if (!House.isInside()) {
+            Traverse.breakHouseTab();
+            if (!Execution.delayUntil(() -> House.isInside(), 10000)) {
+                sire.updateStatus(String.format("Unable to teleport to house"));
+                SireState.setBotState(SireState.STOPPING);
+                return;
+            }
+            Execution.delay(2000);
+        }
+
+        if (!u.isRestored()) {
+            util.restoreStatsInHouse(SireState.getEventDispatcher());
+        }
+
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+
+        if (SireState.getFightState() == FightState.Phase1) {
+            SireState.setBotState(SireState.TRAVERSING);
+            return;
+        }
+
+        if (util.getJewelleryBox().isEmpty()) {
+            log.debug("empty jb");
+            return;
+        }
+        var jb = util.getJewelleryBox().nearest();
+        if (jb == null || jb.getActiveDefinition() == null) return;
+        if (!jb.getActiveDefinition().getActions().contains("Castle Wars")) {
+            jb.interact("Teleport Menu");
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(jb_interface_id) != null, 10000)) {
+                InterfaceContainers.getAt(jb_interface_id).getComponent(2).getChild(6).interact("Castle Wars");
+                Execution.delayUntil(() -> sire.castleWars.contains(Players.getLocal()), 10000);
+                Execution.delay(600);
+            }
+        } else {
+            jb.interact("Castle Wars");
+            Execution.delayUntil(() -> sire.castleWars.contains(Players.getLocal()), 10000);
+            Execution.delay(600);
+        }
+    }
+}

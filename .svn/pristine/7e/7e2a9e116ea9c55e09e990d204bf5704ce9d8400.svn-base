@@ -1,0 +1,176 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.HoppingState;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.neck_flexed.scripts.common.state.RestoreState;
+import com.neck_flexed.scripts.slayer.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "TuraelMain")
+public class bot extends NeckBot<TuraelSettings, SlayerState> implements SlayerBot {
+    private Consumeables<TuraelSettings, SlayerState> consumeables;
+    @SettingsProvider(updatable = true)
+    private TuraelSettings settings;
+    private int tasksCompleted = 0;
+    @Getter
+    @Setter
+    @Nullable
+    private NeckInventory inventory;
+    @Getter
+    @Setter
+    @Nullable
+    private TuraelMonster previousTuraelMonster;
+    @Getter
+    @Setter
+    private SlayerMonster previousTask;
+    @Getter
+    private Map<Coordinate, Long> deathTiles = new ConcurrentHashMap<>();
+
+    @Override
+    public void taskCompleted() {
+        this.tasksCompleted++;
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        var inv = this.getInventory();
+        if (inv != null) {
+            var newInv = NeckInventory.createInventory();
+            if (newInv.getMap().size() < inv.getMap().size()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void resetKill() {
+
+    }
+
+    @Override
+    protected void initFromSettings(TuraelSettings settings) {
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, "")
+        );
+        this.breakManager = new BreakManager(settings, this);
+        updateItemFilter(util.concatenate(
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling, items.dramenStaff,},
+                this.loadouts.getItemFilter()
+        ));
+        if (Players.getLocal() != null && Inventory.getItems() != null && !Inventory.getItems().isEmpty()) {
+            var inv = NeckInventory.createInventory();
+            log.debug("Initializing inventory: " + inv);
+            this.setInventory(inv);
+        }
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, junkDropper};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        consumeables = new Consumeables(this, 10, SlayerState.RESTORING, false);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings, this);
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Start me from anywhere, for example inventory setup, see Neck Discord\n\n" +
+                        "MUST: For supported teleports, see bot description or Neck Discord\n" +
+                        "Supports: NPC Contact --> have runes for NPC Contact and be on lunars\n" +
+                        "Bot will detect your inventory on start and maintain it.\n\n" +
+                        "Do not wield items that will degrade like ring of dueling, bot won't detect and restock this\n" +
+                        "If you have any issues or suggestions visit the Neck Discord\n" +
+                        "If you want to request more traverse methods visit the Neck Discord\n"
+        ));
+    }
+
+    protected LoopState<SlayerState> getState(SlayerState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this, TuraelMonster.fromSlayerTask().get());
+            case FIGHTING:
+                return new FightState(this, TuraelMonster.fromSlayerTask().get(), settings.reboost(), loadouts.getAnyCombat(), null, null);
+            case GET_MASTER_TASK:
+                return new GetMasterTask(this);
+            case GET_NEW_TASK:
+                return new GetNewTaskState(this, this.previousTuraelMonster);
+            case GET_TURAEL_TASK:
+                return new TuraelTaskGetterState(this, this.getHouseConfig());
+            case RESTORING:
+                return new RestoreState<>(this, SlayerState.RESTORING, HouseConfig.parse(settings), false);
+            case HOPPING:
+                return new HoppingState<>(this, settings().worldRegion(), SlayerState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState<>(this.breakManager, this, SlayerState.BREAKING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<SlayerState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected SlayerState getBreakStateEnum() {
+        return SlayerState.BREAKING;
+    }
+
+    @Override
+    protected SlayerState getStartStateEnum() {
+        return SlayerState.STARTING;
+    }
+
+    @Override
+    protected IStateManager<SlayerState> createStateManager() {
+        return new TuraelStateManager(this);
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Turael tasks done: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public TuraelSettings settings() {
+        return settings;
+    }
+}

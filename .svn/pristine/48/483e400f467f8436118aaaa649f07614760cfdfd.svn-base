@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.cache.configs.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.*;
+import java.io.*;
+import java.util.*;
+import javax.annotation.*;
+import lombok.extern.log4j.*;
+
+@Log4j2(topic = "SpecialAttackCost")
+public class SpecialAttackCost {
+    public final static int SPECIAL_ATTACK_COST = 906;
+
+    private static Map<Integer, Integer> costs = new HashMap<>();
+    private static boolean initialized = false;
+
+    public static synchronized void initialize(){
+        if(!initialized) {
+            EnumDefinition enumDef = EnumDefinitions.load(SPECIAL_ATTACK_COST);
+            if (enumDef != null) {
+                initialized = true;
+                for (int key : enumDef.getKeys()) {
+                    Serializable value = enumDef.get(key);
+                    if (value instanceof Integer) {
+                        costs.put(key, (Integer) value);
+                    } else {
+                        log.warn(String.format("Key (%d) in Special_Attack_Cost enum (%d) was not linked to an integer value (%s)", key, SPECIAL_ATTACK_COST, value));
+                    }
+                }
+            }
+        }
+    }
+
+    @Nullable
+    public static Integer getCost(SpriteItem item) {
+        return getCost(item.getId());
+    }
+
+    @Nullable
+    public static Integer getCost(int weaponID){
+        if(!initialized){
+            initialize();
+        }
+        return costs.get(weaponID);
+    }
+}

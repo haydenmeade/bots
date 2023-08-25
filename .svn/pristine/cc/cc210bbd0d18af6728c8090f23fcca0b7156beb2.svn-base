@@ -1,0 +1,28 @@
+package com.neck_flexed.scripts.common.traverse;
+
+
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup(group = "House")
+public interface HouseSettingsFairyRing extends Settings {
+
+    String HOUSE = "House";
+
+    @Setting(key = "House1", title = "House has ornate pool", order = 1, section = HOUSE)
+    default boolean hasOrnatePool() {
+        return true;
+    }
+
+    @Setting(key = "House2", title = "House has ornate jewellery box", order = 2, section = HOUSE)
+    default boolean hasOrnateJewelleryBox() {
+        return true;
+    }
+
+    @Setting(key = "House3", title = "House has fairy ring", order = 3, section = HOUSE)
+    default boolean hasHouseFairyRing() {
+        return true;
+    }
+
+}

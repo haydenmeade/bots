@@ -1,0 +1,219 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.loot.LootSettings;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.Objects;
+
+@Log4j2
+public class FightState extends BaseState<SlayerState> implements NpcListener {
+    private final NeckBot<?, SlayerState> bot;
+    private final SlayerMonster monster;
+    private final Loadouts loadouts;
+    private final SlayerBot slayerBot;
+    private final int reboost;
+    private final Loadout loadout;
+    private final PrayerFlicker prayerFlicker;
+    private final Prayer[] boostPrayers;
+    private final Cannon cannon;
+    private final LootSettings lootSettings;
+    private boolean done = false;
+    private Npc currentTarget;
+
+    public FightState(NeckBot<?, SlayerState> bot, SlayerMonster monster, int reboost, Loadout loadout, @Nullable LootSettings lootSettings) {
+        super(SlayerState.FIGHTING);
+        this.bot = bot;
+        this.monster = monster;
+        this.loadouts = bot.loadouts;
+        this.slayerBot = (SlayerBot) bot;
+        this.reboost = reboost;
+        this.loadout = loadout;
+        this.prayerFlicker = bot.prayerFlicker;
+        this.boostPrayers = loadout.getBoostPrayers();
+        this.cannon = monster.getCannon() != null && Cannon.hasCannon() ? new Cannon() : null;
+        this.lootSettings = lootSettings;
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        var l = new ArrayList<EventListener>();
+        l.add(this);
+        if (this.cannon != null)
+            l.add(cannon);
+        return l.toArray(new EventListener[0]);
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        if (!SlayerTask.hasTask()) {
+            bot.prayerFlicker.setActivePrayers();
+            if (this.cannon != null && this.cannon.isCannonPlaced()) {
+                if (!this.cannon.pickup()) {
+                    log.error("unable to pickup cannon in deactivate");
+                }
+            }
+            bot.addKill();
+        }
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Fighting %s, count %s", monster, SlayerTask.getCount()));
+        loadouts.equip(loadout);
+        bot.prayerFlicker.setActivePrayers(util.joinPrayers(loadout.getBoostPrayers(), monster.getPrayer()));
+        slayerBot.setPreviousTask(monster);
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        if (monster == null)
+            return "Unable to find slayer monster from task: " + SlayerTask.getCurrent();
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void onNpcDeath(DeathEvent event) {
+        if (!Objects.equals(event.getSource(), this.currentTarget)) return;
+
+        log.debug("Got NPC Death {}", event);
+        slayerBot.addDeathTile(event.getPosition());
+        // TODO
+
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!SlayerTask.hasTask()) {
+            if (this.cannon != null && cannon.isCannonPlaced()) {
+                this.cannon.pickup();
+                return;
+            }
+            this.done = true;
+        }
+        if (lootSettings != null && LootState.anyAvailableLoot(slayerBot, lootSettings)) {
+            log.debug("Loot available");
+            this.done = true;
+        }
+        if (this.done) return;
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        if (this.cannon != null) {
+            if (doCannonLogic(pos)) return;
+        }
+
+        util.boostIfNeeded(loadout.getStyle(), reboost);
+
+        if (currentTarget != null && !monster.getArea().contains(currentTarget)) {
+            currentTarget = null;
+        }
+
+        var attackingMeOther = Npcs.newQuery()
+                .within(monster.getArea())
+                .actions("Attack")
+                .filter(n -> Objects.equals(p, n.getTarget())
+                        && Arrays.stream(monster.getAllNames()).noneMatch(s -> s.equalsIgnoreCase(n.getName()))
+                        && n.distanceTo(pos) < 5)
+                .results().nearest();
+        var attackingMe = Npcs.newQuery()
+                .within(monster.getArea())
+                .actions("Attack")
+                .filter(n -> Objects.equals(p, n.getTarget()))
+                .results().nearest();
+        if (attackingMeOther != null) {
+            currentTarget = attackingMeOther;
+        } else if (attackingMe != null && !attackingMe.equals(currentTarget)) {
+            currentTarget = attackingMe;
+        }
+
+        if (monster.getFinishItem() != null && currentTarget != null && currentTarget.getHealthGauge() != null
+                && currentTarget.getHealthGauge().getPercent() < 0.1) {// TODO test more
+            var item = Inventory.getItems(monster.getFinishItem().getUseItem()).first();
+            if (item != null) {
+                DirectInput.sendItemUseOn(item, currentTarget);
+                Execution.delayUntil(util::playerAnimating, util::playerMoving, 600, 1200);
+                Execution.delay(400, 700);
+                currentTarget = null;
+                return;
+            }
+        }
+        if (loadouts.isCurrentIsDirty())
+            loadouts.equip(loadout);
+
+        if (this.currentTarget == null || !this.currentTarget.isValid() ||
+                (currentTarget.getHealthGauge() != null && currentTarget.getHealthGauge().getPercent() == 0)) {
+
+            this.currentTarget = monster.getNpcsWithin().nearest();
+
+            if (this.currentTarget == null && monster.getCannon() != null && !pos.equals(monster.getCannon())) {
+                util.moveTo(monster.getCannon());
+                Execution.delayUntil(() -> !monster.getNpcsWithin().isEmpty() || pos.equals(monster.getCannon()), util::playerMoving, 1000, 2000);
+            }
+        }
+
+        var target = p.getTarget();
+        if (!Objects.equals(target, currentTarget)) {
+            util.attack(currentTarget);
+        }
+
+        if (Traversal.getRunEnergy() < 45 && !Traversal.isStaminaEnhanced() && SlayerTask.getCount() > 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+        if (!Traversal.isRunEnabled() && Traversal.getRunEnergy() > 10)
+            Traversal.toggleRun();
+
+        Execution.delay(600, 800);
+    }
+
+    private boolean doCannonLogic(Coordinate pos) {
+        if (!cannon.isCannonPlaced()) {
+            if (pos.equals(monster.getCannon())) {
+                cannon.place();
+                Execution.delayUntil(
+                        cannon::isCannonPlaced,
+                        util::playerAnimatingOrMoving,
+                        4000, 5000);
+            } else {
+                util.moveTo(monster.getCannon());
+                Execution.delayUntil(
+                        () -> Players.getLocal().getServerPosition().equals(monster.getCannon()),
+                        util::playerMoving,
+                        1000, 2000);
+            }
+            return true;
+        }
+        if (!cannon.isStarted()) {
+            cannon.startUp();
+            Execution.delayUntil(cannon::isStarted, 2000, 3600);
+            return true;
+        }
+        if (cannon.isReloading()) {
+            return true;
+        }
+        return false;
+    }
+}

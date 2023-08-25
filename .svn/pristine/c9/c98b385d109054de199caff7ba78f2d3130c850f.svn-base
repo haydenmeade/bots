@@ -1,0 +1,8 @@
+package com.neck_flexed.scripts.common;
+
+public enum CombatStyle {
+    Melee,
+    Ranged,
+    Magic;
+
+}

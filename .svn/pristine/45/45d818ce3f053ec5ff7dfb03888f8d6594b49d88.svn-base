@@ -1,0 +1,41 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.hydra.KaraluumDungeonOverrider;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class WyrmTraverseOverride implements TraverseOverride {
+
+    private static GameObject getRocks() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1302, 10205, 0))
+                .names("Rocks")
+                .actions("Climb")
+                .results().first();
+    }
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        if (new KaraluumDungeonOverrider().overrideLoop(destination)) return true;
+        var p = Players.getLocal();
+        var pos = p.getServerPosition();
+        var r = getRocks();
+        if (r != null && pos.getX() > 1302) {
+            DirectInput.send(MenuAction.forGameObject(r, "Climb"));
+            Execution.delayUntil(() -> Players.getLocal().getServerPosition().getX() <= 1302, util::playerAnimatingOrMoving, 1000, 2000);
+            return true;
+        }
+        if (pos.getContainingRegionId() == 5279 || pos.getContainingRegionId() == 5023) {
+            Traverser.regionPathTraverser(new Coordinate(1269, 10189, 0)).executeLoop();
+            return true;
+        }
+        return false;
+    }
+}

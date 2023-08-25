@@ -1,0 +1,25 @@
+package com.neck_flexed.scripts.common;
+
+import java.util.regex.Pattern;
+
+public enum Boost {
+    None(""),
+    Ranging("Ranging potion.*"),
+    Ranging_Divine("Divine ranging.*"),
+    ImbuedHeart(items.imbuedHeart + "|" + items.saturatedHeart),
+    Combat("Super combat.*"),
+    Combat_Divine("Divine super combat.*"),
+    Super_Set("Super strength.*"),
+    Super_Set_Divine("Divine super strength.*"),
+    ;
+
+    private final Pattern pattern;
+
+    Boost(String pattern) {
+        this.pattern = Pattern.compile(pattern);
+    }
+
+    public Pattern pattern() {
+        return pattern;
+    }
+}

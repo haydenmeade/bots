@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.common;
+
+public enum Food {
+    Shark("Shark"),
+    MantaRay("Manta ray"),
+    PineapplePizza("Pineapple pizza"),
+    TunaPotato("Tuna potato"),
+    Karambwan("Cooked karambwan"),
+    PotatoWithCheese("Potato with cheese"),
+    Monkfish("Monkfish"),
+    Anglerfish("Anglerfish");
+
+
+    public final String name;
+
+    Food(String s) {
+        this.name = s;
+    }
+}

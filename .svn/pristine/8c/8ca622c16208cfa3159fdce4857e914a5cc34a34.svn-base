@@ -1,0 +1,13 @@
+package com.neck_flexed.scripts.slayer;
+
+public enum SlayerLoadout {
+    MELEE_LOADOUT,
+    SPEC_LOADOUT,
+    LEAF_LOADOUT,
+    BARRAGE_LOADOUT,
+    LURE_LOADOUT,
+    TURAEL_LOADOUT,
+    DRAGON_LOADOUT,
+    WYVERN_LOADOUT,
+    DRAKE_WYRM_LOADOUT,
+}

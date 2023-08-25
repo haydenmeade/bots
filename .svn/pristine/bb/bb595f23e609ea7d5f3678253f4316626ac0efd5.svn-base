@@ -1,0 +1,100 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.*;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<CerbState> {
+    private static final Coordinate destTile = new Coordinate(1292, 1253, 0);
+    private static final Area dangerArea =
+            new Area.Rectangular(new Coordinate(2862, 9853, 0), new Coordinate(2878, 9810, 0));
+    private final cerb bot;
+    private final PrayerFlicker prayerFlicker;
+    private final Traverser traverser;
+    private String error;
+
+    public TraverseState(cerb bot) {
+        super(bot, CerbState.TRAVERSING);
+        this.bot = bot;
+        this.prayerFlicker = bot.prayerFlicker;
+        this.traverser = new Traverser(
+                bot,
+                bot.getHouseConfig(),
+                destTile,
+                new int[]{11574, 11573, 11572, 11829, 11828, 11417, 11416, 11673, 11672},
+                this::overrideWebPath,
+                new ItemTraverse(items.keyMasterTeleport, "Teleport"),
+                new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Taverley),
+                new HouseLocationTraverse(House.Location.TAVERLEY),
+                TeleportTraverse.FALADOR_TRAVERSE,
+                new HousePortalTraverse(PortalNexusTeleport.Falador)
+        );
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public void deactivate() {
+        prayerFlicker.disable();
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return destTile.equals(Players.getLocal().getPosition())
+                || cerb.isInBossRoom()
+                || cerb.isInBossRoomIncludingEntrance()
+                || cerb.atLairEntrance();
+    }
+
+    private GameObject getCave() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(2874, 9846, 0))
+                .names("Cave")
+                .actions("Crawl")
+                .results()
+                .first();
+    }
+
+    @Override
+    public void executeLoop() {
+        this.traverser.executeLoop();
+    }
+
+    private boolean overrideWebPath(Coordinate dest) {
+        if (dangerArea.contains(Players.getLocal())) {
+            prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+            var c = getCave();
+            if (c != null) {
+                di.send(MenuAction.forGameObject(c, "Crawl"));
+                Execution.delayWhile(() -> dangerArea.contains(Players.getLocal()), util::playerAnimatingOrMoving, 3000, 4000);
+                return true;
+            }
+        } else {
+            prayerFlicker.disable();
+        }
+        return false;
+    }
+
+}

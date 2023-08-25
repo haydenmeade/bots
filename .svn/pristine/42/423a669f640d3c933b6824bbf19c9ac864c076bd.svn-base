@@ -1,0 +1,254 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.Player;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<HydraState>, EngineListener {
+    private final HydraListener hydraListener;
+    private final PrayerFlicker prayerFlicker;
+    private final com.neck_flexed.scripts.hydra.bot bot;
+    private final HydraSettings settings;
+    private final Loadouts loadouts;
+    private final Loadout spec;
+    private final Loadout fightLoadout;
+    private HydraPhase currentPhase = HydraPhase.ENRAGED;
+    private PhaseSteps.Step currStep = null;
+    private int ticksInStep = 0;
+    private Coordinate currentMoveTo;
+    private PhaseSteps phaseSteps;
+    private boolean stepDone;
+    private boolean equipedSlaughter = false;
+
+    public FightState(HydraListener hydraListener,
+                      PrayerFlicker prayerFlicker,
+                      com.neck_flexed.scripts.hydra.bot bot
+    ) {
+        this.hydraListener = hydraListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.settings = bot.settings();
+        this.loadouts = bot.loadouts;
+        this.spec = loadouts.getSpecLoadout();
+        this.fightLoadout = loadouts.getAnyCombat();
+    }
+
+    @Override
+    public HydraState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        hydraListener.stopFightState();
+        var h = hydraListener.getHydra();
+        if (h == null || h.getNpc() == null) {
+            return HydraState.LOOTING;
+        }
+        return HydraState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        bot.updateStatus("Fighting Hydra");
+        hydraListener.init(this);
+    }
+
+    @Override
+    public HydraState get() {
+        return HydraState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        var h = hydraListener.getHydra();
+        return h == null || h.getNpc() == null || bot.isSlayerTaskDone();
+    }
+
+    public void onPhase() {
+        var p = Players.getLocal();
+        var hydra = hydraListener.getHydra();
+        if (p == null || hydra == null || hydra.getNpc() == null) return;
+
+        phaseStep(hydra);
+        if (!stepMove(p)) {
+            return;
+        }
+    }
+
+    public void onSpecialAttack() {
+        var p = Players.getLocal();
+        var hydra = hydraListener.getHydra();
+        if (p == null || hydra == null || hydra.getNpc() == null) return;
+        doStep(hydra);
+        if (!stepMove(p)) {
+            return;
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            Stopwatch timer = Stopwatch.createStarted();
+            var p = Players.getLocal();
+            var hydra = hydraListener.getHydra();
+            if (p == null || hydra == null || hydra.getNpc() == null) return;
+            var pos = p.getServerPosition();
+            if (pos == null) return;
+
+            phaseStep(hydra);
+
+            log.debug(String.format("hydra pos %s", hydra.getNpc().getPosition()));
+            ticksInStep++;
+            log.debug(String.format("tis %s", ticksInStep));
+            if (hydra.getHp() < 50 && bot.settings().braceletsOfSlaughter() > 0 && !equipedSlaughter) {
+                util.equip(items.braceletOfSlaughter, Equipment.Slot.HANDS);
+                this.equipedSlaughter = true;
+            }
+
+            // Move if we need to.
+            doStep(hydra);
+            if (!stepDone && !stepMove(p)) {
+                return;
+            }
+
+            // otherwise click the boss.
+            util.boostIfNeeded(this.loadouts.getEquipped().getStyle(), bot.settings().reboost());
+            var npc = hydra.getNpc();
+            var a = npc.getAnimationId();
+            var isDyingAnim = a == currentPhase.getDeathAnimation1() || a == currentPhase.getDeathAnimation2();
+            if (!isDyingAnim) {
+                var target = p.getTarget();
+                var needToSpec = spec != null && SpecialAttack.getEnergy() >= spec.getSpecEnergy() && !hydra.getImmunity();
+                if (needToSpec) {
+                    loadouts.equip(spec);
+                    util.activateSpec();
+                    if (!Objects.equals(target, npc))
+                        util.attack(npc);
+                } else if (!Objects.equals(target, npc)) {
+                    loadouts.equip(fightLoadout);
+                    util.attack(npc);
+                } else {
+                    loadouts.equip(fightLoadout);
+                }
+            }
+
+            if (timer.elapsed(TimeUnit.MILLISECONDS) > 500)
+                log.debug("Attack Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    private void phaseStep(@NotNull Hydra hydra) {
+        var phase = hydra.getPhase();
+        if (!currentPhase.equals(phase)) {
+            var oldIdx = currStep == null ? 0 : currStep.getIndex();
+            currentPhase = phase;
+            ticksInStep = 0;
+            this.phaseSteps = this.getSteps(phase);
+            this.currStep = this.phaseSteps.GetNextStep(0);
+            this.currentMoveTo = currStep.getDestination().apply(this.hydraListener);
+            this.stepDone = false;
+            hydraListener.resetPlayerAttacked();
+            if (!Traversal.isRunEnabled()) {
+                Traversal.toggleRun();
+            }
+            log.debug(String.format("New Phase %s Step || oldIdx %s, newIdx %s, loc %s", hydra.getPhase(), oldIdx, currStep.getIndex(), currentMoveTo));
+        }
+    }
+
+    private boolean stepMove(Player p) {
+        if (currentMoveTo != null && !Objects.equals(p.getServerPosition(), currentMoveTo)) {
+            if (currentMoveTo.isLoaded()) {
+                util.moveTo(currentMoveTo);
+                hydraListener.resetPlayerAttacked();
+            } else {
+                var path = BresenhamPath.buildTo(currentMoveTo);
+                if (path != null)
+                    path.step(Path.TraversalOption.MANAGE_RUN, Path.TraversalOption.USE_DIRECT_INPUT);
+            }
+            return false;
+        }
+        var stayWhile = currStep != null && currStep.getStayWhile().test(this.hydraListener);
+        this.stepDone = Objects.equals(p.getServerPosition(), currentMoveTo) && !stayWhile;
+        return stepDone;
+    }
+
+    private void doStep(@NotNull Hydra hydra) {
+        if (currStep != null) {
+            var cIdx = currStep.getIndex();
+            log.debug("Step Index: {}", cIdx);
+            var waitCond = currStep.getMustMoveWhen();
+            if (waitCond != null && waitCond.test(this.hydraListener)) {
+                // time to move
+                currStep = this.phaseSteps.GetNextStep(currStep.getIndex() + 1);
+                this.currentMoveTo = currStep.getDestination().apply(this.hydraListener);
+                ticksInStep = 0;
+            } else if (currStep.getNumberOfTicks() != -1 && ticksInStep >= currStep.getNumberOfTicks()) {
+                // time to move
+                currStep = this.phaseSteps.GetNextStep(currStep.getIndex() + 1);
+                this.currentMoveTo = currStep.getDestination().apply(this.hydraListener);
+                ticksInStep = 0;
+            }
+            if (currStep.getIndex() != cIdx) {
+                ticksInStep = 0;
+                log.debug(String.format("%s New Step || oldIdx %s, newIdx %s, loc %s", hydra.getPhase(), cIdx, currStep.getIndex(), currentMoveTo));
+                this.stepDone = false;
+                hydraListener.resetPlayerAttacked();
+            }
+        }
+    }
+
+
+    public PhaseSteps getSteps(HydraPhase phase) {
+        if (this.fightLoadout.getStyle().equals(CombatStyle.Melee)) {
+            switch (phase) {
+                case POISON:
+                    return new Phase1MeleeSteps();
+                case LIGHTNING:
+                    return new Phase2MeleeSteps();
+                case FLAME:
+                    return new Phase3MeleeSteps();
+                case ENRAGED:
+                    return new Phase4MeleeSteps();
+            }
+        } else {
+            switch (phase) {
+                case POISON:
+                    return new Phase1Steps();
+                case LIGHTNING:
+                    return new Phase2Steps();
+                case FLAME:
+                    return new Phase3Steps();
+                case ENRAGED:
+                    return new Phase4Steps();
+            }
+        }
+        return null;
+    }
+
+
+    @Override
+    public void executeLoop() {
+    }
+}

@@ -1,0 +1,80 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.Monster;
+import com.neck_flexed.scripts.slayer.SlayerBotImpl;
+import com.neck_flexed.scripts.slayer.areas;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class ShamanTraverseOverride implements TraverseOverride {
+    private static final Monster monster = (Monster) Monster.getByEnum(Task.LIZARDMEN).get();
+    private static final Area hopArea = new Area.Rectangular(new Coordinate(1286, 10102, 0), new Coordinate(1303, 10082, 0));
+    private Traverser currentPath;
+
+    private GameObject getFarmingDoor() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1249, 3723, 0))
+                .names("Door")
+                .actions("Open")
+                .results().first();
+    }
+
+    private GameObject getDoor() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(1292, 10092, 0))
+                .ids(34642)
+                .actions("Pass")
+                .results().first();
+    }
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destinationTile) {
+        var pos = Players.getLocal().getServerPosition();
+        var reg = pos.getContainingRegionId();
+        if (reg == 5277) {
+            currentPath = null;
+            if (hopArea.contains(pos) && util.anyOtherPlayersWithin(monster.getArea())) {
+                ((SlayerBotImpl<?>) bot).forceState(SlayerState.HOPPING);
+                return true;
+            } else if (!hopArea.contains(pos)) {
+                bot.di.sendMovement(new Coordinate(1292, 10092, 0));
+                Execution.delayUntil(() -> hopArea.contains(pos), util::playerMoving, 600, 800);
+                return true;
+            }
+            if (bot.di.doDiInteractObstacleReachable(this::getDoor, "Pass", p -> areas.Lizardmen.contains(p.getServerPosition())))
+                return true;
+            var destination1 = new Coordinate(1293, 10091, 0);
+            Traverser.regionPathTraverser(destination1).executeLoop();
+        } else {
+            if (bot.di.doDiInteractObstacleAlt(g -> Players.getLocal().getServerPosition().getY() > 3722,
+                    this::getFarmingDoor, "Open", p -> p.getServerPosition().getY() <= 3722))
+                return true;
+            if (bot.di.doDiInteractObstacleReachable(this::getEntry, "Enter", p -> p.getServerPosition().getContainingRegionId() == 5277))
+                return true;
+
+            if (this.currentPath == null)
+                this.currentPath = Traverser.webPathTraverser(new Coordinate(1313, 3680, 0));
+            currentPath.executeLoop();
+        }
+        return true;
+    }
+
+    private GameObject getEntry() {
+        return GameObjects.newQuery()
+                .names("Lizard dwelling")
+                .on(new Coordinate(1312, 3686, 0))
+                .actions("Enter")
+                .results().first();
+
+
+    }
+}

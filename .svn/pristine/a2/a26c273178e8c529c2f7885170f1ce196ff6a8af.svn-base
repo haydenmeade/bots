@@ -1,0 +1,176 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.*;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "NeckBank")
+public class NeckBank {
+
+
+    public static Map<Pattern, Integer> dramenStaffIfNoAchievementDiary() {
+        return AchievementDiary.LUMBRIDGE.isEliteComplete()
+                ? Collections.emptyMap()
+                : toMap(1, items.dramenStaff);
+    }
+
+    public static @NotNull Map<Pattern, Integer> toMap(int amount, Pattern... item) {
+        var map = new HashMap<Pattern, Integer>();
+        for (var p : item) {
+            map.put(p, amount);
+        }
+        return map;
+    }
+
+    public static @NotNull Map<Pattern, Integer> toMap(int i, String name) {
+        return toMap(i, Pattern.compile(name));
+    }
+
+    public static @NotNull Map<Pattern, Integer> getBoostsNeeded(int amount, boolean anyDose, Boost... boosts) {
+        var map = new HashMap<Pattern, Integer>();
+        if (amount == 0) return map;
+        for (var b : boosts) {
+            if (Objects.equals(b, Boost.None)) continue;
+            var patterns = anyDose ? b.patternAny() : b.patternFull();
+            for (var p : patterns) {
+                map.put(p, amount);
+            }
+        }
+        return map;
+    }
+
+    @SafeVarargs
+    public static boolean doBankLoop(NeckBot<?, ?> bot, Pattern[] except, Map<Pattern, Integer>... withdraw) {
+        if (!Bank.isOpen()) return false;
+        var exceptWithWithdraw = new ArrayList<Pattern>(Arrays.asList(except));
+        exceptWithWithdraw.add(Pattern.compile("^Lamp$"));
+        for (var m : withdraw) {
+            for (var kv : m.entrySet()) {
+                if (kv.getValue() != 0) {
+                    exceptWithWithdraw.add(kv.getKey());
+                } else if (itemStacks(kv)) {
+                    // add stackable withdraw alls.
+                    exceptWithWithdraw.add(kv.getKey());
+                }
+            }
+        }
+        var exceptWithWithdrawA = exceptWithWithdraw.toArray(new Pattern[0]);
+        if (!Bank.depositAllExcept(exceptWithWithdrawA))
+            return false;
+        if (checkEm(withdraw, true)) return true;
+
+        for (var mm : withdraw) {
+            for (var kv : mm.entrySet()) {
+                var q = getQuantityOnMe(kv);
+                if (q < kv.getValue() || (kv.getValue() == 0 && itemStacks(kv))) {
+                    if (kv.getValue() != 0) {
+                        var withdrawQuantity = kv.getValue() - q;
+                        if (Bank.getQuantity(kv.getKey()) >= withdrawQuantity) {
+                            withdraw(kv.getKey(), withdrawQuantity);
+                        } else {
+                            var msg = String.format("Out of %s, wanted %s, have %s, in Bank: %s", kv.getKey(), kv.getValue(), q, withdrawQuantity);
+                            log.error(msg);
+                            bot.startPauseAndEndBotTimeout(msg);
+                        }
+                        return false;
+                    } else if (itemStacks(kv)) {
+                        withdraw(kv.getKey(), kv.getValue());
+                    }
+                } else if (q > kv.getValue() && !itemStacks(kv)) {
+                    deposit(kv.getKey(), q - kv.getValue());
+                    return false;
+                }
+            }
+        }
+
+
+        // check
+        boolean check = checkEm(withdraw, false);
+
+        if (check) {
+            for (var mmm : withdraw) {
+                for (var kv : mmm.entrySet()) {
+                    // non stackable withdraw
+                    if (kv.getValue() == 0 && !itemStacks(kv)) {
+                        return withdraw(kv.getKey(), 0);
+                    }
+                }
+            }
+        }
+
+        return check;
+    }
+
+    public static boolean checkEm(Map<Pattern, Integer>[] withdraw, boolean includeNonStackableAll) {
+        var check = true;
+        for (var mmm : withdraw) {
+            for (var kv : mmm.entrySet()) {
+                if (!check) return false;
+                if (kv.getValue() != 0) {
+                    check = getQuantityOnMe(kv) == kv.getValue();
+                    if (!check)
+                        log.debug("Check {} is failed, wanted {}, have {}", kv.getKey(), kv.getValue(), getQuantityOnMe(kv));
+                } else if (itemStacks(kv)) {
+                    check = getQuantityOnMe(kv) > 0;
+                    if (!check)
+                        log.debug("Check {} is failed, wanted {}, have {}", kv.getKey(), kv.getValue(), getQuantityOnMe(kv));
+                } else if (includeNonStackableAll) {
+                    // non-stackable withdraw all
+                    check = Inventory.getEmptySlots() == 0;
+                    if (!check)
+                        log.debug("Check {} is failed, wanted all, have {}", kv.getKey(), getQuantityOnMe(kv));
+                }
+            }
+        }
+        return check;
+    }
+
+    protected static int getQuantityOnMe(Map.Entry<Pattern, Integer> kv) {
+        var rune = getRune(kv.getKey());
+        if (rune != null) {
+            return rune.getQuantity();
+        } else {
+            return Inventory.getQuantity(kv.getKey()) + Equipment.getQuantity(kv.getKey());
+        }
+    }
+
+    protected static Rune getRune(Pattern key) {
+        return Arrays.stream(Rune.values()).filter(
+                r -> key.matcher(r.getName()).find()
+        ).findFirst().orElse(null);
+    }
+
+    private static boolean deposit(Pattern key, int count) {
+        if (!Inventory.contains(key)) return true;
+        var r = Bank.deposit(key, count);
+        log.debug("Deposit {} {}, result {}", count, key, r);
+        return r;
+    }
+
+    private static boolean withdraw(Pattern key, int count) {
+        var r = Bank.withdraw(key, count);
+        log.debug("Withdrawing {} {}, result {}", count, key, r);
+        return r;
+    }
+
+    private static boolean itemStacks(Map.Entry<Pattern, Integer> kv) {
+        var item = Inventory.contains(kv.getKey())
+                ? Inventory.getItems(kv.getKey()).first()
+                : Equipment.contains(kv.getKey())
+                ? Equipment.getItems(kv.getKey()).first()
+                : Bank.getItems(kv.getKey()).first();
+        if (item != null) {
+            var def = item.getDefinition();
+            return def != null && (def.stacks() || def.isNoted());
+        }
+        return false;
+    }
+
+}

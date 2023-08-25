@@ -1,0 +1,54 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.state.RestockState<HydraSettings, HydraState> {
+
+    public RestockState(NeckBot<HydraSettings, HydraState> bot) {
+        super(bot, HydraState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+                NeckBank.getBoostsNeeded(
+                        bot.settings().boost().equals(Boost.ImbuedHeart) ? 1 : bot.settings().boostAmount(),
+                        false,
+                        bot.settings().boost()
+                ),
+                NeckBank.toMap(bot.settings().antipoisonAmount(),
+                        bot.settings().antipoison().pattern()
+                ),
+                bot.settings().braceletsOfSlaughter() > 0 && (Bank.getQuantity(items.braceletOfSlaughter) > 0 || Inventory.contains(items.braceletOfSlaughter))
+                        ? NeckBank.toMap(
+                        Math.min(bot.settings().braceletsOfSlaughter(),
+                                Bank.getQuantity(items.braceletOfSlaughter) + Inventory.getQuantity(items.braceletOfSlaughter)),
+                        items.braceletOfSlaughter)
+                        : Collections.emptyMap(),
+                NeckBank.toMap((Inventory.getEmptySlots() < bot.settings().foodAmount() && !Inventory.contains(bot.settings().food().gameName()))
+                                ? Inventory.getEmptySlots() : bot.settings().foodAmount(),
+                        bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                        items.houseTab,
+                }),
+                new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape, items.radasBlessing, items.dramenStaff},
+                util.toItemList(bot.settings().equipment()),
+                util.toItemList(bot.settings().specEquipment())
+        );
+
+    }
+}

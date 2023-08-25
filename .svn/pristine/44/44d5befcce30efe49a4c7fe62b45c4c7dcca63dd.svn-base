@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<MoleState> {
+    private final MoleListener moleListener;
+    private final PrayerFlicker prayerFlicker;
+    private final boolean isDharoks;
+
+    public FightState(MoleListener moleListener,
+                      PrayerFlicker prayerFlicker,
+                      boolean isDharoks) {
+        this.moleListener = moleListener;
+        this.prayerFlicker = prayerFlicker;
+        this.isDharoks = isDharoks;
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        Action.set(Action.None);
+        this.prayerFlicker.setActivePrayers();
+        Execution.delayUntil(() -> {
+            var m = Mole.getMole();
+            return m == null || m.getAnimationId() != MoleListener.digAnim;
+        });
+
+        if (this.moleListener.isDead())
+            return MoleState.LOOTING;
+        else
+            return MoleState.SEARCHING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        log.debug("activate");
+        Mole.updateStatus("Fighting");
+        if (this.prayerFlicker.getActivePrayers().isEmpty()) {
+            this.prayerFlicker.setActivePrayers(MoleState.getBot().getQuickPrayers().toArray(new Prayer[0]));
+        }
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.moleListener.isDead() || this.moleListener.isDug() || Mole.getMole() == null;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (isDharoks) {
+            util.ReduceHpWithRockCake();
+        }
+        util.boostIfNeeded(MoleState.getSettings().style());
+        if (Action.get() != Action.Attack || Players.getLocal().getTarget() == null) {
+            if (MoleState.getSettings().useSpec() &&
+                    SpecialAttack.getEnergy() >= MoleState.getSettings().specEnergy()) {
+                util.equip(MoleState.getSettings().specEquipment());
+                util.activateSpec();
+                Mole.attack();
+                Action.set(Action.Spec);
+                Execution.delay(100, 300);
+            } else {
+                util.equip(MoleState.getSettings().equipment());
+                Mole.attack();
+                Execution.delay(100, 300);
+            }
+        }
+
+    }
+}

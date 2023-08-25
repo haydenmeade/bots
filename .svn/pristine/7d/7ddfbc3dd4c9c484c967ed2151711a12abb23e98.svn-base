@@ -1,0 +1,143 @@
+package com.neck_flexed.scripts.lizard;
+
+import com.runemate.game.api.hybrid.entities.LocatableEntity;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.RegionPath;
+import com.runemate.game.api.hybrid.queries.results.LocatableEntityQueryResults;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import com.runemate.game.api.script.framework.listeners.events.PlayerMovementEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "Movement")
+public class Movement implements PlayerListener, NpcListener, EngineListener {
+
+    public static List<Coordinate> getUnsafeCoordinates(LocatableEntityQueryResults<Npc> spawns, int r, List<Npc> lm) {
+        var ret = new ArrayList<Coordinate>();
+        for (LocatableEntity s : spawns) {
+            var a = new Area.Rectangular(s.getPosition()).grow(r, r);
+            ret.addAll(a.getCoordinates());
+        }
+        for (LocatableEntity l : lm) {
+            ret.addAll(l.getArea().getSurroundingCoordinates());
+            ret.addAll(l.getArea().getCoordinates());
+        }
+        if (BotState.getJumpArea() != null) {
+            ret.addAll(BotState.getJumpArea().getCoordinates());
+        }
+        return ret;
+    }
+
+    public static Optional<Coordinate> getSt(List<Coordinate> unsafes, List<Coordinate> bestTiles, Area area, Coordinate current) {
+        var safeSW = getSafe(unsafes, bestTiles, current, false);
+        if (safeSW.isPresent())
+            return safeSW;
+        return getSafe(unsafes, area.getCoordinates(), current, false);
+    }
+
+    public static boolean doWeGoThroughDanger(List<Coordinate> unsafes, List<Coordinate> path, Coordinate current) {
+        return path.stream().takeWhile(coordinate -> unsafes.stream().anyMatch(r -> r.equals(coordinate))).count() > 3;
+    }
+
+    public static Optional<Coordinate> getSafe(List<Coordinate> unsafes, List<Coordinate> available, Coordinate current, boolean forcePath) {
+        var safe = new ArrayList<Coordinate>();
+        for (Coordinate t :
+                available) {
+            if (unsafes.stream().anyMatch(r -> r.equals(t))) {
+                continue;
+            }
+            var b = RegionPath.buildBetween(current, Arrays.asList(t));
+            if (!forcePath && doWeGoThroughDanger(unsafes, b.getVertices(), current)) {
+                continue;
+            }
+            safe.add(t);
+        }
+        if (safe.isEmpty()) {
+            if (!forcePath) {
+                return getSafe(unsafes, available, current, true);
+            }
+            return Optional.empty();
+        }
+        var best = safe.stream().min(Comparator.comparingDouble((Coordinate o) -> o.distanceTo(current)));
+        return best;
+    }
+
+    private static boolean areWeSafe(List<Coordinate> unsafes, List<Coordinate> best, Coordinate current) {
+        return !unsafes.contains(current) && best.contains(current);
+    }
+
+    public static void MoveToBestSafeTile() {
+        if (BotState.getBotState() != BotState.FIGHTING) {
+            return;
+        }
+
+        try {
+            var currPlayer = Players.getLocal();
+            var spawns = Npcs.getLoaded(lizard.Spawn);
+            var unsafes = getUnsafeCoordinates(spawns, 1,
+                    Npcs.getLoaded(lizard.LIZ).stream().
+                            takeWhile(npc -> npc.getTarget() != null && lizard.areaCentre.contains(npc.getPosition())).
+                            collect(Collectors.toList()));
+
+            if (areWeSafe(unsafes, lizard.area1Safe, currPlayer.getPosition())) {
+                log.debug("safe, no move");
+                return;
+            }
+
+            var moveTo = getSt(unsafes, lizard.area1Safe, lizard.areaCentre, currPlayer.getPosition());
+
+            if (moveTo.isPresent() && !moveTo.get().equals(currPlayer.getPosition())) {
+                log.debug(String.format("Best tile: %s", moveTo.get().toString()));
+                DirectInput.sendMovement(moveTo.get());
+                BotState.setLastAction(Action.Move);
+            } else if (moveTo.isEmpty()) {
+                log.debug("no available moveTo");
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && event.getAnimationId() == 7152) {
+            log.debug("Jump");
+            var s = (Npc) event.getSource();
+            var p = Players.getLocal().getPosition();
+            BotState.setJumpArea(new Area.Rectangular(
+                    new Coordinate(p.getX() - 1, p.getY() - 1, 0),
+                    new Coordinate(p.getX() + 1, p.getY() + 1)));
+        }
+    }
+
+    @Override
+    public void onNpcHitsplat(HitsplatEvent event) {
+        if (lizard.areaCentre.contains(event.getSource().getPosition())) {
+            BotState.setJumpArea(null);
+        }
+    }
+
+
+    @Override
+    public void onPlayerMoved(PlayerMovementEvent event) {
+        MoveToBestSafeTile();
+    }
+
+    @Override
+    public void onTickStart() {
+        MoveToBestSafeTile();
+    }
+}

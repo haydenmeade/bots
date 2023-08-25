@@ -1,0 +1,92 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+
+public class SkeletalWyvernTraverseOverride implements TraverseOverride {
+
+    private Area t1 = new Area.Rectangular(new Coordinate(3021, 9560, 0), new Coordinate(3071, 9536, 0));
+
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        if (!isInDungeon()) {
+            GameObject entry = getEntry();
+            if (entry != null) {
+                DirectInput.send(MenuAction.forGameObject(entry, "Climb-down"));
+                Execution.delayUntil(this::isInDungeon,
+                        util::playerAnimatingOrMoving, 1500, 2500);
+                return true;
+            }
+            return false;
+        }
+        if (t1.contains(Players.getLocal().getServerPosition())) {
+            Traverser.regionPathTraverser(new Coordinate(3029, 9550, 0)).executeLoop();
+            return true;
+        }
+        if (canShortcut()) {
+            var s = getShortcut();
+            if (s != null) {
+                DirectInput.send(MenuAction.forGameObject(s, "Enter"));
+                Execution.delayUntil(() -> t1.contains(Players.getLocal().getServerPosition()),
+                        util::playerAnimatingOrMoving, 5000, 6000);
+                return true;
+            }
+        } else {
+            GameObject entry = getEntry2();
+            if (entry != null) {
+                DirectInput.send(MenuAction.forGameObject(entry, "Enter"));
+                Execution.delayUntil(this::isInDungeon,
+                        util::playerAnimatingOrMoving, 1500, 2500);
+                return true;
+            }
+        }
+        Traverser.regionPathTraverser(new Coordinate(3054, 9565, 0)).executeLoop();
+        return true;
+    }
+
+    private GameObject getEntry2() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3055, 9560, 0))
+                .names("Icy Cavern")
+                .actions("Enter")
+                .results().first();
+
+    }
+
+    private GameObject getShortcut() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3025, 9570, 0))
+                .names("Tunnel")
+                .actions("Enter")
+                .results().first();
+
+    }
+
+    private GameObject getEntry() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3008, 3150, 0))
+                .names("Trapdoor")
+                .actions("Climb-down")
+                .results().first();
+
+    }
+
+    private boolean canShortcut() {
+        return Skill.AGILITY.getCurrentLevel() >= 72;
+    }
+
+    private boolean isInDungeon() {
+        var p = Players.getLocal().getServerPosition().getContainingRegionId();
+        return p == 12181 || p == 11925;
+    }
+}

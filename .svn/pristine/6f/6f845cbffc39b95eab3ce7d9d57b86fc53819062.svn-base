@@ -1,0 +1,6 @@
+package com.neck_flexed.scripts.dk;
+
+public enum RestoreAndBankMethod {
+    House,
+    Ferox,
+}

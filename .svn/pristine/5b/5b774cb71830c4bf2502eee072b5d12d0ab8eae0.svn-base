@@ -1,0 +1,104 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState implements LoopState<BarrageState> {
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Mithril arrow",
+            "Steel arrow",
+            "Steel battleaxe",
+            "Adamant battleaxe",
+            "Adamant kiteshield",
+            "Iron arrow",
+            "Gold bar",
+            "Mithril bar",
+            "Oyster pearls",
+            "Uncut ruby",
+            "Adamant axe",
+            "Cosmic talisman",
+            "Bones",
+            "Abyssal ashes",
+            "Ashes",
+            "Malicious ashes",
+            "Chaos talisman",
+            "Defence potion(3)",
+            "Ugthanki kebab",
+            "Black axe",
+            "Black sword",
+            "Black longsword",
+            "Mithril kiteshield",
+            "Pure essence",
+            "Adamant javelin",
+            "Rune javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final BarrageListener barrageListener;
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(BarrageListener barrageListener, com.neck_flexed.scripts.barrage.bot bot, BreakManager breakManager) {
+        this.barrageListener = barrageListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looting");
+        if (barrageListener.getDeadArea() == null) return;
+        util.moveTo(barrageListener.getDeadArea().getCenter());
+        Loot.waitForLoot(barrageListener.getDeadArea(), Pattern.compile(".*"), 10000);
+        this.bot.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+    }
+
+    @Override
+    public BarrageState deactivate(EventDispatcher d) {
+        log.debug(String.format("Time until break: %s", this.breakManager.timeLeft()));
+        bot.resetKill();
+        if (!util.hasSlayerTask()) {
+            return BarrageState.RESTORING;
+        }
+        if (bot.doWeNeedToRestock() || this.result.equals(Loot.LootResult.Full) || this.breakManager.breaking() || this.breakManager.stopBot()) {
+            return BarrageState.RESTORING;
+        } else {
+            return BarrageState.LURING;
+        }
+    }
+
+    @Override
+    public BarrageState get() {
+        return BarrageState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(this.barrageListener.getDeadArea(),
+                ignoreLoot,
+                bot.settings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boost().patternAny(), 600, 600, null, bot.settings().minAlchValue()
+        );
+
+    }
+}

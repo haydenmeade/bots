@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+
+public class PostLootState extends BaseState<SarachnisState> implements EngineListener {
+    private static final Coordinate spawnTile = new Coordinate(1841, 9901, 0);
+    private final com.neck_flexed.scripts.sarachnis.bot bot;
+    private final SarachnisListener sarachnisListener;
+
+    public PostLootState(bot bot, SarachnisListener sarachnisListener) {
+        super(bot, SarachnisState.POST_LOOT);
+        this.bot = bot;
+        this.sarachnisListener = sarachnisListener;
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this};
+    }
+
+    @Override
+    public void onTickStart() {
+        bot.updateStatus("Waiting... Respawn in " + this.sarachnisListener.getTicksUntilRespawn() + " ticks");
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.sarachnisListener.getSarachnis() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+        util.eatIfHpAllows(Food.getAny());
+        bot.loadouts.equip(bot.loadouts.getAnyCombat());
+        util.boostIfNeeded(bot.loadouts.getEquipped().getStyle());
+        if (!Players.getLocal().getServerPosition().equals(spawnTile) && !Players.getLocal().isMoving()) {
+            util.moveTo(spawnTile);
+        }
+        Execution.delay(700, 800);
+        this.sarachnisListener.init();
+    }
+}

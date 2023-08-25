@@ -1,0 +1,95 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "WalkUnderState")
+public class WalkUnderState implements LoopState<KqState>, EngineListener {
+
+    private boolean done;
+    private boolean donePrevCycle = false;
+    private int eatCycle = -100;
+    private int tick = 0;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        kq.updateStatus("Walk under");
+        d.addListener(this);
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        if (kq.getKq() == null) return KqState.POST_LOOT_WAITING;
+        return KqState.FIGHTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.WALK_UNDER;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return kq.getKq() == null || done;
+    }
+
+    @Override
+    public void onTickStart() {
+        tick++;
+        var food = KqState.getSettings().food();
+        if (tick - eatCycle >= food.getTickDelay()) {
+            if (donePrevCycle) {
+                log.debug("done walk and eat under");
+                done = true;
+                return;
+            }
+            eatCycle = tick;
+            if (Inventory.contains(food.gameName())) {
+                donePrevCycle = Health.getMaximum() - Health.getCurrent() < food.getHeals();
+                if (!donePrevCycle) {
+                    util.eatIfHpAllows(food, food.getHeals());
+                    log.debug(String.format("tried to eat and: %s", donePrevCycle));
+                }
+            } else {
+                log.debug("no more food");
+                donePrevCycle = true;
+            }
+        }
+
+
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+
+        var queen = kq.getKq();
+        if (queen == null || queen.getPosition() == null || queen.getArea() == null) {
+            log.debug("null");
+            log.debug(queen);
+            return;
+        }
+        var center = queen.getArea().getCenter();
+        if (!Action.get().equals(Action.Move) || !center.equals(Players.getLocal().getPosition())) {
+            util.moveTo(center);
+            log.debug(String.format("Walking under move"));
+        }
+    }
+
+    @Override
+    public void executeLoop() {
+
+    }
+}

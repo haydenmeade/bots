@@ -1,0 +1,70 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Getter
+@RequiredArgsConstructor
+public enum SlayerFinishItem {
+    None(""),
+    BagOfSalt("^Bag of salt$", SlayerUnlock.SLUG_SALTER),
+    IceCooler("^Ice cooler$", SlayerUnlock.REPTILE_FREEZER),
+    RockHammer("^Rock hammer$", SlayerUnlock.GARGOYLE_SMASHER),
+    Fungicide(Pattern.compile("^Fungicide spray.*$", Pattern.CASE_INSENSITIVE), SlayerUnlock.SHROOM_SPRAYER, Pattern.compile("^Fungicide$")),
+    ;
+    private final Pattern useItem;
+    private final SlayerUnlock slayerUnlock;
+    private final @Nullable Pattern reloadItem;
+
+    SlayerFinishItem(String s) {
+        this.useItem = Pattern.compile(s, Pattern.CASE_INSENSITIVE);
+        this.reloadItem = null;
+        this.slayerUnlock = null;
+    }
+
+    SlayerFinishItem(String s, SlayerUnlock slayerUnlock) {
+        this.useItem = Pattern.compile(s, Pattern.CASE_INSENSITIVE);
+        this.reloadItem = null;
+        this.slayerUnlock = slayerUnlock;
+    }
+
+    public boolean needsReload() {
+        switch (this) {
+            case None:
+            case BagOfSalt:
+            case IceCooler:
+            case RockHammer:
+                return false;
+            case Fungicide:
+        }
+        return Inventory.containsAnyOf(Pattern.compile("^Fungicide spray 0$"), Pattern.compile("^Fungicide spray$"));
+    }
+
+    public Map<Pattern, Integer> getBank() {
+        var m = new HashMap<Pattern, Integer>();
+        if (this.equals(None)) return m;
+        switch (this) {
+            case IceCooler:
+            case BagOfSalt:
+                m.put(useItem, 0);
+                break;
+            case RockHammer:
+                m.put(useItem, 1);
+                break;
+            case Fungicide:
+                m.put(useItem, 1);
+                var c = SlayerTask.getCount() > 0 ? (int) Math.ceil((double) SlayerTask.getCount() / 10.0) : 2;
+                m.put(reloadItem, c);
+                break;
+        }
+
+        return m;
+    }
+}

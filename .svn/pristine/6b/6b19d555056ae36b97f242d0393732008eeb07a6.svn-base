@@ -1,0 +1,65 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class CerbStateManager extends StateManager<cerb, CerbState> {
+    private final CerbListener listener;
+
+    public CerbStateManager(cerb cerb, CerbListener listener) {
+        super(cerb);
+        this.listener = listener;
+    }
+
+    @Override
+    public CerbState getNextState(CerbState initiator) {
+        switch (initiator) {
+            case POST_LOOT_WAITING:
+                return CerbState.FIGHTING;
+            case LOOTING:
+                if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot()) {
+                    log.debug("Restore: {} {}", bot.doWeNeedToRestock(), bot.breakManager);
+                    return CerbState.RESTORING;
+                } else {
+                    return CerbState.POST_LOOT_WAITING;
+                }
+            case FIGHTING:
+                if (cerb.isInBossRoom() && (listener.isDead() || cerb.getCerb() == null)) {
+                    return CerbState.LOOTING;
+                }
+                break;
+            case WALK_UNDER:
+                if (cerb.isInBossRoom() && (listener.isDead() || cerb.getCerb() == null)) {
+                    return CerbState.LOOTING;
+                }
+                return CerbState.FIGHTING;
+            case TRAVERSING:
+                if (cerb.atLairEntrance() || (cerb.isInBossRoomIncludingEntrance() && !cerb.isInBossRoom())) {
+                    return CerbState.ENTERING_LAIR;
+                } else if (cerb.isInBossRoom()) {
+                    return CerbState.FIGHTING;
+                }
+                return CerbState.STARTING;
+            case RESTORING:
+                return CerbState.RESTOCKING;
+        }
+        if (cerb.getCerb() != null || cerb.isInBossRoom()) {
+            return CerbState.FIGHTING;
+        }
+        if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+            return CerbState.BREAKING;
+        if (Bank.isOpen()) return CerbState.RESTOCKING;
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (initiator != CerbState.RESTOCKING && needsRestock) {
+            if (Health.getCurrentPercent() == 100 && Prayer.getPoints() > 20 && SpecialAttack.getEnergy() >= 80)
+                return CerbState.RESTOCKING;
+            return CerbState.RESTORING;
+        }
+        return CerbState.TRAVERSING;
+    }
+}

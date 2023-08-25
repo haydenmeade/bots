@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class StartingState implements LoopState<BarrageState> {
+    private final com.neck_flexed.scripts.barrage.bot bot;
+    private boolean started = false;
+
+    public StartingState(com.neck_flexed.scripts.barrage.bot m) {
+        this.bot = m;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public BarrageState deactivate(EventDispatcher d) {
+        if (bot.settings().monster().getArea().contains(Players.getLocal())) {
+            if (Players.newQuery().within(bot.settings().monster().getArea()).results().size() > 1)
+                return BarrageState.HOPPING;
+            return BarrageState.LURING;
+        }
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return BarrageState.RESTOCKING;
+            return BarrageState.RESTORING;
+        }
+        return BarrageState.TRAVERSING;
+    }
+
+    @Override
+    public BarrageState get() {
+        return BarrageState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.0, 0.1);
+        bot.getBarrageListener().init();
+        if (util.isAutoRetaliateEnabled())
+            util.toggleAutoRetaliate();
+        started = true;
+    }
+}

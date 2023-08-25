@@ -1,0 +1,228 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.Region;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+
+@Log4j2(topic = "HydraMain")
+public class bot extends NeckBot<HydraSettings, HydraState> {
+    public static final String name = "Alchemical Hydra";
+    private static Area mtKaralumDungeon =
+            new Area.Rectangular(new Coordinate(1225, 10289, 0), new Coordinate(1406, 10141, 0));
+    @SettingsProvider(updatable = true)
+    private HydraSettings settings;
+    private HydraListener hydraListener;
+    private Consumeables<HydraSettings, HydraState> consumeables;
+    private AlchListener alcher = new AlchListener(this, LootingState.alchables.toArray(new String[0]));
+
+    // phase 3 pre tiles not working
+    // last phase 1 tile
+
+    public static boolean isInKaralumDungeon() {
+        return mtKaralumDungeon.contains(Players.getLocal());
+    }
+
+    // moving on acid throw is off
+    public static GameObject getDoor() {
+        return GameObjects.newQuery()
+                .names("Alchemical door")
+                .ids(34553)
+                .actions("Open", "Quick-open")
+                .results().nearest();
+    }
+
+    public static boolean inHydraInstance() {
+        var p = Players.getLocal();
+        if (p == null || p.getPosition() == null) return false;
+        return Region.isInstanced() && Arrays.equals(Region.getLoadedRegionIds(), c.HYDRA_REGIONS);
+    }
+
+    public static boolean inBossRoom() {
+        if (!inHydraInstance()) return false;
+        var d = bot.getDoor();
+        if (d == null || d.getPosition() == null) return false;
+        var p = Players.getLocal();
+        if (p == null || p.getPosition() == null) return false;
+        return (p.getPosition().getX() > d.getPosition().getX())
+                && (p.getPosition().getY() > d.getPosition().getY() - 10);
+    }
+
+    public static boolean inEntranceArea() {
+        return inHydraInstance() && !inBossRoom();
+    }
+
+    public @Nullable Hydra getHydra() {
+        return hydraListener.getHydra();
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Food.countInventory() < settings.minFood()) {
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void resetKill() {
+        Action.set(Action.None);
+        this.hydraListener.reset();
+    }
+
+    @Override
+    public void onStop(String reason) {
+        super.onStop(reason);
+        this.executor.shutdown();
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings, this);
+        this.setLoopDelay(10, 25);
+        consumeables = new Consumeables(this, 51, HydraState.RESTORING);
+        hydraListener = new HydraListener(prayerFlicker, this);
+
+        resetKill();
+
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "Start bot anywhere except the boss room, bot will take a couple seconds to load\n" +
+                        "Has better support for ranged methods than melee\n" +
+                        "House restore methods require ornate pool and jewellery box\n" +
+                        "Traverses Available: Rada's 4, Fairy Ring, Battlefront teleport or portal\n" +
+                        "Supports alching, just bring runes. Will pick up ranged potions if out and using ranged potions.\n" +
+                        "Hit up the neck discord if you have any issues or suggestions <3"
+
+        ));
+
+        executor.scheduleAtFixedRate(diFixRunnable, 0, 30, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{
+                this.prayerFlicker,
+                this.hydraListener,
+                this.junkDropper,
+                this.consumeables,
+                this.alcher,
+        };
+    }
+
+    @Override
+    protected void initFromSettings(HydraSettings s) {
+        updateItemFilter(
+                util.concatenate(
+                        util.toPatternArray(new String[]{
+                                s.food().gameName()}),
+                        new Pattern[]{items.staminaPotions, items.ringOfDueling, items.dramenStaff, items.houseTab,},
+                        util.toItemList(s.equipment()),
+                        util.toItemList(s.specEquipment())
+                ));
+        this.breakManager = new BreakManager(settings, this);
+        this.loadouts = Loadouts.fromEquipmentLoadouts(this,
+                Triple.of(settings().specEquipment(), Loadout.LoadoutRole.SpecHeal, "Spec"),
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, "CMBT")
+        );
+    }
+
+    public boolean isSlayerTaskDone() {
+        return !SlayerTask.hasTask();
+    }
+
+    @Override
+    protected LoopState<HydraState> getState(HydraState s) {
+        switch (s) {
+            case TRAVERSING:
+                return new TraverseState(this, loadouts, prayerFlicker);
+            case FIGHTING:
+                return new FightState(this.hydraListener, this.prayerFlicker, this);
+            case LOOTING:
+                return new LootingState(this, breakManager);
+            case POST_LOOT:
+                return new PostLootState(this, this.hydraListener, this.prayerFlicker);
+            case RESTORING:
+                return new com.neck_flexed.scripts.common.state.RestoreState<>(
+                        this, HydraState.RESTORING, this.getHouseConfig(), true
+                );
+            case RESTOCKING:
+                return new RestockState(this);
+            case ENTERING_LAIR:
+                return new EnterLairState(hydraListener, this, prayerFlicker);
+            case BREAKING:
+                return new BreakHandlerState<>(this.breakManager, this, HydraState.BREAKING);
+            case STARTING:
+            default:
+                return this.getStartingState();
+        }
+    }
+
+    @NotNull
+    @Override
+    public HouseConfig getHouseConfig() {
+        return HouseConfig.parse(settings, settings.hasHousePortalBattlefront() ? PortalNexusTeleport.Battlefront : null);
+    }
+
+    @Override
+    protected LoopState<HydraState> getStartingState() {
+        return new StartingState(this, loadouts);
+    }
+
+    @Override
+    protected HydraState getBreakStateEnum() {
+        return HydraState.BREAKING;
+    }
+
+    @Override
+    protected HydraState getStartStateEnum() {
+        return HydraState.STARTING;
+    }
+
+    @Override
+    protected IStateManager<HydraState> createStateManager() {
+        return new HydraStateManager(this, hydraListener);
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Hydra KC: %d", s, getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public HydraSettings settings() {
+        return settings;
+    }
+
+}

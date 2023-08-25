@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.traverse.KalphiteLairTraverse;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<KqState> {
+    private final kq bot;
+    private final Traverser traverser;
+    private String error;
+    private Traverser tunnelTraverser;
+
+    public TraverseState(kq bot) {
+        this.bot = bot;
+        this.traverser = new Traverser(
+                bot,
+                HouseConfig.parse(bot.settings()),
+                new Coordinate(3231, 3107, 0),
+                new int[]{KalphiteLairTraverse.LAIR_REGION_ID},
+                null,
+                new KalphiteLairTraverse()
+        );
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        if (kq.isInTunnels() || kq.lairEntryArea.contains(Players.getLocal())) {
+            return KqState.ENTERING_LAIR;
+        } else if (kq.isInLair()) {
+            return KqState.SEARCHING_LAIR;
+        }
+        return KqState.STARTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return kq.atLairEntrance()
+                || kq.isInLair()
+                || (kq.isInTunnels() && kq.canUseCreviceShortcut());
+    }
+
+    @Override
+    public void executeLoop() {
+        if (kq.tunnels.contains(Players.getLocal()) && !kq.canUseCreviceShortcut()) {
+            if (this.tunnelTraverser == null)
+                this.tunnelTraverser = Traverser.regionPathTraverser(kq.crackUseTile);
+            tunnelTraverser.executeLoop();
+            return;
+        }
+        this.traverser.executeLoop();
+    }
+}

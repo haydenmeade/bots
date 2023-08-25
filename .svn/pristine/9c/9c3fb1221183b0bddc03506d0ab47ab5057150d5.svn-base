@@ -1,0 +1,126 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import org.jetbrains.annotations.Nullable;
+
+public class MonsterBuilder {
+    private final Monsters monster;
+    private String monsterName;
+    private String[] alternatives;
+    private int[] pathRegions;
+    private Area area;
+    private TraverseMethod[] traverseMethods;
+    private @Nullable Prayer prayer = null;
+    private String[] superiorNames = new String[0];
+    private @Nullable Coordinate cannon = null;
+    private @Nullable Coordinate traverseToTile = null;
+    private @Nullable SlayerFinishItem finishItem = null;
+    private @Nullable SlayerProtectionItem protection = null;
+    private boolean isInSafeArea = false;
+    private boolean isLeafBladed = false;
+    private boolean isBarrrageMonster = false;
+    private TraverseOverride traverseOverride = null;
+
+    public MonsterBuilder(Monsters monster) {
+        this.monster = monster;
+    }
+
+    public MonsterBuilder setIsBarrageMonster(boolean isBarrage) {
+        this.isBarrrageMonster = isBarrage;
+        return this;
+    }
+
+    public MonsterBuilder setTraverseToTile(Coordinate traverseToTile) {
+        this.traverseToTile = traverseToTile;
+        return this;
+    }
+
+    public MonsterBuilder setMonsterName(String monsterName) {
+        this.monsterName = monsterName;
+        return this;
+    }
+
+    public MonsterBuilder setAlternatives(String... alternatives) {
+        this.alternatives = alternatives;
+        return this;
+    }
+
+    public MonsterBuilder setPathRegions(int... pathRegions) {
+        this.pathRegions = pathRegions;
+        return this;
+    }
+
+    public MonsterBuilder setArea(Area area) {
+        this.area = area;
+        return this;
+    }
+
+    public MonsterBuilder setTraverseMethods(TraverseMethod... traverseMethods) {
+        this.traverseMethods = traverseMethods;
+        return this;
+    }
+
+    public MonsterBuilder setPrayer(@Nullable Prayer prayer) {
+        this.prayer = prayer;
+        return this;
+    }
+
+    public MonsterBuilder setSuperiorNames(String... superiorNames) {
+        this.superiorNames = superiorNames;
+        return this;
+    }
+
+    public MonsterBuilder setCannon(@Nullable Coordinate cannon) {
+        this.cannon = cannon;
+        return this;
+    }
+
+    public MonsterBuilder setFinishItem(@Nullable SlayerFinishItem finishItem) {
+        this.finishItem = finishItem;
+        return this;
+    }
+
+    public MonsterBuilder setProtection(@Nullable SlayerProtectionItem protection) {
+        this.protection = protection;
+        return this;
+    }
+
+    public MonsterBuilder setIsInSafeArea(boolean isInSafeArea) {
+        this.isInSafeArea = isInSafeArea;
+        return this;
+    }
+
+    public MonsterBuilder setIsLeafBladed(boolean isLeafBladed) {
+        this.isLeafBladed = isLeafBladed;
+        return this;
+    }
+
+    public MonsterBuilder setTraverseOverride(TraverseOverride traverseOverride) {
+        this.traverseOverride = traverseOverride;
+        return this;
+    }
+
+    public Monster build() {
+        return new Monster(
+                monster,
+                monsterName,
+                superiorNames,
+                alternatives,
+                pathRegions,
+                area,
+                traverseMethods,
+                traverseOverride,
+                traverseToTile,
+                cannon,
+                prayer,
+                finishItem,
+                protection,
+                isInSafeArea,
+                isLeafBladed,
+                isBarrrageMonster
+        );
+    }
+}

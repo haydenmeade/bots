@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.cerberus;
+
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "CerbState")
+public enum CerbState {
+    STARTING(),
+    TRAVERSING(),
+    ENTERING_LAIR(),
+    FIGHTING(),
+    GHOSTS(),
+    LOOTING(),
+    POST_LOOT_WAITING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+    WALK_UNDER;
+
+    private static CerbSettings settings = null;
+    private static boolean isPaused = true;
+    private static cerb bot;
+    private static int cerbKilled = 0;
+
+    private CerbState() {
+    }
+
+    public static String getFood() {
+        return CerbState.getSettings() == null ? "Shark" : CerbState.getSettings().food().gameName();
+    }
+
+    public static CerbSettings getSettings() {
+        return settings;
+    }
+
+    public static void setSettings(CerbSettings settings) {
+        CerbState.settings = settings;
+    }
+
+    public static boolean isPaused() {
+        return CerbState.isPaused;
+    }
+
+    public static void setPaused(boolean paused) {
+        CerbState.isPaused = paused;
+    }
+
+    public static cerb getBot() {
+        return bot;
+    }
+
+    public static void setBot(cerb bot) {
+        CerbState.bot = bot;
+    }
+
+    public static int getCerbKilled() {
+        return cerbKilled;
+    }
+
+    public static void setCerbKilled(int cerbKilled) {
+        CerbState.cerbKilled = cerbKilled;
+    }
+
+}

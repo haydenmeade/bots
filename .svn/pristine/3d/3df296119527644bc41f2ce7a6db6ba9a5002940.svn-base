@@ -1,0 +1,95 @@
+package com.neck_flexed.scripts.common;
+
+import com.neck_flexed.scripts.common.traverse.HouseSettings;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+
+@Getter
+public class HouseConfig {
+    public static final HouseConfig MAX_HOUSE = new HouseConfig(
+            HouseConfig.JewelleryBox.Ornate,
+            HouseConfig.Altar.OccultAltar,
+            HouseConfig.Pool.Ornate,
+            true,
+            true,
+            true,
+            PortalNexusTeleport.values()
+    );
+    private final JewelleryBox jewelleryBox;
+    private final Altar altar;
+    private final Pool pool;
+    private final boolean hasFairyRing;
+    private final boolean hasMountedDigsite;
+    private final boolean hasMountedXerics;
+    private final PortalNexusTeleport[] portals;
+
+    public HouseConfig(JewelleryBox jewelleryBox,
+                       Altar altar,
+                       Pool pool,
+                       boolean hasFairyRing,
+                       boolean hasMountedDigsite,
+                       boolean hasMountedXerics,
+                       PortalNexusTeleport... portals) {
+        this.jewelleryBox = jewelleryBox;
+        this.altar = altar;
+        this.pool = pool;
+        this.hasFairyRing = hasFairyRing;
+        this.hasMountedDigsite = hasMountedDigsite;
+        this.hasMountedXerics = hasMountedXerics;
+        this.portals = portals;
+    }
+
+    public static HouseConfig parse(HouseSettings s) {
+        return new HouseConfig(
+                s.hasOrnateJewelleryBox() ? JewelleryBox.Ornate : JewelleryBox.None
+                , Altar.OccultAltar
+                , s.hasOrnatePool() ? Pool.Ornate : Pool.None
+                , s.hasHouseFairyRing()
+                , s.hasHouseMountedDigsite()
+                , s.hasMountedXerics()
+                , parsePortals(s)
+        );
+    }
+
+    private static PortalNexusTeleport[] parsePortals(HouseSettings s) {
+        var l = new ArrayList<PortalNexusTeleport>();
+        if (s.hasPortalArdougne())
+            l.add(PortalNexusTeleport.Ardougne);
+        if (s.hasPortalDraynor())
+            l.add(PortalNexusTeleport.DraynorManor);
+        if (s.hasPortalKourendCastle())
+            l.add(PortalNexusTeleport.KourendCastle);
+        if (s.hasPortalLumbridge())
+            l.add(PortalNexusTeleport.Lumbridge);
+        if (s.hasPortalSenntisten())
+            l.add(PortalNexusTeleport.Senntisten);
+        if (s.hasPortalVarrock())
+            l.add(PortalNexusTeleport.Varrock);
+        return l.toArray(new PortalNexusTeleport[0]);
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    public enum JewelleryBox {
+        None(0),
+        Basic(1),
+        Fancy(2),
+        Ornate(3);
+        private final int level;
+    }
+
+    public enum Altar {
+        None,
+        AncientAltar,
+        LunarAltar,
+        DarkAltar,
+        OccultAltar
+    }
+
+    public enum Pool {
+        None,
+        Ornate
+    }
+}

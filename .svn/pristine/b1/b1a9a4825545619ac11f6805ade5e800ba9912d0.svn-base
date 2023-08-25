@@ -1,0 +1,29 @@
+package com.neck_flexed.scripts.slayer;
+
+import lombok.Getter;
+
+@Getter
+public enum SlayerProtectionItem {
+    None(),
+    Nosepeg(true, "Nosepeg"),
+    SpinyHelmet(true, "Spiny helmet"),
+    ReinforcedGoggles(true, "Reinforced goggles"),
+    Facemask(true, "Facemask"),
+    Earmuffs("Rock hammer"),
+    NosePeg(true, "Nose peg"),
+    MirrorShield("Mirror shield"),
+    InsulatedBoots("Insulated boots"),
+    BootsOfStone("Boots of stone", "Boots of brimstone");
+    private final boolean slayerHelmet;
+    private final String[] gameNames;
+
+    SlayerProtectionItem(String... gameNames) {
+        this.gameNames = gameNames;
+        this.slayerHelmet = false;
+    }
+
+    SlayerProtectionItem(boolean slayerHelmet, String... gameNames) {
+        this.slayerHelmet = slayerHelmet;
+        this.gameNames = gameNames;
+    }
+}

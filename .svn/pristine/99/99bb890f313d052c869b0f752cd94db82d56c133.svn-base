@@ -1,0 +1,333 @@
+package com.neck_flexed.scripts.turael;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.entities.Player;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.web.WebPathRequest;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.Objects;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<TuraelState> {
+    private final com.neck_flexed.scripts.turael.bot bot;
+    private final Monster monster;
+    private final HouseConfig houseConfig;
+    private String error;
+    private boolean done;
+    private TraverseMethod traverseMethod = null;
+    private Coordinate startPosition;
+    private Path currentPath;
+    private boolean restored = false;
+
+    public TraverseState(com.neck_flexed.scripts.turael.bot bot) {
+        this.bot = bot;
+        this.monster = Monster.fromSlayerTask().orElse(null);
+        this.houseConfig = HouseConfig.parse(bot.settings());
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus(String.format("Traversing to %s", monster));
+        var p = Players.getLocal();
+        this.startPosition = p == null ? new Coordinate(0, 0, 0) : p.getServerPosition();
+    }
+
+    @Override
+    public TuraelState deactivate(EventDispatcher d) {
+        if (bot.isPaused()) return TuraelState.STARTING;
+        var p = Players.getLocal();
+        if (p == null) return TuraelState.STARTING;
+        if (monster.getArea().contains(p.getServerPosition())) {
+            if (util.anyOtherPlayersWithin(monster.getArea()))
+                return TuraelState.HOPPING;
+            return TuraelState.FIGHTING;
+        }
+        return TuraelState.STARTING;
+    }
+
+    @Override
+    public TuraelState get() {
+        return TuraelState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        if (monster == null)
+            return "Unable to find slayer monster from task: " + SlayerTask.getCurrentTaskName();
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+
+        if (House.isInside()
+                && this.houseConfig.getPool().equals(HouseConfig.Pool.Ornate)
+                && !util.isFullyRestored()
+                && !restored) {
+            this.restored = HouseUtil.restoreStatsInHouse(this.bot);
+        }
+
+        var pathRegions = monster.getPathRegions();
+        var traverses = monster.getTraverseMethods();
+        var target = monster.getArea();
+
+        this.done = traverse(p, pos, pathRegions, traverses, target);
+    }
+
+    private boolean traverse(@NotNull Player p,
+                             @NotNull Coordinate pos,
+                             int[] pathRegions,
+                             TraverseMethod[] traverses,
+                             Area target) {
+        if (target.contains(pos)) return true;
+        log.debug("traverse pos {} in region {}, start {}, start region {}", pos, pos.getContainingRegionId(), startPosition, startPosition.getContainingRegionId());
+
+        if (Traversal.getRunEnergy() < 45 && !Traversal.isStaminaEnhanced()) {
+            Traversal.drinkStaminaEnhancer();
+        }
+        if (!Traversal.isRunEnabled() && Traversal.getRunEnergy() > 10)
+            Traversal.toggleRun();
+
+        var inPathRegions = Arrays.stream(pathRegions).anyMatch(i -> i == pos.getContainingRegionId());
+        if (inPathRegions) {
+            log.debug("In pathing regions");
+            var overrideWebPath = doOverrideWebPath(monster, pos, target);
+            if (overrideWebPath) return false;
+            return pathToTarget(pos, monster.getCannon() == null ? target.getCenter() : monster.getCannon());
+        }
+
+        if (traverseMethod == null) {
+            var bestTraverse = Arrays.stream(traverses).filter(t -> t.hasSupport(this.houseConfig)).findFirst();
+            if (bestTraverse.isEmpty()) {
+                log.error("Unable to find a valid traverse for {}", monster);
+                return false;
+            }
+            this.traverseMethod = bestTraverse.get();
+        }
+
+        log.debug("Traverse method {}", traverseMethod);
+        return traverseMethod.doTraverseLoop(this.houseConfig, this.startPosition);
+    }
+
+    private boolean pathToTarget(Coordinate pos, Coordinate target) {
+        log.debug("Path to target");
+        if (this.currentPath == null) {
+            log.debug("Rebuilding path to {} from {}", monster, pos);
+            var path = WebPathRequest
+                    .builder()
+                    .setDestination(target)
+                    .setStart(pos)
+                    .setUsingTeleports(true)
+                    .build();
+            this.currentPath = path;
+        }
+        if (this.currentPath != null) {
+            if (!this.currentPath.step())
+                this.currentPath = null;
+        } else {
+            log.error("Could not generate path from {} to {} for {}", pos, target, monster);
+        }
+        return false;
+    }
+
+    private boolean doOverrideWebPath(Monster monster, Coordinate pos, Area target) {
+        if (monster.equals(Monster.Kalphites_Lair)) {
+            if (com.neck_flexed.scripts.kq.kq.isAboveGround()) {
+                log.debug("Override web path");
+                com.neck_flexed.scripts.kq.TraverseState.kqTraverseAboveGround(this.bot);
+                return true;
+            }
+        } else if (monster.equals(Monster.Minotaurs)) {
+            minotaurTraverse(pos);
+            return true;
+        } else if (monster.equals(Monster.Skeletons)) {
+            log.debug("Override web path");
+            var winchOn = new Coordinate(3352, 3417, 0);
+            var winch = GameObjects.newQuery()
+                    .on(winchOn)
+                    .names("Winch")
+                    .results()
+                    .nearest();
+            if (winch == null) {
+                pathToTarget(pos, new Coordinate(3352, 3416, 0));
+                return true;
+            }
+            var rope = Inventory.getItems("Rope").first();
+            if (rope == null) {
+                log.error("No rope");
+                return true;
+            }
+            var reg = Players.getLocal().getServerPosition().getContainingRegionId();
+            DirectInput.sendItemUseOn(rope, winch);
+            Execution.delayUntil(() -> reg != Players.getLocal().getServerPosition().getContainingRegionId(),
+                    util::playerMoving, 5000, 6000);
+            return true;
+        } else if (monster.equals(Monster.Rats)) {
+            log.debug("Override web path rat");
+            if (pos.getContainingRegionId() == 12954) {
+                util.moveTo(monster.getCannon());
+                Execution.delayUntil(() -> Objects.equals(Players.getLocal().getServerPosition(), monster.getCannon()),
+                        util::playerMoving, 3000, 4000);
+                return true;
+            }
+            var manholeOn = new Coordinate(3237, 3458, 0);
+            var manhole = GameObjects.newQuery()
+                    .on(manholeOn)
+                    .names("Manhole")
+                    .results()
+                    .nearest();
+            if (manhole == null) {
+                pathToTarget(pos, new Coordinate(3237, 3457, 0));
+                return true;
+            }
+            var def = manhole.getActiveDefinition();
+            if (def == null) return true;
+            var action = def.getActions().contains("Climb-down") ? "Climb-down" : "Open";
+            DirectInput.send(MenuAction.forGameObject(manhole, action));
+            var reg = Players.getLocal().getServerPosition().getContainingRegionId();
+            Execution.delayUntil(() ->
+                            reg != Players.getLocal().getServerPosition().getContainingRegionId()
+                                    || !GameObjects.newQuery()
+                                    .on(manholeOn)
+                                    .names("Manhole")
+                                    .actions("Climb-down")
+                                    .results().isEmpty(),
+                    () -> util.playerAnimating() || util.playerMoving(), 3000, 4000);
+            return true;
+        } else if (monster.equals(Monster.Sourhogs)) {
+            var sourhogRegion = 12695;
+            log.debug("Override web path sourhog");
+            var blockage = GameObjects.newQuery()
+                    .on(new Coordinate(3156, 9704, 0))
+                    .names("Blockage")
+                    .actions("Climb-over")
+                    .results()
+                    .nearest();
+            if (blockage != null) {
+                DirectInput.send(MenuAction.forGameObject(blockage, "Climb-over"));
+                Execution.delayUntil(() -> monster.getArea().contains(Players.getLocal().getServerPosition()),
+                        () -> util.playerAnimating() || util.playerMoving(), 3000, 4000);
+            }
+
+            var hole = GameObjects.newQuery()
+                    .within(new Coordinate(3150, 3347, 0).getArea().grow(2, 2))
+                    .names("Strange hole")
+                    .results()
+                    .nearest();
+            if (hole == null) {
+                pathToTarget(pos, new Coordinate(3149, 3347, 0));
+                return true;
+            }
+            DirectInput.send(MenuAction.forGameObject(hole, "Climb-down"));
+            Execution.delayUntil(() ->
+                            Players.getLocal().getServerPosition().getContainingRegionId() == sourhogRegion,
+                    () -> util.playerAnimating() || util.playerMoving(), 3000, 4000);
+            return true;
+        }
+        return false;
+    }
+
+    private @Nullable GameObject getNextDoor(Coordinate pos) {
+        var d1 = new Coordinate(1858, 5238, 0);
+        var d2 = new Coordinate(1858, 5235, 0);
+        var d3 = new Coordinate(1867, 5217, 0);
+        var d4 = new Coordinate(1870, 5217, 0);
+        for (var d : new Coordinate[]{d1, d2}) {
+            if (pos.getY() <= d.getY()) {
+                continue;
+            }
+            var g = GameObjects.newQuery()
+                    .on(d)
+                    .names("Gate of War")
+                    .actions("Open")
+                    .results()
+                    .first();
+            if (g != null) return g;
+        }
+
+        for (var d : new Coordinate[]{d3, d4}) {
+            if (pos.getX() >= d.getX()) {
+                continue;
+            }
+            var g = GameObjects.newQuery()
+                    .on(d)
+                    .names("Gate of War")
+                    .actions("Open")
+                    .results()
+                    .first();
+            if (g != null) return g;
+        }
+
+        return null;
+    }
+
+    private void minotaurTraverse(Coordinate pos) {
+        var monster = Monster.Minotaurs;
+        if (monster.getArea().contains(pos)) return;
+        var stronghold = 7505;
+        if (pos.getContainingRegionId() != stronghold) {
+            var entrance = GameObjects.newQuery()
+                    .on(new Coordinate(3081, 3420, 0))
+                    .names("Entrance")
+                    .actions("Climb-down")
+                    .results()
+                    .first();
+            if (entrance != null) {
+                DirectInput.send(MenuAction.forGameObject(entrance, "Climb-down"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == stronghold,
+                        util::playerMoving, 3000, 4000);
+                return;
+            }
+            return;
+        }
+        if (ChatDialog.isOpen()) {
+            var cont = ChatDialog.getContinue();
+            if (cont != null && cont.isValid()) {
+                cont.select();
+                Execution.delay(600, 700);
+            }
+            return;
+        }
+        var nextDoor = getNextDoor(pos);
+        if (nextDoor != null) {
+            DirectInput.send(MenuAction.forGameObject(nextDoor, "Open"));
+            Execution.delayUntil(() -> !nextDoor.equals(getNextDoor(Players.getLocal().getServerPosition())),
+                    () -> util.playerMoving() || util.playerAnimating(), 3000, 4000);
+        } else {
+            log.debug("No next door");
+            var c = monster.getCannon();
+            if (pos.distanceTo(c) <= 6) {
+                util.moveTo(c);
+                Execution.delayUntil(() -> Objects.equals(Players.getLocal().getServerPosition(), c),
+                        util::playerMoving, 3000, 4000);
+            }
+        }
+    }
+}

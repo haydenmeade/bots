@@ -1,0 +1,18 @@
+package com.neck_flexed.scripts.sire;
+
+public enum Action {
+    Attack("Attack"),
+    Alch("Alch"),
+    Consume("Consumeables"),
+    Loot("Loot"),
+    Move("Move"),
+    Spec("Spec"),
+    Equip("Equip"),
+    None("None");
+    private String action;
+
+    private Action(String action) {
+        this.action = action;
+
+    }
+}

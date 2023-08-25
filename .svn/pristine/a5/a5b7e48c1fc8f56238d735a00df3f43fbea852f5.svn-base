@@ -1,0 +1,332 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.LoopingBot;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Cerb")
+public class cerb extends LoopingBot implements SettingsListener {
+    public static final String name = "Cerberus";
+
+    public static final Coordinate centerSpawnTile =
+            new Coordinate(1240, 1252, 0);
+
+    // SummonedSouls:
+    // Melee: 5869
+    // Magic: 5868
+    // Ranged: 5867
+
+    // starts as 5863 (no attack option)
+    public static final int IdStartNoAttack = 5863;
+    public static final int Id = 5862;
+    private static final Area aboveGround =
+            Area.rectangular(new Coordinate(2870, 3471, 0), new Coordinate(2971, 3350, 0));
+    private static final Area taverlyDungeon =
+            Area.rectangular(new Coordinate(2813, 9855, 0), new Coordinate(2955, 9720, 0));
+
+    // -> "Crawl" in "Cave" at 2873,9846,0
+    private static final Area cerbDungeon =
+            Area.rectangular(new Coordinate(1196, 1360, 0), new Coordinate(1410, 1215, 0));
+    private static final Area cerbLairEntryArea =
+            Area.rectangular(new Coordinate(1278, 1279, 0), new Coordinate(1343, 1234, 0));
+
+    private static final Area cerbFightArea =
+            Area.rectangular(new Coordinate(1229, 1257, 0), new Coordinate(1250, 1245, 0));
+    private static final Area cerbRoomArea =
+            Area.rectangular(new Coordinate(1229, 1257, 0), new Coordinate(1250, 1226, 0));
+    @SettingsProvider(updatable = true)
+    private CerbSettings settings;
+    private CerbListener cerbListener;
+    private PrayerFlicker prayerFlicker;
+    private LoopState<CerbState> currentState;
+    private Consumeables consumeables;
+    private CerbState forcedState = null;
+    private CombatStyle combatStyle;
+    private Prayer[] boostPrayers;
+
+    public static boolean isInBossRoomIncludingEntrance() {
+        return cerbRoomArea.contains(Players.getLocal());
+    }
+
+    public static boolean isInBossRoom() {
+        return cerbFightArea.contains(Players.getLocal());
+    }
+
+    public static boolean atLairEntrance() {
+        return cerbLairEntryArea.contains(Players.getLocal());
+    }
+
+    public static boolean inTaverlyDungeon() {
+        return taverlyDungeon.contains(Players.getLocal());
+    }
+
+    public static boolean inCerbDungeonArea() {
+        return cerbDungeon.contains(Players.getLocal());
+    }
+
+    public static @Nullable Npc getCerb() {
+        return Npcs.newQuery().names(name).results().first();
+    }
+
+    public static void attack() {
+        var m = getCerb();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static void updateStatus(String s) {
+        var debugString = String.format("%s - Cerb KC: %d", s, CerbState.getCerbKilled());
+        log.debug(debugString);
+        DefaultUI.setStatus(debugString);
+    }
+
+    public static boolean isAboveGround() {
+        return aboveGround.contains(Players.getLocal());
+    }
+
+    public static boolean doWeNeedToRestock() {
+        if (CerbState.getSettings() == null) return false;
+        var boost = CerbState.getSettings().boost();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Inventory.getQuantity(CerbState.getSettings().food().gameName()) < 1) {
+            return true;
+        }
+        return false;
+    }
+
+
+    public void addListener(EventListener l) {
+        log.debug(String.format("Add listener %s", l.getClass().getName()));
+        if (!this.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            this.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public void removeListener(EventListener l) {
+        log.debug(String.format("Remove listener %s", l.getClass().getName()));
+        this.getEventDispatcher().removeListener(l);
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.cerbListener.reset();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        var isPaused = CerbState.getSettings() == null;
+        CerbState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            this.forceState(CerbState.STARTING);
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        CerbState.setPaused(true);
+        log.debug(String.format("paused"));
+        removeListener(prayerFlicker);
+        removeListener(consumeables);
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        cerbListener = new CerbListener();
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this);
+        CerbState.setBot(this);
+        this.getEventDispatcher().addListener(this);
+        CerbState.setPaused(true);
+
+        this.setLoopDelay(10, 25);
+        addListener(cerbListener);
+        resetKill();
+        DefaultUI.addPanel(0, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Requires: Hellhound/cerberus task House Located in taverly, House teleport or house tabs, DirectInput\n" +
+                        "Supporting alching if bringing alch runes"
+        ));
+
+        ClientUI.showAlert(ClientUI.AlertLevel.WARN, "Requires house in Taverly");
+
+    }
+
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        CerbState.setSettings(settings);
+        updateItemFilter();
+        this.combatStyle = util.getCombatStyle(CerbState.getSettings().equipment());
+        this.boostPrayers = util.getBoostPrayersA(util.getCombatStyle(CerbState.getSettings().equipment()));
+    }
+
+    public void updateItemFilter() {
+        try {
+
+            var s = CerbState.getSettings();
+            if (s == null) return;
+
+            Pattern[] x = util.concatenate(
+                    util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                            CerbState.getFood()}),
+                    new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling},
+                    util.toItemList(CerbState.getSettings().equipment()),
+                    util.toItemList(CerbState.getSettings().specEquipment())
+            );
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(CerbState.getBot(),
+                    (e -> {
+                        if (currentState != null && currentState.get() == CerbState.RESTOCKING) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+
+    @Override
+    public void onSettingsConfirmed() {
+        var isPaused = this.isPaused();
+        log.debug(String.format("settings confirmed %s, isPaused %s", settings.toString(), isPaused));
+        CerbState.setSettings(settings);
+        updateItemFilter();
+        CerbState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+        this.combatStyle = util.getCombatStyle(CerbState.getSettings().equipment());
+        this.boostPrayers = util.getBoostPrayersA(util.getCombatStyle(CerbState.getSettings().equipment()));
+
+        addListener(new AlchListener(
+                "Rune platebody"
+                , "Rune chainbody"
+                , "Rune 2h sword"
+                , "Black d'hide body"
+                , "Rune axe"
+                , "Rune pickaxe"
+                , "Rune full helm"
+                , "Lava battlestaff"
+                , "Rune halberd"
+        ));
+
+    }
+
+    private LoopState<CerbState> getState(CerbState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(prayerFlicker);
+            case FIGHTING:
+                return new FightState(this.cerbListener, this.prayerFlicker, this,
+                        boostPrayers, combatStyle);
+            case LOOTING:
+                return new LootState(this.cerbListener, this);
+            case POST_LOOT_WAITING:
+                return new PostLootWaiting(this.prayerFlicker, cerbListener);
+            case RESTORING:
+                return new RestoreState(prayerFlicker, cerbListener);
+            case HOPPING:
+                return new HoppingState();
+            case RESTOCKING:
+                return new RestockState();
+            case ENTERING_LAIR:
+                return new EnterLairState(cerbListener, this);
+            case WALK_UNDER:
+                return new WalkUnderState(cerbListener);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    public void onLoop() {
+        if (CerbState.isPaused()) return;
+        if (CerbState.getSettings() == null) return;
+        if (Players.getLocal() == null) return;
+        if (currentState == null) {
+            this.currentState = new StartingState(this);
+        }
+        if (currentState.fatalError() != null && !currentState.fatalError().isEmpty()) {
+            log.error(String.format("Fatal error from %s: %s", currentState.get(), currentState.fatalError()));
+            updateStatus(String.format("STOPPING during %s, error: %s", currentState.fatalError(), currentState.get()));
+            this.stop(currentState.fatalError());
+            return;
+        }
+        if (currentState.done() || forcedState != null) {
+            var tState = currentState.deactivate(this.getEventDispatcher());
+            var newState = forcedState == null ? tState : forcedState;
+            var newStateImpl = this.getState(newState);
+            newStateImpl.activate(this.getEventDispatcher());
+            var oldState = this.currentState;
+            this.currentState = newStateImpl;
+            if (forcedState != null) {
+                log.debug(String.format("FORCE change state from %s to %s", oldState.get(), newState));
+                forcedState = null;
+            } else {
+                log.debug(String.format("Change state from %s to %s", oldState.get(), newState));
+            }
+        }
+        if (!currentState.done())
+            currentState.executeLoop();
+    }
+
+
+    public void forceState(CerbState cerbState) {
+        this.forcedState = cerbState;
+    }
+}

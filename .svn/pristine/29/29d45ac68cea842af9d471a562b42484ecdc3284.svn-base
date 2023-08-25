@@ -1,0 +1,69 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreState")
+public class RestoreState implements LoopState<MoleState> {
+    private String error;
+    private boolean done;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Mole.updateStatus(String.format("Restoring"));
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        return MoleState.RESTOCKING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.RESTORING;
+    }
+
+    @Override
+    public String fatalError() {
+        return this.error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (MoleState.getSettings().RestoreAndBankStrategy() == RestoreAndBankStrategy.House) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                return;
+            }
+
+            if (!HouseUtil.restoreStatsInHouse(MoleState.getEventDispatcher())) {
+                return;
+            }
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            this.done = HouseUtil.JbToCastleWars();
+        } else {
+            if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                log.error("Unable to tele to ferox");
+                return;
+            } else if (!util.restoreAtFerox(MoleState.getEventDispatcher())) {
+                return;
+            }
+            this.done = true;
+        }
+
+    }
+}

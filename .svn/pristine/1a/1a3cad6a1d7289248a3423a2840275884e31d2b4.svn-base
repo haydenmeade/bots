@@ -1,0 +1,38 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.hybrid.local.Worlds;
+import com.runemate.game.api.hybrid.local.hud.interfaces.WorldHop;
+import com.runemate.game.api.hybrid.queries.WorldQueryBuilder;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingTask")
+public class HoppingTask extends LeafTask {
+
+    @Override
+    public void execute() {
+        log.debug("hopping");
+        sire.updateStatus("hopping");
+        if (!WorldHop.isOpen() && !WorldHop.open()) {
+            log.error("Unable to open world hopper");
+            return;
+        }
+        // TODO region isn't working.
+        var worlds = new WorldQueryBuilder().member().regular().results();
+        if (worlds.isEmpty()) {
+            log.debug("no worlds");
+            return;
+        }
+        var current = Worlds.getCurrent();
+        var newWorld = worlds.random();
+        if (newWorld.getId() == current)
+            return;
+        if (!WorldHop.hopTo(newWorld)) {
+            log.debug("no hop");
+        }
+        if (Execution.delayUntil(() -> Worlds.getCurrent() == newWorld.getId(), 15000)) {
+            SireState.setBotState(SireState.getInitialState());
+        }
+    }
+}

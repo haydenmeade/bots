@@ -1,0 +1,178 @@
+package com.neck_flexed.scripts.common;
+
+import com.google.common.collect.ImmutableMap;
+import lombok.Getter;
+
+import javax.annotation.Nullable;
+import java.util.Map;
+
+@Getter
+public enum Task {
+    ABERRANT_SPECTRES("Aberrant spectres", "Spectre"),
+    ABYSSAL_DEMONS("Abyssal demons"),
+    ABYSSAL_SIRE("The Abyssal Sire"),
+    ADAMANT_DRAGONS("Adamant dragons"),
+    ALCHEMICAL_HYDRA("The Alchemical Hydra"),
+    ANKOU("Ankou"),
+    AVIANSIES("Aviansies"),
+    BANDITS("Bandits", "Bandit", "Black Heather", "Donny the Lad", "Speedy Keith"),
+    BANSHEES("Banshees"),
+    BARROWS_BROTHERS("Barrows Brothers"),
+    BASILISKS("Basilisks"),
+    BATS("Bats", "Death wing"),
+    BEARS("Bears"),
+    BIRDS("Birds", "Chicken", "Rooster", "Terrorbird", "Seagull", "Vulture", "Duck", "Penguin"),
+    BLACK_DEMONS("Black demons"),
+    BLACK_DRAGONS("Black dragons", "Baby black dragon"),
+    BLACK_KNIGHTS("Black Knights", "Black Knight"),
+    BLOODVELD("Bloodveld"),
+    BLUE_DRAGONS("Blue dragons", "Baby blue dragon"),
+    BRINE_RATS("Brine rats"),
+    BRONZE_DRAGONS("Bronze dragons"),
+    CALLISTO("Callisto"),
+    CATABLEPON("Catablepon"),
+    CAVE_BUGS("Cave bugs"),
+    CAVE_CRAWLERS("Cave crawlers", "Chasm crawler"),
+    CAVE_HORRORS("Cave horrors", "Cave abomination"),
+    CAVE_KRAKEN("Cave kraken"),
+    CAVE_SLIMES("Cave slimes"),
+    CERBERUS("Cerberus"),
+    CHAOS_DRUIDS("Chaos druids", "Elder Chaos druid", "Chaos druid"),
+    CHAOS_ELEMENTAL("The Chaos Elemental"),
+    CHAOS_FANATIC("The Chaos Fanatic"),
+    COCKATRICE("Cockatrice", "Cockathrice"),
+    COWS("Cows"),
+    CRAWLING_HANDS("Crawling hands", "Crushing hand"),
+    CRAZY_ARCHAEOLOGIST("Crazy Archaeologists", "Crazy Archaeologist"),
+    CROCODILES("Crocodiles"),
+    DAGANNOTH("Dagannoth"),
+    DAGANNOTH_KINGS("Dagannoth Kings"),
+    DARK_BEASTS("Dark beasts", "Night beast"),
+    DARK_WARRIORS("Dark warriors", "Dark warrior"),
+    DERANGED_ARCHAEOLOGIST("Deranged Archaeologist"),
+    DOGS("Dogs", "Jackal"),
+    DRAKES("Drakes"),
+    DUST_DEVILS("Dust devils", "Choke devil"),
+    DWARVES("Dwarves", "Dwarf", "Black Guard"),
+    EARTH_WARRIORS("Earth warriors"),
+    ELVES("Elves", "Elf", "Iorwerth Warrior", "Iorwerth Archer"),
+    ENTS("Ents"),
+    FEVER_SPIDERS("Fever spiders"),
+    FIRE_GIANTS("Fire giants"),
+    FLESH_CRAWLERS("Fleshcrawlers", "Flesh crawler"),
+    FOSSIL_ISLAND_WYVERNS("Fossil island wyverns", "Ancient wyvern", "Long-tailed wyvern", "Spitting wyvern", "Taloned wyvern"),
+    GARGOYLES("Gargoyles"),
+    GENERAL_GRAARDOR("General Graardor"),
+    GHOSTS("Ghosts", "Death wing", "Tortured soul", "Forgotten Soul", "Revenant"),
+    GHOULS("Ghouls"),
+    GIANT_MOLE("The Giant Mole"),
+    GOBLINS("Goblins"),
+    GREATER_DEMONS("Greater demons"),
+    GREEN_DRAGONS("Green dragons", "Baby green dragon", "Elvarg"),
+    GROTESQUE_GUARDIANS("The Grotesque Guardians", "Dusk", "Dawn"),
+    HARPIE_BUG_SWARMS("Harpie bug swarms"),
+    HELLHOUNDS("Hellhounds"),
+    HILL_GIANTS("Hill giants", "Cyclops"),
+    HOBGOBLINS("Hobgoblins"),
+    HYDRAS("Hydras"),
+    ICEFIENDS("Icefiends"),
+    ICE_GIANTS("Ice giants"),
+    ICE_WARRIORS("Ice warriors", "Icelord"),
+    INFERNAL_MAGES("Infernal mages", "Malevolent mage"),
+    IRON_DRAGONS("Iron dragons"),
+    JAD("TzTok-Jad"),
+    JELLIES("Jellies", "Jelly"),
+    JUNGLE_HORROR("Jungle horrors"),
+    KALPHITE("Kalphite"),
+    KALPHITE_QUEEN("The Kalphite Queen"),
+    KILLERWATTS("Killerwatts"),
+    KING_BLACK_DRAGON("The King Black Dragon"),
+    KRAKEN("The Cave Kraken Boss", "Kraken"),
+    KREEARRA("Kree'arra"),
+    KRIL_TSUTSAROTH("K'ril Tsutsaroth"),
+    KURASK("Kurask"),
+    LAVA_DRAGONS("Lava Dragons", "Lava dragon"),
+    LESSER_DEMONS("Lesser demons"),
+    LIZARDMEN("Lizardmen", "Lizardman"),
+    LIZARDS("Lizards", "Desert lizard", "Sulphur lizard", "Small lizard", "Lizard"),
+    MAGIC_AXES("Magic axes", "Magic axe"),
+    MAMMOTHS("Mammoths", "Mammoth"),
+    MINIONS_OF_SCABARAS("Minions of scabaras", "Scarab swarm", "Locust rider", "Scarab mage"),
+    MINOTAURS("Minotaurs"),
+    MITHRIL_DRAGONS("Mithril dragons"),
+    MOGRES("Mogres"),
+    MOLANISKS("Molanisks"),
+    MONKEYS("Monkeys", "Tortured gorilla"),
+    MOSS_GIANTS("Moss giants"),
+    MUTATED_ZYGOMITES("Mutated zygomites", "Zygomite", "Fungi"),
+    NECHRYAEL("Nechryael", "Nechryarch"),
+    OGRES("Ogres", "Mogre", "Ogress", "Skogre", "Zogre"),
+    OTHERWORLDLY_BEING("Otherworldly beings"),
+    PHANTOM_MUSPAH("Phantom Muspah"),
+    PIRATES("Pirates", "Pirate"),
+    PYREFIENDS("Pyrefiends", "Flaming pyrelord"),
+    RATS("Rats"),
+    RED_DRAGONS("Red dragons", "Baby red dragon"),
+    REVENANTS("Revenants", "Revenant imp", "Revenant goblin", "Revenant pyrefiend", "Revenant hobgoblin", "Revenant cyclops", "Revenant hellhound", "Revenant demon", "Revenant ork", "Revenant dark beast", "Revenant knight", "Revenant dragon"),
+    ROCKSLUGS("Rockslugs"),
+    ROGUES("Rogues", "Rogue"),
+    RUNE_DRAGONS("Rune dragons"),
+    SARACHNIS("Sarachnis"),
+    SCORPIA("Scorpia"),
+    SCORPIONS("Scorpions"),
+    SEA_SNAKES("Sea snakes"),
+    SHADES("Shades", "Loar Shadow", "Loar Shade", "Phrin Shadow", "Phrin Shade", "Riyl Shadow", "Riyl Shade", "Asyn Shadow", "Asyn Shade", "Fiyr Shadow", "Fiyr Shade"),
+    SHADOW_WARRIORS("Shadow warriors"),
+    SKELETAL_WYVERNS("Skeletal wyverns"),
+    SKELETONS("Skeletons"),
+    SMOKE_DEVILS("Smoke devils"),
+    SOURHOGS("Sourhogs"),
+    SPIDERS("Spiders"),
+    SPIRITUAL_CREATURES("Spiritual creatures", "Spiritual ranger", "Spiritual mage", "Spiritual warrior"),
+    STEEL_DRAGONS("Steel dragons"),
+    SUQAHS("Suqahs"),
+    TERROR_DOGS("Terror dogs"),
+    THERMONUCLEAR_SMOKE_DEVIL("The Thermonuclear Smoke Devil"),
+    TROLLS("Trolls", "Dad", "Arrg"),
+    TUROTH("Turoth"),
+    TZHAAR("Tzhaar"),
+    VAMPYRES("Vampyres", "Vyrewatch", "Vampire"),
+    VENENATIS("Venenatis"),
+    VETION("Vet'ion"),
+    VORKATH("Vorkath"),
+    WALL_BEASTS("Wall beasts"),
+    WATERFIENDS("Waterfiends"),
+    WEREWOLVES("Werewolves", "Werewolf"),
+    WOLVES("Wolves", "Wolf"),
+    WYRMS("Wyrms"),
+    ZILYANA("Commander Zilyana"),
+    ZOMBIES("Zombies", "Undead"),
+    ZUK("TzKal-Zuk"),
+    ZULRAH("Zulrah");
+
+    private static final Map<String, Task> tasks;
+
+    static {
+        ImmutableMap.Builder<String, Task> builder = new ImmutableMap.Builder<>();
+
+        for (Task task : values()) {
+            builder.put(task.getName().toLowerCase(), task);
+        }
+
+        tasks = builder.build();
+    }
+
+    private final String name;
+    private final String[] targetNames;
+
+    Task(String name, String... targetNames) {
+        this.name = name;
+        this.targetNames = targetNames;
+    }
+
+    @Nullable
+    public static Task getTask(@Nullable String taskName) {
+        if (taskName == null) return null;
+        return tasks.get(taskName.toLowerCase());
+    }
+}

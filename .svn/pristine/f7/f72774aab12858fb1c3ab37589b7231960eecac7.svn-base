@@ -1,0 +1,230 @@
+package com.neck_flexed.scripts.dk;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<DkState>, EngineListener {
+    private final DkListener dkListener;
+    private final dk bot;
+    private final Loadouts loadouts;
+    private final boolean hasEliteFrem;
+    private King prevTarget;
+    private King currentTarget;
+    private boolean canBlood = false;
+    private boolean looting = false;
+    private int tick = 0;
+    private int lastSpellCast = -5;
+
+    public FightState(DkListener dkListener, dk bot) {
+        this.dkListener = dkListener;
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.hasEliteFrem = AchievementDiary.FREMENNIK.isEliteComplete();
+    }
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        d.removeListener(this);
+        if (bot.isSlayerTaskDone()) {
+            log.debug("deactivate finished slayer task");
+            return DkState.LOOTING;
+        }
+        if (!dkListener.needToOffTick().isEmpty()) {
+            log.debug("deactivate offtick");
+            return DkState.OFF_TICK;
+        }
+        if (King.getNearestKing() == null) {
+            log.debug("deactivate no king");
+            return DkState.LOOTING;
+        }
+        log.debug("deactivate other");
+        return DkState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        d.addListener(this);
+        this.canBlood = Magic.Book.ANCIENT.isCurrent() && util.hasBloodRunes();
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return King.getNearestKing() == null || !dkListener.needToOffTick().isEmpty() || bot.isSlayerTaskDone();
+    }
+
+
+    @Override
+    public void onTickStart() {
+        try {
+            Stopwatch timer = Stopwatch.createStarted();
+            tick++;
+            if (currentTarget == null || currentTarget.getNpc() == null || dkListener.isDead(currentTarget)) {
+                currentTarget = getNewTarget();
+                if (currentTarget != null)
+                    log.debug(String.format("New Target: %s", currentTarget.getName()));
+            }
+            if (currentTarget == null || currentTarget.getNpc() == null) {
+                log.debug("Null target");
+                return;
+            }
+
+            var npc = currentTarget.getNpc();
+            var p = Players.getLocal();
+            if (p == null) {
+                log.error("null player");
+                return;
+            }
+
+            var currentStyle = currentTarget.getAttackWith();
+            util.boostIfNeeded(currentStyle);
+            this.dkListener.setBoost(util.getBoostPrayersA(currentStyle));
+
+            var specl = this.loadouts.getSpecLoadout();
+            if (specl != null && Objects.equals(specl.getStyle(), currentStyle) &&
+                    SpecialAttack.getEnergy() >= specl.getSpecEnergy()) {
+                log.debug(String.format("Speccling %s", currentTarget.getName()));
+                loadouts.equip(specl);
+                util.activateSpec();
+                if (!Objects.equals(p.getTarget(), npc)) {
+                    this.dkListener.attack(currentTarget);
+                }
+                if (timer.elapsed(TimeUnit.MILLISECONDS) > 500)
+                    log.debug("Spec Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+                return;
+            }
+
+            loadouts.equipStyle(currentStyle);
+
+            if (timer.elapsed(TimeUnit.MILLISECONDS) > 500)
+                log.debug("Equip Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+            if (canBlood
+                    && currentTarget.equals(King.Rex)
+                    && Health.getCurrentPercent() < 90
+            ) {
+                var sp = util.getBloodSpell();
+                if (sp != null && tick >= (lastSpellCast + 5)) {
+                    log.debug(String.format("Blood spell %s", currentTarget.getName()));
+                    DirectInput.sendSpellCastOn(sp, npc);
+                    this.lastSpellCast = tick;
+                    return;
+                }
+            }
+
+            if (currentStyle.equals(CombatStyle.Ranged) || currentStyle.equals(CombatStyle.Magic)) {
+                quickLoot();
+            }
+            if (looting) return;
+            if (!hasEliteFrem) {
+                buryBone();
+            }
+
+            if (Objects.equals(p.getTarget(), npc)) {
+                log.debug("target already set");
+                return;
+            }
+
+            this.dkListener.attack(currentTarget);
+
+            if (timer.elapsed(TimeUnit.MILLISECONDS) > 500)
+                log.debug("Attack Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    private void buryBone() {
+        var bone = Inventory.newQuery()
+                .names("Dagannoth bones")
+                .unnoted()
+                .actions("Bury")
+                .results()
+                .first();
+        if (bone == null) return;
+        DirectInput.send(MenuAction.forSpriteItem(bone, "Bury"));
+    }
+
+    private Loot.LootResult quickLoot() {
+        // TODO attack range.
+        try {
+            this.looting = true;
+            Stopwatch timer = Stopwatch.createStarted();
+            var r = LootingState.lootIt(this.bot, 50);
+            if (timer.elapsed(TimeUnit.MILLISECONDS) > 500)
+                log.debug("Loot Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+            return r;
+        } finally {
+            this.looting = false;
+        }
+    }
+
+
+    // Supreme>Prime>Rex.
+    private King getNewTarget() {
+        var lastTarget = dkListener.getLastTarget();
+        if (lastTarget != null) {
+            var npc = lastTarget.getNpc();
+            if (npc != null && npc.isValid() && npc.getAnimationId() != dk.DeathAnimation) {
+                return lastTarget;
+            }
+        }
+        var attackers = King.getAttackingKings();
+        if (!attackers.isEmpty()) {
+            if (attackers.contains(King.Supreme))
+                return King.Supreme;
+            else if (attackers.contains(King.Prime)) {
+                return King.Prime;
+            } else if (attackers.contains(King.Rex)) {
+                return King.Rex;
+            }
+        }
+        var all = King.getAllKings();
+        if (!all.isEmpty()) {
+            if (all.contains(King.Supreme))
+                return King.Supreme;
+            else if (all.contains(King.Prime)) {
+                return King.Prime;
+            } else if (all.contains(King.Rex)) {
+                return King.Rex;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (currentTarget == null && prevTarget != null) {
+            bot.updateStatus("Fighting");
+            prevTarget = null;
+        } else if (!Objects.equals(currentTarget, prevTarget)) {
+            bot.updateStatus(String.format("Fighting: %s", currentTarget.getName()));
+            prevTarget = currentTarget;
+        }
+    }
+}

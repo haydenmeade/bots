@@ -1,0 +1,49 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.Hopping;
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.hybrid.local.Worlds;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingState")
+public class HoppingState implements LoopState<MoleState> {
+    private boolean hopped = false;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Mole.updateStatus("Hopping");
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        return this.hopped ? MoleState.STARTING : MoleState.HOPPING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.HOPPING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return hopped;
+    }
+
+    @Override
+    public void executeLoop() {
+        var c = Worlds.getCurrent();
+        if (Hopping.hop(MoleState.getSettings().worldRegion())) {
+            this.hopped = true;
+            Execution.delay(600, 1200);
+        }
+        if (!this.hopped)
+            log.error("unable to hop worlds");
+    }
+}

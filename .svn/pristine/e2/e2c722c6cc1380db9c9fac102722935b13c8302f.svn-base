@@ -1,0 +1,122 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<KqState> {
+    private final KqListener kqListener;
+    private final PrayerFlicker prayerFlicker;
+    private final kq bot;
+    private final Prayer[] phase1Prayers;
+    private final Prayer[] phase2Prayers;
+    private final CombatStyle phase1CombatStyle;
+    private final CombatStyle phase2CombatStyle;
+    private final int specEnergy;
+    private KqPhase prevPhase = KqPhase.Phase2;
+
+    public FightState(KqListener kqListener,
+                      PrayerFlicker prayerFlicker,
+                      kq bot,
+                      Prayer[] phase1Prayers, Prayer[] phase2Prayers, CombatStyle phase1CombatStyle, CombatStyle phase2CombatStyle,
+                      int specEnergy) {
+        this.kqListener = kqListener;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+        this.phase1Prayers = phase1Prayers;
+        this.phase2Prayers = phase2Prayers;
+        this.phase1CombatStyle = phase1CombatStyle;
+        this.phase2CombatStyle = phase2CombatStyle;
+        this.specEnergy = specEnergy;
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        if (this.kqListener.isDead()) {
+            Action.set(Action.None);
+            this.prayerFlicker.setActivePrayers();
+            return KqState.LOOTING;
+        } else if (Health.getCurrent() <= getHealthForWalkUnder())
+            return KqState.WALK_UNDER;
+        return KqState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        log.debug("activate");
+        kq.updateStatus("Fighting");
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    public int getHealthForWalkUnder() {
+        return 49;
+    }
+
+    @Override
+    public boolean done() {
+        return this.kqListener.isDead()
+                || kq.getKq() == null
+                || (Health.getCurrent() <= getHealthForWalkUnder() && Inventory.contains(KqState.getFood()));
+    }
+
+    @Override
+    public void executeLoop() {
+        var phase = this.kqListener.getPhase();
+        var s = KqState.getSettings();
+        var target = Players.getLocal().getTarget();
+        //log.debug(String.format("Phase: %s, prevPhase: %s, prevAction: %s", phase, prevPhase, Action.get()));
+
+        if (phase.equals(KqPhase.Phase1)) {
+            prevPhase = KqPhase.Phase1;
+            this.prayerFlicker.setActivePrayers(phase1Prayers);
+            util.boostIfNeeded(this.phase1CombatStyle);
+            if (s.specEquipment() != null &&
+                    !s.specEquipment().isEmpty() &&
+                    SpecialAttack.getEnergy() >= specEnergy) {
+                util.activateSpec();
+                if (target == null || !Action.get().equals(Action.Spec)) {
+                    util.equip(KqState.getSettings().specEquipment());
+                    kq.attack();
+                    Action.set(Action.Spec);
+                    Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 100, 110);
+                }
+            } else if (target == null || Action.get() != Action.Attack) {
+                util.equip(KqState.getSettings().phase1Equipment());
+                kq.attack();
+                Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 100, 110);
+            }
+        } else if (phase.equals(KqPhase.Transition)) {
+            prevPhase = KqPhase.Transition;
+            util.eatIfHpAllows(KqState.getSettings().food());
+            util.boostIfNeeded(this.phase2CombatStyle);
+            util.equip(KqState.getSettings().phase2Equipment());
+            this.prayerFlicker.setActivePrayers(this.phase2Prayers);
+            var c = kq.getKq().getArea().getCenter();
+            if (!Players.getLocal().getPosition().equals(c)) {
+                util.moveTo(c);
+                Execution.delayUntil(() -> Players.getLocal().getPosition().equals(c), 600, 1300);
+            }
+        } else if (target == null || prevPhase.equals(KqPhase.Transition) || Action.get() != Action.Attack) {
+            kq.attack();
+            prevPhase = KqPhase.Phase2;
+            Execution.delayUntil(() -> Players.getLocal().getTarget() != null, 200, 310);
+        }
+    }
+}

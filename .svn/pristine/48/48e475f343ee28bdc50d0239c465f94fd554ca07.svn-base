@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk" afterDir="true" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/DkListener.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/DkSettings.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/DkState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/FightState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/King.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/OffTickState.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/RestoreAndBankMethod.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/TraverseStrategy.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/dk/dk.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/neck_flexed/scripts/common/util.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/common/util.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Interface" />
+        <option value="Class" />
+        <option value="Enum" />
+      </list>
+    </option>
+  </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="OptimizeOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="ProjectErrors" />
+  </component>
+  <component name="ProjectId" id="2QRyEawx83s19dkxmxRIYkXF8C1" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.JavaDocs&quot;: &quot;true&quot;,
+    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Hayden/IdeaProjects/LizardLick/src/com/neck_flexed/scripts/cerberus&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;vcs.Subversion&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CreateClassDialog.RecentsKey">
+      <recent name="com.neck_flexed.scripts.dk" />
+      <recent name="com.neck_flexed.scripts.sire" />
+      <recent name="com.neck_flexed.scripts.cerberus" />
+      <recent name="com.neck_flexed.scripts.kq" />
+      <recent name="com.neck_flexed.scripts.mole" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Hayden\IdeaProjects\LizardLick\src\com\neck_flexed\scripts\cerberus" />
+      <recent name="C:\Users\Hayden\IdeaProjects\LizardLick\src\com\neck_flexed\scripts\kq" />
+      <recent name="C:\Users\Hayden\IdeaProjects\LizardLick\src\com\neck_flexed\scripts\mole" />
+      <recent name="C:\Users\Hayden\IdeaProjects\LizardLick\src\com\neck_flexed\scripts" />
+    </key>
+    <key name="MoveMembersDialog.RECENTS_KEY">
+      <recent name="com.neck_flexed.scripts.common.HouseUtil" />
+      <recent name="com.neck_flexed.scripts.common.items" />
+      <recent name="com.neck_flexed.scripts.common.util" />
+      <recent name="com.neck_flexed.scripts.sire.u" />
+      <recent name="com.goblinneck.scripts.sire.Traverse" />
+    </key>
+    <key name="MoveClassesOrPackagesDialog.RECENTS_KEY">
+      <recent name="com.neck_flexed.scripts.common" />
+    </key>
+    <key name="CopyClassDialog.RECENTS_KEY">
+      <recent name="com.neck_flexed.scripts.dk" />
+      <recent name="com.neck_flexed.scripts.mole" />
+      <recent name="com.neck_flexed.scripts.sire" />
+      <recent name="com.neck_flexed.scripts.common" />
+      <recent name="com.neck_flexed.scripts.cerberus" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="Launch" type="Application" factoryName="Application">
+      <envs>
+        <env name="RUNEMATE_USERNAME" value="hmeade.osrs@gmail.com" />
+        <env name="RUNEMATE_PASSWORD" value="mysmellyoldsocks" />
+      </envs>
+      <option name="MAIN_CLASS_NAME" value="com.runemate.client.boot.Boot" />
+      <module name="Bots" />
+      <option name="PROGRAM_PARAMETERS" value="--dev" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="SvnConfiguration" cleanupOnStartRun="true">
+    <configuration>C:\Users\Hayden\AppData\Roaming\Subversion</configuration>
+    <supportedVersion>125</supportedVersion>
+  </component>
+  <component name="SvnFileUrlMappingImpl">
+    <option name="myMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+    <option name="myMoreRealMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="" />
+      <created>1685330583571</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1685330583571</updated>
+    </task>
+    <task id="LOCAL-00018" summary="Final fixes">
+      <created>1685943343657</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1685943343657</updated>
+    </task>
+    <task id="LOCAL-00019" summary="Add common">
+      <created>1686030521239</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1686030521240</updated>
+    </task>
+    <task id="LOCAL-00020" summary="Use common utils in sire">
+      <created>1686030744733</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1686030744733</updated>
+    </task>
+    <task id="LOCAL-00021" summary="Remove out directory">
+      <created>1686047060839</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1686047060839</updated>
+    </task>
+    <task id="LOCAL-00022" summary="Fixup abyssal sire">
+      <created>1686055721579</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1686055721579</updated>
+    </task>
+    <task id="LOCAL-00023" summary="Fix bouncing in phase 1">
+      <created>1686055994072</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1686055994072</updated>
+    </task>
+    <task id="LOCAL-00024" summary="Fix item filter">
+      <created>1686056104679</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1686056104679</updated>
+    </task>
+    <task id="LOCAL-00025" summary="Fix escape on low hp">
+      <created>1686056224882</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1686056224882</updated>
+    </task>
+    <task id="LOCAL-00026" summary="temp delete mole">
+      <created>1686056571467</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1686056571467</updated>
+    </task>
+    <task id="LOCAL-00027" summary="Fix hopping task, fix discovery of sire stun">
+      <created>1686097888347</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1686097888347</updated>
+    </task>
+    <task id="LOCAL-00028" summary="version number">
+      <created>1686097930988</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1686097930988</updated>
+    </task>
+    <task id="LOCAL-00029" summary="Push working mole, fix hopping code">
+      <created>1686109754552</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1686109754552</updated>
+    </task>
+    <task id="LOCAL-00030" summary="Mole Banking for light,spade,shield">
+      <created>1686110372637</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1686110372637</updated>
+    </task>
+    <task id="LOCAL-00031" summary="update status on stop">
+      <created>1686110632473</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1686110632473</updated>
+    </task>
+    <task id="LOCAL-00032" summary="Improve fairy ring finding logic">
+      <created>1686172207776</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1686172207776</updated>
+    </task>
+    <task id="LOCAL-00033" summary="Increment version">
+      <created>1686172917596</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1686172917596</updated>
+    </task>
+    <task id="LOCAL-00034" summary="Improve stun detection using tentacles">
+      <created>1686188455849</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1686188455849</updated>
+    </task>
+    <task id="LOCAL-00035" summary="Fix divine rune pouch, improve boost prayer detect, fix fairy tree.">
+      <created>1686192963415</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1686192963415</updated>
+    </task>
+    <task id="LOCAL-00036" summary="bump version">
+      <created>1686193006939</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1686193006939</updated>
+    </task>
+    <task id="LOCAL-00037" summary="don't bank unsired">
+      <created>1686194846674</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1686194846674</updated>
+    </task>
+    <task id="LOCAL-00038" summary="increment version">
+      <created>1686195107229</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
+      <option name="project" value="LOCAL" />
+      <updated>1686195107229</updated>
+    </task>
+    <task id="LOCAL-00039" summary="Escape explosion better hopefully">
+      <created>1686197839138</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1686197839138</updated>
+    </task>
+    <task id="LOCAL-00040" summary="Don't fail if don't detect fally hard diary. Better null protection in sire resp detection, use unsired on font">
+      <created>1686200898515</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1686200898515</updated>
+    </task>
+    <task id="LOCAL-00041" summary="Increment version">
+      <created>1686200985249</created>
+      <option name="number" value="00041" />
+      <option name="presentableId" value="LOCAL-00041" />
+      <option name="project" value="LOCAL" />
+      <updated>1686200985249</updated>
+    </task>
+    <task id="LOCAL-00042" summary="Moving lots of things to common. Utilise better banking methods. Use looting from common. Too much stuff for one commit, but I've tested it I guess.">
+      <created>1686282452635</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1686282452635</updated>
+    </task>
+    <task id="LOCAL-00043" summary="Fix antipoison, move restore to house util">
+      <created>1686305244986</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1686305244986</updated>
+    </task>
+    <task id="LOCAL-00044" summary="Tweak sire safe walk tiles">
+      <created>1686305912076</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1686305912076</updated>
+    </task>
+    <task id="LOCAL-00045" summary="Can use basic/fancy jewellery box">
+      <created>1686306999996</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1686306999996</updated>
+    </task>
+    <task id="LOCAL-00046" summary="Necks KQ, and some banking improvement">
+      <created>1686376035364</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1686376035364</updated>
+    </task>
+    <task id="LOCAL-00047" summary="More delay on hopping, error message on falador park teleport. Fix KQ walk under">
+      <created>1686394844320</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1686394844320</updated>
+    </task>
+    <task id="LOCAL-00048" summary="Fix Di time out and crashers">
+      <created>1686437419165</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1686437419165</updated>
+    </task>
+    <task id="LOCAL-00049" summary="Fix Di time out and crashers">
+      <created>1686438005338</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1686438005338</updated>
+    </task>
+    <task id="LOCAL-00050" summary="Increment version, fix bank withdraw before deposit">
+      <created>1686438056223</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1686438056224</updated>
+    </task>
+    <task id="LOCAL-00051" summary="fix post loot waiting">
+      <created>1686441559345</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1686441559345</updated>
+    </task>
+    <task id="LOCAL-00052" summary="fix post loot waiting">
+      <created>1686443539305</created>
+      <option name="number" value="00052" />
+      <option name="presentableId" value="LOCAL-00052" />
+      <option name="project" value="LOCAL" />
+      <updated>1686443539306</updated>
+    </task>
+    <task id="LOCAL-00053" summary="fix looting noted">
+      <created>1686445218207</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1686445218207</updated>
+    </task>
+    <task id="LOCAL-00054" summary="try fix some null conditions">
+      <created>1686476578257</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1686476578257</updated>
+    </task>
+    <task id="LOCAL-00055" summary="remove supply dropping tempororary">
+      <created>1686523982583</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1686523982583</updated>
+    </task>
+    <task id="LOCAL-00056" summary="Cerberus improvements">
+      <created>1686526227526</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1686526227526</updated>
+    </task>
+    <task id="LOCAL-00057" summary="Sire refactor">
+      <created>1686561996102</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1686561996103</updated>
+    </task>
+    <task id="LOCAL-00058" summary="Fix walk under spam">
+      <created>1686604039402</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1686604039403</updated>
+    </task>
+    <task id="LOCAL-00059" summary="Construction cape lol">
+      <created>1686604276263</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1686604276263</updated>
+    </task>
+    <task id="LOCAL-00060" summary="Added fight strategy options">
+      <created>1686605310583</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1686605310583</updated>
+    </task>
+    <task id="LOCAL-00061" summary="Add break handling">
+      <created>1686631850308</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1686631850308</updated>
+    </task>
+    <task id="LOCAL-00062" summary="tweaks to breaking to fix it">
+      <created>1686637130068</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1686637130068</updated>
+    </task>
+    <task id="LOCAL-00063" summary="tweaks to breaking to fix it">
+      <created>1686639355457</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1686639355457</updated>
+    </task>
+    <task id="LOCAL-00064" summary="Some fixes for spec energy and KQ traverse methods">
+      <created>1686650446846</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1686650446846</updated>
+    </task>
+    <task id="LOCAL-00065" summary="Update kq instructions">
+      <created>1686650512257</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1686650512257</updated>
+    </task>
+    <task id="LOCAL-00066" summary="KQ Ropes">
+      <created>1686651178006</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1686651178006</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT" value="false" />
+    <option name="CHECK_NEW_TODO" value="false" />
+    <MESSAGE value="Escape explosion better hopefully" />
+    <MESSAGE value="Don't fail if don't detect fally hard diary. Better null protection in sire resp detection, use unsired on font" />
+    <MESSAGE value="Increment version" />
+    <MESSAGE value="Moving lots of things to common. Utilise better banking methods. Use looting from common. Too much stuff for one commit, but I've tested it I guess." />
+    <MESSAGE value="Fix antipoison, move restore to house util" />
+    <MESSAGE value="Tweak sire safe walk tiles" />
+    <MESSAGE value="Can use basic/fancy jewellery box" />
+    <MESSAGE value="Necks KQ, and some banking improvement" />
+    <MESSAGE value="More delay on hopping, error message on falador park teleport. Fix KQ walk under" />
+    <MESSAGE value="Fix Di time out and crashers" />
+    <MESSAGE value="Increment version, fix bank withdraw before deposit" />
+    <MESSAGE value="fix post loot waiting" />
+    <MESSAGE value="fix looting noted" />
+    <MESSAGE value="try fix some null conditions" />
+    <MESSAGE value="remove supply dropping tempororary" />
+    <MESSAGE value="Cerberus improvements" />
+    <MESSAGE value="Sire refactor" />
+    <MESSAGE value="Fix walk under spam" />
+    <MESSAGE value="Construction cape lol" />
+    <MESSAGE value="Added fight strategy options" />
+    <MESSAGE value="Add break handling" />
+    <MESSAGE value="tweaks to breaking to fix it" />
+    <MESSAGE value="Some fixes for spec energy and KQ traverse methods" />
+    <MESSAGE value="Update kq instructions" />
+    <MESSAGE value="KQ Ropes" />
+    <option name="LAST_COMMIT_MESSAGE" value="KQ Ropes" />
+  </component>
+</project>

@@ -1,0 +1,81 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.TraverseOverride;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class LithkrenOverride implements TraverseOverride {
+    private final Dragon dragon;
+
+    @Override
+    public boolean overrideLoop(Coordinate destination) {
+        var pos = Players.getLocal().getServerPosition();
+        if (pos.getY() <= 10468 && pos.getContainingRegionId() != 6223) {
+            GameObject stairs = getStairs1();
+            if (stairs != null) {
+                DirectInput.send(MenuAction.forGameObject(stairs, "Climb"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getY() > 10468,
+                        util::playerAnimatingOrMoving, 1000, 2000);
+            }
+            return true;
+        } else if (pos.getContainingRegionId() == 14243) {
+            var doors = getDoors();
+            if (doors != null) {
+                DirectInput.send(MenuAction.forGameObject(doors, "Enter"));
+                Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != 14243,
+                        util::playerAnimatingOrMoving, 1000, 2000);
+            }
+            return true;
+        } else {
+            var barrier = GameObjects.newQuery()
+                    .on(this.dragon.getDoor())
+                    .names("Barrier")
+                    .actions("Pass")
+                    .results()
+                    .first();
+            if (barrier != null) {
+                DirectInput.send(MenuAction.forGameObject(barrier, "Pass"));
+                Execution.delayUntil(() -> {
+                            var p = Players.getLocal().getServerPosition();
+                            return p.getX() <= 1560 || p.getX() >= 1575;
+                        },
+                        util::playerAnimatingOrMoving, 1000, 2000);
+            }
+        }
+        return true;
+    }
+
+    private GameObject getDoors() {
+        return GameObjects.newQuery()
+                .names("Broken Doors")
+                .actions("Enter")
+                .on(new Coordinate(3547, 10482, 0))
+                .results().first();
+    }
+
+    private GameObject getStairs1() {
+        return GameObjects.newQuery()
+                .names("Staircase")
+                .actions("Climb")
+                .on(new Coordinate(3549, 10469, 0))
+                .results().first();
+    }
+
+    @RequiredArgsConstructor
+    public enum Dragon {
+        Rune(new Coordinate(1574, 5074, 0)), Adamant(new Coordinate(1561, 5073, 0));
+
+        @Getter
+        private final Coordinate door;
+
+    }
+}

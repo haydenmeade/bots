@@ -1,0 +1,80 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState implements LoopState<MoleState> {
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Big bones",
+            "Steel arrow",
+            "Iron arrow",
+            "Shark",
+            "Mithril bar",
+            "Oyster pearls",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final MoleListener moleListener;
+    private final Mole bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(MoleListener moleListener, Mole bot, BreakManager breakManager) {
+        this.moleListener = moleListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looting");
+        if (moleListener.getDeadArea() == null) return;
+        util.moveTo(moleListener.getDeadArea().getCenter());
+        Loot.waitForLoot(moleListener.getDeadArea(), Pattern.compile("Big bones"), 10000);
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        log.debug(String.format("Time until break: %s", this.breakManager.timeLeft()));
+        bot.resetKill();
+        if (bot.doWeNeedToRestock() || this.result.equals(Loot.LootResult.Full) || this.breakManager.breaking() || this.breakManager.stopBot()) {
+            return MoleState.RESTORING;
+        } else {
+            return MoleState.SEARCHING;
+        }
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !this.result.equals(Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(this.moleListener.getDeadArea(),
+                ignoreLoot,
+                bot.settings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boost().patternAny()
+        );
+
+    }
+}

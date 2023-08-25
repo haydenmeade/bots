@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "DkState")
+public enum DkState {
+    STARTING(),
+    OFF_TICK(),
+    BREAKING(),
+    TRAVERSING(),
+    ENTERING_LAIR(),
+    FIGHTING(),
+    LOOTING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING();
+
+    private static DkSettings settings = null;
+    private static boolean isPaused = true;
+    private static NeckBot bot;
+    private static int dkKilled = 0;
+
+    private DkState() {
+    }
+
+    public static String getFood() {
+        return DkState.getSettings() == null ? "Shark" : DkState.getSettings().food().gameName();
+    }
+
+    public static DkSettings getSettings() {
+        return settings;
+    }
+
+    public static void setSettings(DkSettings settings) {
+        DkState.settings = settings;
+    }
+
+    public static boolean isPaused() {
+        return DkState.isPaused;
+    }
+
+    public static void setPaused(boolean paused) {
+        DkState.isPaused = paused;
+    }
+
+    public static NeckBot getBot() {
+        return bot;
+    }
+
+    public static void setBot(NeckBot bot) {
+        DkState.bot = bot;
+    }
+
+    public static int getDkKilled() {
+        return dkKilled;
+    }
+
+    public static void setDkKilled(int dkKilled) {
+        DkState.dkKilled = dkKilled;
+    }
+
+}

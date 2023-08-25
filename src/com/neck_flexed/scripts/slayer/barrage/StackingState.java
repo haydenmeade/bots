@@ -1,0 +1,83 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.Task;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerBotImpl;
+import com.neck_flexed.scripts.slayer.SlayerMonster;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.EventListener;
+
+public class StackingState extends BaseState<SlayerState> implements EngineListener {
+    private final SlayerBotImpl<?> bot;
+    private final BarrageListener listener;
+    private final SlayerMonster barrageMonster;
+    private final BarrageTiles tiles;
+    private boolean done = false;
+
+    public StackingState(SlayerBotImpl<?> bot,
+                         SlayerMonster barrageMonster,
+                         BarrageListener listener) {
+        super(bot, SlayerState.STACKING);
+        this.bot = bot;
+        this.listener = listener;
+        this.barrageMonster = barrageMonster;
+        this.tiles = BarrageTiles.getByTask(barrageMonster.getTask());
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this, listener};
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Stacking");
+        this.bot.prayerFlicker.setQuickPrayers(util.getMagicBoostPrayer(), Prayer.PROTECT_FROM_MELEE);
+    }
+
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public void onTickStart() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getServerPosition();
+        if (pos == null) return;
+        if (pos.equals(tiles.getTile1())) {
+            util.moveTo(tiles.getTile2());
+        } else {
+            util.moveTo(tiles.getTile1());
+        }
+    }
+
+    @Override
+    public boolean done() {
+        return this.done
+                || (barrageMonster.getTask().equals(Task.NECHRYAEL) && barrageMonster.isSuperiorPresent(bot))
+                || Traversal.getRunEnergy() <= 1;
+    }
+
+    @Override
+    public void executeLoop() {
+        var monsters = new ArrayList<Npc>(this.listener.getTargetingMe());
+        var mustBeWithin = Area.rectangular(tiles.getTile1(), tiles.getTile2()).grow(1, 1);
+        var countStacked = monsters.stream().filter(m -> mustBeWithin.contains(m.getServerPosition())).count();
+        this.done = countStacked >= (monsters.size() - 1);
+        if (!Traversal.isRunEnabled() && Traversal.getRunEnergy() > 2)
+            Traversal.toggleRun();
+    }
+}

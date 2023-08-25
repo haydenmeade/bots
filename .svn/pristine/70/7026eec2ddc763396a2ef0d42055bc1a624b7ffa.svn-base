@@ -1,0 +1,20 @@
+package com.neck_flexed.scripts.plank;
+
+import com.neck_flexed.scripts.common.breaking.BreakSettings;
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.annotation.open.SettingsSection;
+import com.runemate.ui.setting.open.Settings;
+
+@SettingsGroup()
+public interface PlankSettings extends Settings, BreakSettings {
+
+    @SettingsSection(title = "Breaking", description = "Settings for breaking and stopping", order = 2)
+    String breaking = "Breaking";
+
+    @Setting(key = "plank", title = "Plank", order = 0)
+    default Plank plank() {
+        return Plank.Teak;
+    }
+
+}

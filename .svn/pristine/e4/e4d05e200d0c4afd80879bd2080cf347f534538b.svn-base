@@ -1,0 +1,29 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.plank.planker</main-class>
+    <name>Necks Planker</name>
+    <tag-line>Makes planks using ring of the elements</tag-line>
+    <description>Makes planks using ring of the elements</description>
+    <access>private</access>
+    <price>0.00</price>
+    <version>0.0.4</version>
+    <open-source>true</open-source>
+    <internal-id>Neck_Plank</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>CONSTRUCTION</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.ashes.PlankSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.breaking.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>plank</tag>
+        <tag>planks</tag>
+        <tag>construction</tag>
+    </tags>
+</manifest>

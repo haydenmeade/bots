@@ -1,0 +1,57 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.Camera;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public class StartingState implements LoopState<SarachnisState> {
+    private final com.neck_flexed.scripts.sarachnis.bot bot;
+    private boolean started = false;
+
+    public StartingState(com.neck_flexed.scripts.sarachnis.bot m) {
+        this.bot = m;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Starting");
+
+    }
+
+    @Override
+    public SarachnisState deactivate(EventDispatcher d) {
+        if (areas.isInBossRoom()) {
+            return SarachnisState.FIGHTING;
+        }
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return SarachnisState.RESTOCKING;
+            return SarachnisState.RESTORING;
+        }
+        return SarachnisState.TRAVERSING;
+    }
+
+    @Override
+    public SarachnisState get() {
+        return SarachnisState.STARTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return started;
+    }
+
+    @Override
+    public void executeLoop() {
+        Camera.setZoom(0.0, 0.1);
+        started = true;
+    }
+}

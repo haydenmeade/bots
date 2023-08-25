@@ -1,0 +1,73 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.Instance;
+import com.runemate.game.api.hybrid.entities.LocatableEntity;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.hybrid.region.SpotAnimations;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Comparator;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "Phase1Steps")
+public class Phase1Steps implements PhaseSteps {
+    private final Coordinate step0;
+    private final Coordinate step1;
+    private final Coordinate step2;
+    private final Coordinate step3;
+    private final Coordinate step4;
+
+    public Phase1Steps() {
+        var step0 = new Coordinate(1377, 10263, 0);
+        var step1 = new Coordinate(1377, 10267, 0);
+        var step2 = new Coordinate(1374, 10270, 0);
+        var step3 = new Coordinate(1374, 10275, 0);
+        var step4 = new Coordinate(1372, 10277, 0);
+        this.step0 = Instance.toInstancedFirst(step0);
+        this.step1 = Instance.toInstancedFirst(step1);
+        this.step2 = Instance.toInstancedFirst(step2);
+        this.step3 = Instance.toInstancedFirst(step3);
+        this.step4 = Instance.toInstancedFirst(step4);
+    }
+
+    @Override
+    public @NotNull PhaseSteps.Step GetNextStep(int idx) {
+        switch (idx) {
+            case 0:
+                return new Step(0, HydraListener::isPoisonAttack, h -> h.getHydra().getImmunity(), step0);
+            case 1:
+                return new Step(1, HydraListener::playerAttacked, step1);
+            case 2:
+                return new Step(2, HydraListener::playerAttacked, step2);
+            case 3:
+                return new Step(3, HydraListener::playerAttacked, step3);
+            default:
+                return new Step(4, HydraListener::isPoisonAttack,
+                        h -> h.isPoisonAttack()
+                                ? this.getPoisonFreeTile(h)
+                                : step4);
+        }
+    }
+
+    private Coordinate getPoisonFreeTile(HydraListener h) {
+        var danger = SpotAnimations.newQuery()
+                .ids(c.HYDRA_POISON_SPOT)
+                .results()
+                .stream().map(LocatableEntity::getPosition).collect(Collectors.toList());
+        var c1 = Instance.toInstancedFirst(new Coordinate(1372, 10278, 0));
+        var c2 = Instance.toInstancedFirst(new Coordinate(1377, 10275, 0));
+        if (c1 == null || c2 == null) return step3;
+        var p = Players.getLocal();
+        if (p == null) return step3;
+        var pos = p.getServerPosition();
+        if (pos == null) return step3;
+        var safeArea = Area.rectangular(c1, c2);
+        var safeTile = safeArea.getCoordinates().stream()
+                .filter(c -> danger.stream().noneMatch(d -> d.equals(c)))
+                .min(Comparator.comparingDouble(c -> c.distanceTo(pos)));
+        return safeTile.orElse(step3);
+    }
+}

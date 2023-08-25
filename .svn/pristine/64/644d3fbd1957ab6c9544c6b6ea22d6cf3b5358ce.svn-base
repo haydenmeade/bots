@@ -1,0 +1,43 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.RestockState<SarachnisSettings, SarachnisState> {
+    public RestockState(com.neck_flexed.scripts.sarachnis.bot bot) {
+        super(bot, SarachnisState.TRAVERSING, SarachnisState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+                NeckBank.getBoostsNeeded(bot.settings().boostAmount(), false, bot.settings().boost()),
+                bot.settings().hasOrnatePool()
+                        ? Collections.emptyMap()
+                        : NeckBank.toMap(1, items.ringOfDueling),
+                bot.settings().slashThing().equals(SlashThing.None)
+                        ? Collections.emptyMap()
+                        : NeckBank.toMap(1, bot.settings().slashThing().getPattern()),
+                NeckBank.toMap(0, bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                        items.houseTab, items.xericsTalisman,
+                }),
+                new Pattern[]{items.imbuedHeart, items.ringOfDueling, items.runePouch, items.constructionCape, items.bookOfDead},
+                util.toItemList(bot.settings().equipment()),
+                util.toItemList(bot.settings().specEquipment())
+        );
+    }
+}

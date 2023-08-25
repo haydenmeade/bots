@@ -1,0 +1,192 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.breaking.BreakHandlerState;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.HoppingState;
+import com.neck_flexed.scripts.common.state.IStateManager;
+import com.neck_flexed.scripts.common.state.LoopState;
+import com.neck_flexed.scripts.common.state.RestoreState;
+import com.neck_flexed.scripts.slayer.*;
+import com.neck_flexed.scripts.slayer.state.LootState;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.neck_flexed.scripts.slayer.state.TraverseState;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.EventListener;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "BarrageMain")
+public class bot extends SlayerBotImpl<BarrageSettings> {
+    // need to alch with explorers
+    @Getter
+    private BarrageListener barrageListener;
+    private Consumeables<BarrageSettings, SlayerState> consumeables;
+    @SettingsProvider(updatable = true)
+    private BarrageSettings settings;
+
+    @Override
+    public void setLoadoutOverriders() {
+        this.loadouts.clearLoadoutOverrider();
+        this.loadouts.addLoadoutOverrider(new MonsterLoadoutOverrider(
+                Monster.fromSlayerTask(getOverrideTask()).orElse(null)
+        ));
+
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    public void resetKill() {
+
+    }
+
+    @Override
+    protected void initFromSettings(BarrageSettings settings) {
+        this.loadouts = Loadouts.fromEquipmentLoadouts(this,
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.BARRAGE_LOADOUT.toString()),
+                Triple.of(settings().lureEquipment(), Loadout.LoadoutRole.Combat, SlayerLoadout.LURE_LOADOUT.toString())
+        );
+        this.breakManager = new BreakManager(settings, this);
+        updateItemFilter(util.concatenate(
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling, items.dramenStaff,},
+                this.loadouts.getItemFilter()
+        ));
+        this.barrageListener = new BarrageListener(this, settings.monster().getMonster());
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, junkDropper, getCannon()};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        consumeables = new Consumeables(this, 10, SlayerState.RESTORING, false);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings, this);
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "Start me anywhere you feel like it, supports whatever spell you select, will blood spell heal when half hp\n" +
+                        "Supports autocasting staffs if you have selected the spell, or will manually cast\n" +
+                        "Will tele out on slayer task completed\n" +
+                        "HouseBank: Requires house teleport runes, ornate pool, and jewellery box\n" +
+                        "FeroxBank: Requires dueling ring\n" +
+                        "Lure equipment use a fast weapon like darts/blowpipe or MSB\n" +
+                        "Supports cannon on smoke devils\n" +
+                        "Message on discord if any issues or suggestshs\n"
+        ));
+    }
+
+    protected LoopState<SlayerState> getState(SlayerState s) {
+        var monster = this.settings.monster().getMonster();
+        if (this.barrageListener == null)
+            this.barrageListener = new BarrageListener(this, monster);
+        switch (s) {
+            case TRAVERSING:
+                return new TraverseState(this, monster, util.parseCsvRegexString(settings.ignorePlayers()));
+            case BARRAGING:
+                if (monster.getTask().equals(Task.SMOKE_DEVILS)) {
+                    return new SmokeDevilBarrageState(this, barrageListener,
+                            this.loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT), settings.spell(), settings.reboost(), util.parseCsvRegexString(settings.ignorePlayers()),
+                            settings());
+                }
+                return new BarrageState(this,
+                        barrageListener,
+                        this.prayerFlicker,
+                        this.loadouts.getForName(SlayerLoadout.BARRAGE_LOADOUT), monster, settings.spell(), settings.reboost()
+                );
+            case LOOTING:
+                return new LootState(this, settings, monster, false);
+            case LURING:
+                return new LuringState(this, barrageListener, monster, this.loadouts.getForName(SlayerLoadout.LURE_LOADOUT), util.parseCsvRegexString(settings.ignorePlayers()));
+            case STACKING:
+                if (monster.getTask().equals(Task.SMOKE_DEVILS)) {
+                    return new SmokeDevilStackingState(this);
+                }
+                return new StackingState(this, monster, barrageListener);
+            case RESTORING:
+                return new RestoreState<>(this, SlayerState.RESTORING, HouseConfig.parse(settings), true);
+            case HOPPING:
+                return new HoppingState<>(this, settings().worldRegion(), SlayerState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState<>(this.breakManager, this, SlayerState.BREAKING);
+            default:
+                return new StartingState(this);
+        }
+    }
+
+    @Override
+    protected LoopState<SlayerState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected SlayerState getBreakStateEnum() {
+        return SlayerState.BREAKING;
+    }
+
+    @Override
+    protected SlayerState getStartStateEnum() {
+        return SlayerState.STARTING;
+    }
+
+    @Override
+    protected IStateManager<SlayerState> createStateManager() {
+        if (this.barrageListener == null)
+            this.barrageListener = new BarrageListener(this, settings.monster().getMonster());
+        return new BarrageStateManager(this, barrageListener);
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Barrage KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public BarrageSettings settings() {
+        return settings;
+    }
+
+    @Override
+    public @NotNull Location selectLocation(SlayerMonster monster) {
+        return monster.getLocations().stream().filter(Location::isBarrage).findFirst().get();
+    }
+
+    @Override
+    public Task getOverrideTask() {
+        return settings.monster().getTask();
+    }
+
+    @Override
+    public boolean barrageTasksAvailable() {
+        return true;
+    }
+
+    @Override
+    public void taskCompleted() {
+
+    }
+}

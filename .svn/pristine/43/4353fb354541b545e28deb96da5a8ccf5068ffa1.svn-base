@@ -1,0 +1,17 @@
+package com.neck_flexed.scripts.lizard;
+
+public enum Action {
+    ATTACK("Attack"),
+    Alch("Alch"),
+    Consume("Consumeables"),
+    Loot("Loot"),
+    Move("Move"),
+    Equip("Equip"),
+    ;
+    private String action;
+
+    private Action(String action) {
+        this.action = action;
+
+    }
+}

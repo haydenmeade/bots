@@ -1,0 +1,13 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.lizard.lizard</main-class>
+    <name>Lizard</name>
+    <description>This is a lizard killer.</description>
+    <version>0.0.1</version>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <access>private</access>
+    <categories>
+        <category>COMBAT</category>
+    </categories>
+</manifest>

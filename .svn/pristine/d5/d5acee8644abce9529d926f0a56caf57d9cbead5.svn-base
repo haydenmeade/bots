@@ -1,0 +1,33 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.mole.Mole</main-class>
+    <name>Necks Giant Mole</name>
+    <tag-line>Slays the Giant Mole</tag-line>
+    <description>Kills the giant mole for you.</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>1.0.4</version>
+    <internal-id>GiantMoleKiller</internal-id>
+    <open-source>true</open-source>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>COMBAT</category>
+        <category>SLAYER</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.mole.MoleSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.breaking.BreakSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.loot.LootSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.traverse.HouseSettingsFairyRing</exclude>
+        <exclude>com.neck_flexed.scripts.common.traverse.HouseSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>giant mole</tag>
+        <tag>mole</tag>
+        <tag>boss</tag>
+    </tags>
+</manifest>

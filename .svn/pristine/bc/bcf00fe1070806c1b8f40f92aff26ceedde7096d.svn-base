@@ -1,0 +1,218 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.client.ClientUI;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.FairyRing;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.AchievementDiary;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "HouseUtil")
+public class HouseUtil {
+    public static final String FaladorPark = "Falador Park";
+
+    public static boolean JbToCastleWars() {
+        if (util.castleWars.contains(Players.getLocal())) return true;
+        if (!Execution.delayUntil(() -> util.getJewelleryBox() != null, 5000)) {
+            return false;
+        }
+        var jb = util.getJewelleryBox();
+        if (jb == null) return false;
+
+        if (!jb.getActiveDefinition().getActions().contains("Castle Wars")) {
+            if (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                jb.interact("Teleport Menu");
+            }
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null, 1400, 2600)) {
+                if (InterfaceContainers.getAt(util.jb_interface_id).getComponent(2).getChild(6).interact("Castle Wars")) {
+
+                    Execution.delayUntil(() -> !House.isInside(), 10000);
+                    Execution.delay(1200);
+                }
+            } else {
+                return false;
+            }
+        } else if (!util.castleWars.contains(Players.getLocal())) {
+            if (jb.interact("Castle Wars")) {
+                Execution.delayUntil(() -> !House.isInside(), 5000, 5100);
+                Execution.delay(1200);
+            }
+        }
+        return util.castleWars.contains(Players.getLocal());
+    }
+
+    public static boolean FairyRingTo(GameObject fairyRing, FairyRing destination) {
+        if (fairyRing == null) {
+            log.debug("null fairy ring");
+            return false;
+        }
+        if (!AchievementDiary.LUMBRIDGE.isEliteComplete()) {
+            if (Equipment.getItems(items.dramenStaff, items.lunarStaff).isEmpty()) {
+                util.equipDramen();
+                if (!Execution.delayUntil(() -> Equipment.getItems(items.dramenStaff, items.lunarStaff).isEmpty(), 1200))
+                    return false;
+            }
+        }
+        var cp = Players.getLocal().getPosition() == null ? 0 : Players.getLocal().getPosition().getContainingRegionId();
+        Callable<Boolean> check = () -> cp != Players.getLocal().getPosition().getContainingRegionId();
+
+        if (destination.isPreviousDestination()) {
+            log.debug("fairy ring to last destination");
+            var patternLastDest = Pattern.compile(".*ast-destination \\(" + destination.name() + "\\)");
+            DirectInput.send(MenuAction.forGameObject(fairyRing, patternLastDest));
+            return Execution.delayUntil(check, 3500, 4500);
+        } else if (FairyRing.isConfigurationOpen()) {
+            if (!destination.select()) {
+                Execution.delay(1000, 2400);
+                return false;
+            }
+            return Execution.delayUntil(check, 3500, 4500);
+        } else {
+            log.debug("fairy ring configure");
+            if (fairyRing.getActiveDefinition().getActions().contains("Configure"))
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Configure"));
+            else
+                DirectInput.send(MenuAction.forGameObject(fairyRing, "Ring-configure"));
+            Execution.delayUntil(() -> FairyRing.isConfigurationOpen(), 2000, 3000);
+        }
+        return false;
+    }
+
+    public static GameObject getPortalNexus() {
+        return GameObjects.newQuery()
+                .names("Portal Nexus")
+                .results().nearest();
+    }
+
+    public static GameObject getWaterbirthPortal() {
+        return GameObjects.newQuery()
+                .names("Waterbirth Island Portal")
+                .results().nearest();
+    }
+
+    public static boolean nexusTeleTo(String d) {
+        var n = getPortalNexus();
+        if (n == null) {
+            return false;
+        } else {
+//            DirectInput.send(MenuAction.forGameObject(go, "Enter"));
+//            Execution.delayUntil(() -> !House.isInside(), 10000);
+//            Execution.delay(600);
+        }
+        return !House.isInside();
+    }
+
+    public static boolean teleHousePortal(GameObject go) {
+        if (go == null) {
+            return false;
+        } else {
+            DirectInput.send(MenuAction.forGameObject(go, "Enter"));
+            Execution.delayUntil(() -> !House.isInside(), 10000);
+            Execution.delay(600);
+        }
+        return !House.isInside();
+    }
+
+    public static boolean teleWaterbirth() {
+        var p = getWaterbirthPortal();
+        if (p != null)
+            return teleHousePortal(p);
+
+        return false;
+    }
+
+    public static GameObject getLunarIslePortal() {
+        return GameObjects.newQuery()
+                .names("Lunar Isle Portal")
+                .results().nearest();
+    }
+
+    public static boolean teleLunarIsle() {
+        var prtl = getLunarIslePortal();
+        if (prtl == null) {
+            // TODO nexus
+            return false;
+        } else {
+            return teleHousePortal(prtl);
+        }
+    }
+
+    public static boolean JbToFallyPark() {
+        if (!House.isInside()) return true;
+        if (!Execution.delayUntil(() -> util.getJewelleryBox() != null, 5000)) {
+            return false;
+        }
+        if (util.getJewelleryBox() != null && util.getOrnateJewelleryBox() == null) {
+            ClientUI.showAlert(ClientUI.AlertLevel.WARN,
+                    "The House Bank and Restore strategy requires an ornate jewellery box for Falador park teleport");
+            return false;
+        }
+        var jb = util.getOrnateJewelleryBox();
+        if (jb == null) return false;
+        if (!jb.getActiveDefinition().getActions().contains(FaladorPark)) {
+            if (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                jb.interact("Teleport Menu");
+                Execution.delay(1600, 3600);
+            }
+            if (Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null, 10000)) {
+                InterfaceContainers.getAt(util.jb_interface_id).getComponent(6).getChild(7).interact(FaladorPark);
+                Execution.delayUntil(() -> !House.isInside(), 10000);
+                Execution.delay(600);
+            } else {
+                return false;
+            }
+        } else if (House.isInside()) {
+            jb.interact(FaladorPark);
+            Execution.delayUntil(() -> !House.isInside(), 10000);
+            Execution.delay(600);
+        }
+        return !House.isInside();
+    }
+
+    public static boolean restoreStatsInHouse(EventDispatcher d) {
+        if (Health.getCurrentPercent() == 100
+                && Prayer.getMaximumPoints() - Prayer.getPoints() <= 0
+                && SpecialAttack.getEnergy() == 100
+                && Traversal.getRunEnergy() > 90) {
+            return true;
+        }
+        log.debug("restoring stats in house");
+        if (!Execution.delayUntil(() -> House.isInside(), 5000)) {
+            log.error("not in house");
+            return false;
+        }
+        if (!Execution.delayUntil(() -> !util.getPools().isEmpty(), 5000)) {
+            log.error("unable to get pool");
+            return false;
+        }
+        var pool = util.getPools().first();
+        if (pool == null) {
+            log.error("unable to get pool2");
+            return false;
+        }
+        var l = new RestoreListener(d);
+        DirectInput.send(MenuAction.forGameObject(pool, "Drink"));
+        if (!Execution.delayUntil(() -> l.hasRestored(), 2200, 2400) && !pool.interact("Drink")) {
+            log.error("unable to restore");
+            l.stop();
+            return false;
+        }
+        l.stop();
+        return true;
+    }
+}

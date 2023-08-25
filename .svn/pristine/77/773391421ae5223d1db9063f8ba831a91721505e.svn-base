@@ -1,0 +1,12 @@
+<manifest>
+    <main-class>com.goblinneck.scripts.lizard.lizard</main-class>
+    <name>Lizard</name>
+    <description>This is a lizard killer.</description>
+    <version>0.0.1</version>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>COMBAT</category>
+    </categories>
+</manifest>

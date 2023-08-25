@@ -1,0 +1,20 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.PortalNexusTeleport;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+public interface TraverseMethod {
+    TraverseMethod[] SLAYER_TOWER = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.SlayerTower),
+            new HousePortalTraverse(PortalNexusTeleport.SalveGraveyard),
+            new FairyRingTraverse(FairyRing.CKS),
+            new HousePortalTraverse(PortalNexusTeleport.Kharyrll),
+    };
+    int[] SLAYER_TOWER_REGIONS = new int[]{13623, 13622, 13878, 13879, 14135};
+
+    boolean hasSupport(HouseConfig houseConfig);
+
+    boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition);
+}
+

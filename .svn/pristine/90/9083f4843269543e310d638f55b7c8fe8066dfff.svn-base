@@ -1,0 +1,76 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+
+public class KqStateManager extends StateManager<kq, KqState> {
+    private final KqListener kqListener;
+
+    public KqStateManager(kq kq, KqListener kqListener) {
+        super(kq);
+        this.kqListener = kqListener;
+    }
+
+    @Override
+    public KqState getNextState(KqState initiator) {
+        switch (initiator) {
+            case ENTERING_LAIR:
+                return KqState.SEARCHING_LAIR;
+            case FIGHTING:
+                if (this.kqListener.isDead()) {
+                    Action.set(Action.None);
+                    bot.prayerFlicker.setActivePrayers();
+                    return KqState.LOOTING;
+                } else if (Health.getCurrent() <= FightState.getHealthForWalkUnder())
+                    return KqState.WALK_UNDER;
+                break;
+            case WALK_UNDER:
+                if (this.kqListener.isDead()) {
+                    bot.prayerFlicker.setActivePrayers();
+                    return KqState.LOOTING;
+                }
+                break;
+            case LOOTING:
+                if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot()) {
+                    return KqState.RESTORING;
+                } else {
+                    return KqState.POST_LOOT_WAITING;
+                }
+            case POST_LOOT_WAITING:
+                return KqState.FIGHTING;
+            case TRAVERSING:
+                if (kq.isInTunnels() || kq.lairEntryArea.contains(Players.getLocal())) {
+                    return KqState.ENTERING_LAIR;
+                } else if (kq.isInLair()) {
+                    return KqState.SEARCHING_LAIR;
+                }
+                break;
+        }
+
+        if (kq.getKq() != null)
+            return KqState.FIGHTING;
+
+        if (kq.isInTunnels()) {
+            return KqState.TRAVERSING;
+        }
+        if (kq.isInLair()) {
+            return KqState.SEARCHING_LAIR;
+        }
+
+        if (bot.breakManager.breaking() || bot.breakManager.stopBot()) {
+            return KqState.BREAKING;
+        }
+        boolean needsRestock = bot.doWeNeedToRestock();
+        if (needsRestock) {
+            if (Health.getCurrentPercent() == 100 && Prayer.getPoints() > 20 && SpecialAttack.getEnergy() >= 80 && !Banks.getLoaded().isEmpty())
+                return KqState.RESTOCKING;
+            return KqState.RESTORING;
+        }
+        return KqState.TRAVERSING;
+    }
+}

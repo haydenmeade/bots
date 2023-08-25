@@ -1,0 +1,140 @@
+package com.neck_flexed.scripts.barrage;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.framework.listeners.events.MessageEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+
+import java.util.EventListener;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "BarrageMain")
+public class bot extends NeckBot<BarrageSettings, BarrageState> {
+    // need to alch with explorers
+
+    public String fightLoadout = "barrager loadout";
+    public String lureLoadout = "lure loadout";
+    @Getter
+    private BarrageListener barrageListener;
+    private Consumeables<BarrageSettings, BarrageState> consumeables;
+    @SettingsProvider(updatable = true)
+    private BarrageSettings settings;
+
+    @Override
+    public void onMessageReceived(MessageEvent event) {
+        super.onMessageReceived(event);
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && boost != Boost.ImbuedHeart && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    public void resetKill() {
+        this.barrageListener.reset();
+    }
+
+    @Override
+    protected void initFromSettings(BarrageSettings settings) {
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, fightLoadout),
+                Triple.of(settings().lureEquipment(), Loadout.LoadoutRole.Combat, lureLoadout)
+        );
+        this.breakManager = new BreakManager(settings);
+        updateItemFilter(util.concatenate(
+                new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling, items.dramenStaff,},
+                util.toItemList(settings.equipment()),
+                util.toItemList(settings.lureEquipment())
+        ));
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{prayerFlicker, consumeables, barrageListener, junkDropper};
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        barrageListener = new BarrageListener(this);
+        consumeables = new Consumeables(this, 10, BarrageState.RESTORING, false);
+
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings());
+        this.setLoopDelay(10, 25);
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "--BETA--\n" +
+                        "Start me anywhere you feel like it, supports whatever spell you select, will blood spell heal when half hp\n" +
+                        "Supports autocasting staffs if you have selected the spell, or will manually cast\n" +
+                        "Will tele out on slayer task completed\n" +
+                        "HouseBank: Requires house teleport runes, ornate pool, and jewellery box\n" +
+                        "FeroxBank: Requires dueling ring\n" +
+                        "Lure equipment use a fast weapon like darts/blowpipe or MSB\n" +
+                        "Message on discord if any issues or suggestshs\n"
+        ));
+    }
+
+    protected LoopState<BarrageState> getState(BarrageState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(this);
+            case FIGHTING:
+                return new FightState(this, this.barrageListener, this.prayerFlicker);
+            case LOOTING:
+                return new LootState(this.barrageListener, this, this.breakManager);
+            case LURING:
+                return new LuringState(this);
+            case STACKING:
+                return new StackingState(this);
+            case RESTORING:
+                return new RestoreState(this, breakManager);
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), BarrageState.STARTING, BarrageState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, BarrageState.BREAKING, BarrageState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<BarrageState> getStartingState() {
+        return new StartingState(this);
+    }
+
+    @Override
+    protected BarrageState getBreakStateEnum() {
+        return BarrageState.BREAKING;
+    }
+
+    @Override
+    protected BarrageState getStartStateEnum() {
+        return BarrageState.STARTING;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Barrage KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(this, debugString);
+    }
+
+    @Override
+    public BarrageSettings settings() {
+        return settings;
+    }
+}

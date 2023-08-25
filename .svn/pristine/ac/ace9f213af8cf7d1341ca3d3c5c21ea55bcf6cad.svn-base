@@ -1,0 +1,83 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState implements LoopState<CerbState> {
+    private String error = null;
+    private boolean done;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        cerb.updateStatus(String.format("Restocking"));
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        return CerbState.TRAVERSING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.RESTOCKING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Bank.isOpen()) {
+            Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 5000);
+            if (Banks.getLoaded().nearest() == null) {
+                error = "unable to load bank";
+                return;
+            }
+            DirectInput.sendMovement(Banks.getLoaded().nearest().getPosition());
+            if (!Execution.delayUntil(() -> Bank.open(), 30000)) {
+                error = "unable to open bank";
+                return;
+            }
+        }
+        if (NeckBank.doBankLoop(
+                // deposit exceptions
+                util.concatenate(
+                        util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                                items.houseTab, items.spade, items.ashSanctifier,
+                        }),
+                        new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape,},
+                        util.toItemList(CerbState.getSettings().equipment()),
+                        util.toItemList(CerbState.getSettings().specEquipment())
+                ),
+
+                // withdraw
+                NeckBank.getBoostsNeeded(CerbState.getSettings().boostAmount(),
+                        false,
+                        CerbState.getSettings().boost()
+                ),
+                NeckBank.toMap(1, items.staminaPotions),
+                NeckBank.toMap(2, CerbState.getSettings().food().gameName())
+        )) {
+            Bank.close();
+            this.done = true;
+        }
+    }
+}

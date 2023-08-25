@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState implements LoopState<MoleState> {
+    private String error = null;
+    private boolean done = false;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Mole.updateStatus(String.format("Restocking"));
+    }
+
+    @Override
+    public MoleState deactivate(EventDispatcher d) {
+        return MoleState.TRAVERSING;
+    }
+
+    @Override
+    public MoleState get() {
+        return MoleState.RESTOCKING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Bank.isOpen()) {
+            Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 5000);
+            if (Banks.getLoaded().nearest() == null) {
+                log.error("unable to load bank");
+                return;
+            }
+            DirectInput.sendMovement(Banks.getLoaded().nearest().getPosition());
+            if (!Execution.delayUntil(() -> Bank.open(), 5000)) {
+                log.error("unable to open bank");
+                return;
+            }
+        }
+        var settings = MoleState.getSettings();
+        if (NeckBank.doBankLoop(
+                util.concatenate(
+                        util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                                items.houseTab, items.spade,
+                        }),
+                        new Pattern[]{Mole.falShield, settings.light().getPattern(), items.imbuedHeart, items.ringOfDueling, items.runePouch},
+                        util.toItemList(settings.equipment()),
+                        util.toItemList(settings.specEquipment())
+                ),
+
+                // withdraw
+                NeckBank.getBoostsNeeded(settings.boostAmount(), false, settings.boost()),
+                NeckBank.toMap(settings.staminaAmount(), items.stamina4Dose),
+                NeckBank.toMap(1
+                        , items.spadeP
+                        , Mole.falShield
+                        , settings.light().getPattern()
+                ),
+                settings.RestoreAndBankStrategy() == RestoreAndBankStrategy.RingOfDueling
+                        ? NeckBank.toMap(1, items.ringOfDueling)
+                        : Collections.emptyMap(),
+                NeckBank.toMap(2, settings.food().gameName())
+        )) {
+            Bank.close();
+            log.debug("done restock");
+            this.done = true;
+        }
+    }
+}

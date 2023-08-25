@@ -1,0 +1,31 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.sarachnis.bot</main-class>
+    <name>Necks Sarachnis</name>
+    <tag-line>Slays Sarachnis</tag-line>
+    <description>Kills a spider for you.</description>
+    <access>public</access>
+    <price>0.10</price>
+    <version>1.0.5</version>
+    <internal-id>NECK_Sarachnis</internal-id>
+    <open-source>true</open-source>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>COMBAT</category>
+        <category>SLAYER</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.sarachnis.SarachnisSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.breaking.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>sarachnis</tag>
+        <tag>spider</tag>
+        <tag>slayer</tag>
+        <tag>boss</tag>
+    </tags>
+</manifest>

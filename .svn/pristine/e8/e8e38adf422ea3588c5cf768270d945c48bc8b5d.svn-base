@@ -1,0 +1,109 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceContainers;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import java.awt.event.KeyEvent;
+import java.util.Collection;
+import java.util.List;
+
+@Log4j2
+public class HouseJewelleryBoxTraverse implements TraverseMethod {
+    private final Destination destination;
+
+    public HouseJewelleryBoxTraverse(Destination destination) {
+        this.destination = destination;
+    }
+
+    @Override
+    public Collection<Requirement> requirements(HouseConfig houseConfig) {
+        return List.of(new HouseRequirement(HouseConfig::hasOrnateJewelleryBox));
+    }
+
+    @Override
+    public String toString() {
+        return "House Jewellery Box: " + destination;
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        if (!House.isInside()) {
+            util.teleToHouse();
+            return false;
+        }
+        if (Players.getLocal() == null) return false;
+        var jb = util.getJewelleryBox();
+        if (jb == null || !jb.isValid()) return false;
+        var def = jb.getActiveDefinition();
+        if (def == null) return false;
+
+        if (!def.getActions().contains(destination.getLabel())) {
+            if (InterfaceContainers.getAt(util.jb_interface_id) == null) {
+                if (!jb.interact("Teleport Menu")) {
+                    log.error("Unable to click teleport menu {}", jb);
+                }
+                Execution.delayUntil(() -> InterfaceContainers.getAt(util.jb_interface_id) != null,
+                        util::playerMoving,
+                        600,
+                        1200);
+                return false;
+            }
+            Keyboard.typeKey(destination.getKey());
+            var res = Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                    util::playerAnimating, 2000, 4000);
+            Execution.delay(1200);
+            return res;
+        } else {
+            if (jb.interact(destination.getLabel())) {
+                var res = Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId(),
+                        util::playerAnimatingOrMoving, 2000, 4000);
+                Execution.delay(1200);
+                return res;
+            }
+        }
+        return Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId();
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    public enum Destination {
+        PvpArena("PvP Arena", KeyEvent.VK_1),
+        CastleWars("Castle Wars", KeyEvent.VK_2),
+        Ferox("Ferox Enclave", KeyEvent.VK_3),
+        Burthorpe("Burthorpe", KeyEvent.VK_4),
+        BarbarianOutpost("Barbarian Outpost", KeyEvent.VK_5),
+        CorpBeast("Corporeal Beast", KeyEvent.VK_6),
+        TearsOfGuthix("Tears of Guthix", KeyEvent.VK_7),
+        Wintertodt("Wintertodt Camp", KeyEvent.VK_8),
+        WarriorsGuild("Warriors' Guild", KeyEvent.VK_9),
+        ChampionsGuild("Champions' Guild", KeyEvent.VK_A),
+        EdgevilleMonastery("Monastery", KeyEvent.VK_B),
+        RangingGuild("Ranging Guild", KeyEvent.VK_C),
+        FishingGuild("Fishing Guild", KeyEvent.VK_D),
+        MiningGuild("Mining Guild", KeyEvent.VK_E),
+        CraftingGuild("Crafting Guild", KeyEvent.VK_F),
+        CookingGuild("Cooking Guild", KeyEvent.VK_G),
+        WoodcuttingGuild("Woodcutting Guild", KeyEvent.VK_H),
+        FarmingGuild("Farming Guild", KeyEvent.VK_I),
+        Miscellania("Miscellania", KeyEvent.VK_J),
+        GrandExchange("Grand Exchange", KeyEvent.VK_K),
+        FaladorPark("Falador Park", KeyEvent.VK_L),
+        DondakansRock("Dondakan's Rock", KeyEvent.VK_M),
+        Edgeville("Edgeville", KeyEvent.VK_N),
+        Karamja("Karamja", KeyEvent.VK_O),
+        DraynorVillage("Draynor Village", KeyEvent.VK_P),
+        AlKharid("Al Kharid", KeyEvent.VK_Q),
+        ;
+        private final String label;
+        private final int key;
+    }
+}

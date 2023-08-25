@@ -1,0 +1,53 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.ui.setting.annotation.open.Setting;
+import com.runemate.ui.setting.annotation.open.SettingsGroup;
+import com.runemate.ui.setting.annotation.open.SettingsSection;
+import com.runemate.ui.setting.annotation.open.Suffix;
+
+@SettingsGroup(group = "Breaking")
+public interface BreakSettings {
+    @SettingsSection(title = "Breaking", description = "Settings for breaking and stopping", order = 2)
+    String breaking = "Breaking";
+
+    @Setting(key = "enabled", title = "Enable Breaking", order = 0, section = "Breaking")
+    default boolean enabled() {
+        return false;
+    }
+
+    @Suffix(Suffix.MINUTES)
+    @Setting(key = "TBB_Max", title = "Time Between Breaks (max)", order = 1, section = "Breaking")
+    default int timeBetweenMax() {
+        return 90;
+    }
+
+    @Suffix(Suffix.MINUTES)
+    @Setting(key = "TBB_Min", title = "Time Between Breaks (min)", order = 2, section = "Breaking")
+    default int timeBetweenMin() {
+        return 45;
+    }
+
+    @Suffix(Suffix.MINUTES)
+    @Setting(key = "Length_Max", title = "Break Length (max)", order = 3, section = "Breaking")
+    default int breakLengthMax() {
+        return 20;
+    }
+
+    @Suffix(Suffix.MINUTES)
+    @Setting(key = "Length_Min", title = "Break Length (min)", order = 4, section = "Breaking")
+    default int breakLengthMin() {
+        return 10;
+    }
+
+    @Setting(key = "stopping", title = "Enable Stopping", order = 5, section = "Breaking")
+    default boolean stoppingEnabled() {
+        return false;
+    }
+
+    @Suffix(Suffix.MINUTES)
+    @Setting(key = "StopAfter", title = "Stop After", order = 6, section = "Breaking")
+    default int stopAfter() {
+        return 600;
+    }
+
+}

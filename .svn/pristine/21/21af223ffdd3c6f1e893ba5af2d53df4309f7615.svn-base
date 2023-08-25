@@ -1,0 +1,58 @@
+package com.neck_flexed.scripts.mole;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+
+    public static boolean restoreHitpoints() {
+        if (util.consume(MoleState.getFood(), "Eat")) {
+            return true;
+        }
+        return false;
+    }
+
+
+    private static void checkAndConsume() {
+        if (MoleState.isPaused()) return;
+        if (Health.getCurrentPercent() < 30) {
+            if (!restoreHitpoints()) {
+                MoleState.set(MoleState.RESTORING);
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!util.restorePrayer()) {
+                MoleState.set(MoleState.RESTORING);
+            }
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.info("death");
+        Mole.updateStatus("dead");
+        MoleState.setPaused(true);
+        MoleState.set(MoleState.STOPPING);
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

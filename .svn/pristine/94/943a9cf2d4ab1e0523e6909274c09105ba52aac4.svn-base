@@ -1,0 +1,59 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Food;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import org.jetbrains.annotations.Nullable;
+
+public class PostLootWaiting implements LoopState<CerbState> {
+    private final cerb bot;
+    private final PrayerFlicker prayerFlicker;
+    private final CerbListener cerbListener;
+
+
+    public PostLootWaiting(cerb bot, PrayerFlicker prayerFlicker, CerbListener cerbListener) {
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+        this.cerbListener = cerbListener;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        prayerFlicker.setActivePrayers();
+        bot.updateStatus("Waiting for respawn");
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        this.cerbListener.reset();
+        return CerbState.FIGHTING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.POST_LOOT_WAITING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return cerb.getCerb() != null;
+    }
+
+    @Override
+    public void executeLoop() {
+        Food.eatAny();
+        if (!cerb.centerSpawnTile.equals(Players.getLocal().getServerPosition()) && !Players.getLocal().isMoving()) {
+            util.moveTo(cerb.centerSpawnTile);
+            Execution.delay(100, 200);
+        }
+    }
+}

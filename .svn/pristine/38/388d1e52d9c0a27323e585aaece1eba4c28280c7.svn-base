@@ -1,0 +1,34 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.RestockState {
+
+
+    public RestockState(cerb bot) {
+        super(bot, CerbState.TRAVERSING, CerbState.RESTOCKING,
+                util.concatenate(
+                        util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                                items.houseTab, items.spade, items.ashSanctifier,
+                        }),
+                        new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape,},
+                        util.toItemList(bot.settings().equipment()),
+                        util.toItemList(bot.settings().specEquipment())
+                ),
+
+                // withdraw
+                NeckBank.getBoostsNeeded(bot.settings().boostAmount(),
+                        false,
+                        bot.settings().boost()
+                ),
+                NeckBank.toMap(1, items.staminaPotions),
+                NeckBank.toMap(2, bot.settings().food().gameName())
+        );
+    }
+}

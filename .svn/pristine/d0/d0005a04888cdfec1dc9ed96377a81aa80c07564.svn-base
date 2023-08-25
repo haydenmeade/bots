@@ -1,0 +1,91 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "RestoreState")
+public class RestoreState implements LoopState<DkState> {
+    private final dk bot;
+    private final PrayerFlicker prayerFlicker;
+    private final BreakManager breakManager;
+    private String error;
+    private boolean done;
+    private EventDispatcher dispatcher;
+    private DkListener dkListener;
+
+    public RestoreState(dk bot, PrayerFlicker prayerFlicker, DkListener dkListener, BreakManager breakManager) {
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+        this.dkListener = dkListener;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.dispatcher = d;
+        bot.updateStatus(String.format("Restoring"));
+        this.prayerFlicker.setActivePrayers();
+        this.dkListener.reset();
+    }
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        if (this.breakManager.breaking() || this.breakManager.stopBot())
+            return DkState.BREAKING;
+        if (bot.isSlayerTaskDone()) {
+            bot.updateStatus("Finished slayer task");
+            bot.stop("Finished slayer task");
+        }
+        return DkState.RESTOCKING;
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.RESTORING;
+    }
+
+    @Override
+    public String fatalError() {
+        return this.error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        var s = bot.settings();
+        switch (s.restoreAndBankStrategy()) {
+            case House:
+                if (!House.isInside()) {
+                    util.teleToHouse();
+                    return;
+                }
+
+                if (!HouseUtil.restoreStatsInHouse(dispatcher)) {
+                    return;
+                }
+
+                if (!Traversal.isRunEnabled())
+                    Traversal.toggleRun();
+
+                this.done = HouseUtil.JbToCastleWars();
+                break;
+            case Ferox:
+                if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                    log.error("Unable to tele to ferox");
+                    return;
+                } else if (!util.restoreAtFerox(dispatcher)) {
+                    return;
+                }
+                this.done = true;
+                break;
+        }
+    }
+}

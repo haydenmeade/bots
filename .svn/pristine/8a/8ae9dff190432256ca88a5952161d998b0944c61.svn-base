@@ -1,0 +1,22 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.local.Worlds;
+import com.runemate.game.api.hybrid.local.hud.interfaces.WorldHop;
+import com.runemate.game.api.hybrid.queries.WorldQueryBuilder;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Hopping")
+public class Hopping {
+
+    public static boolean hop(WorldRegion region) {
+        log.debug("hopping");
+        if (!WorldHop.open()) return false;
+        var worlds = new WorldQueryBuilder().member().regular().region(region).get().results();
+        var current = Worlds.getCurrent();
+        var newWorld = worlds.random();
+        if (newWorld == null || newWorld.getId() == current)
+            newWorld = worlds.stream().takeWhile(w -> w.getId() != current).findFirst().get();
+        return WorldHop.hopTo(newWorld);
+    }
+}

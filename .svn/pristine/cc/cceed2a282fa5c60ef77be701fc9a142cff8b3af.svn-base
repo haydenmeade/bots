@@ -1,0 +1,76 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+
+import java.util.Arrays;
+
+public enum Food {
+    Shark("Shark", 3),
+    MantaRay("Manta ray", 3),
+    PineapplePizza("Pineapple pizza", 3),
+    TunaPotato("Tuna potato", 3),
+    Karambwan("Cooked karambwan", 3),
+    PotatoWithCheese("Potato with cheese", 3),
+    Monkfish("Monkfish", 3),
+    Bass("Bass", 3),
+    Anglerfish("Anglerfish", 3);
+
+    private final String name;
+    private final int tickDelay;
+
+    Food(String s, int tickDelay) {
+        this.name = s;
+        this.tickDelay = tickDelay;
+    }
+
+    public static boolean isFood(ItemDefinition s) {
+        if (s == null) return false;
+        return Arrays.stream(Food.values()).anyMatch(s1 -> s1.gameName().equals(s.getName()));
+    }
+
+    public static boolean dropAny() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        if (foods.isEmpty()) return false;
+        DirectInput.send(MenuAction.forSpriteItem(foods.first(), "Drop"));
+        return true;
+    }
+
+    public static boolean eatAny() {
+        var foods = Inventory
+                .newQuery()
+                .names(Arrays.stream(Food.values()).map(Food::gameName).toArray(String[]::new))
+                .unnoted()
+                .results();
+        if (foods.isEmpty()) return false;
+        return util.consume(foods.first(), "Eat");
+    }
+
+    @Override
+    public String toString() {
+        return this.name;
+    }
+
+    public String gameName() {
+        return name;
+    }
+
+    public boolean eat() {
+        return util.eat(this);
+    }
+
+    public int getTickDelay() {
+        return tickDelay;
+    }
+
+    public int getHeals() {
+        // TODO
+        return 20;
+    }
+}

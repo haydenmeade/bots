@@ -1,0 +1,288 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.input.Keyboard;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.listeners.SettingsListener;
+import com.runemate.game.api.script.framework.listeners.events.SettingChangedEvent;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Dk")
+public class dk extends NeckBot implements SettingsListener {
+
+    public static final int SupremeId = 2265;
+    public static final int PrimeId = 2266;
+    public static final int RexId = 2267;
+
+    Runnable diFixRunnable = new Runnable() {
+        public void run() {
+            Execution.delay(100, 1050);
+            Keyboard.pressKey(8);
+        }
+    };
+    @SettingsProvider(updatable = true)
+    private DkSettings settings;
+    private DkListener dkListener;
+    private PrayerFlicker prayerFlicker;
+    private LoopState<DkState> currentState;
+    private Consumeables consumeables;
+    private DkState forcedState = null;
+    private ScheduledExecutorService executor;
+    private BreakManager breakManager = new BreakManager(settings);
+    private Integer specEnergy;
+    private CombatStyle specCombatStyle;
+
+    public static void updateStatus(String s) {
+        var debugString = String.format("%s - Dk KC: %d", s, DkState.getDkKilled());
+        log.debug(debugString);
+        DefaultUI.setStatus(debugString);
+    }
+
+    public static boolean doWeNeedToRestock() {
+        if (DkState.getSettings() == null) return false;
+        var boost = DkState.getSettings().boostMelee();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (Inventory.getQuantity(DkState.getSettings().food().gameName()) < 1) {
+            return true;
+        }
+        return false;
+    }
+
+    public void addListener(EventListener l) {
+        log.debug(String.format("Add listener %s", l.getClass().getName()));
+        if (!this.getEventDispatcher().getListeners().stream().anyMatch(
+                e -> e.getClass().getName().equals(l.getClass().getName()))) {
+            this.getEventDispatcher().addListener(l);
+        }
+    }
+
+    public void removeListener(EventListener l) {
+        log.debug(String.format("Remove listener %s", l.getClass().getName()));
+        this.getEventDispatcher().removeListener(l);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        this.dkListener.reset();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        log.debug(String.format("resumed"));
+        var isPaused = DkState.getSettings() == null;
+        DkState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            if (this.currentState == null || !this.currentState.get().equals(DkState.BREAKING))
+                this.forceState(DkState.STARTING);
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+    }
+
+    @Override
+    public void onStop(String reason) {
+        super.onStop(reason);
+        this.executor.shutdown();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        DkState.setPaused(true);
+        log.debug(String.format("paused"));
+        removeListener(prayerFlicker);
+        removeListener(consumeables);
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        dkListener = new DkListener(prayerFlicker, this);
+        prayerFlicker = new PrayerFlicker();
+        consumeables = new Consumeables(this);
+        DkState.setBot(this);
+        this.getEventDispatcher().addListener(this);
+        DkState.setPaused(true);
+        this.breakManager = new BreakManager(settings);
+        this.setLoopDelay(10, 25);
+        addListener(dkListener);
+        resetKill();
+        DefaultUI.addPanel(0, "Instructions", new Text(
+                "--BETA--\n" +
+                        "\n"
+        ));
+
+        this.executor = Executors.newScheduledThreadPool(1);
+        executor.scheduleAtFixedRate(diFixRunnable, 0, 30, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void onSettingChanged(SettingChangedEvent settingChangedEvent) {
+        DkState.setSettings(settings);
+        updateItemFilter();
+        this.breakManager = new BreakManager(settings);
+        if (settings != null
+                && settings.specEquipment() != null
+                && !settings.specEquipment().isEmpty()
+                && settings.specEquipment().getDefinition(Equipment.Slot.WEAPON) != null) {
+            this.specEnergy = SpecialAttackCost.getCost(settings.specEquipment().getDefinition(Equipment.Slot.WEAPON).getId());
+            this.specCombatStyle = util.getCombatStyle(settings.specEquipment());
+        } else {
+            this.specEnergy = 50;
+            this.specCombatStyle = CombatStyle.Melee;
+        }
+    }
+
+    public void updateItemFilter() {
+        try {
+
+            var s = DkState.getSettings();
+            if (s == null) return;
+
+            Pattern[] x = util.concatenate(
+                    util.toPatternArray(new String[]{items.houseTab, items.dramenStaff, items.lunarStaff,
+                            DkState.getFood()}),
+                    new Pattern[]{Pattern.compile("Stamina potion.*"), items.ringOfDueling},
+                    util.toItemList(DkState.getSettings().magicEquipment()),
+                    util.toItemList(DkState.getSettings().meleeEquipment()),
+                    util.toItemList(DkState.getSettings().rangedEquipment()),
+                    util.toItemList(DkState.getSettings().specEquipment())
+            );
+            var supplies = util.joinLists(
+                    items.rangedBoosts,
+                    items.prayerRestores,
+                    items.antiPoisonPP,
+                    items.attackBoosts,
+                    items.strengthBoosts,
+                    items.defenceBoosts,
+                    items.combatBoosts
+            );
+            DefaultUI.setItemEventFilter(DkState.getBot(),
+                    (e -> {
+                        if (currentState != null && currentState.get() == DkState.RESTOCKING) return false;
+                        var n = e.getItem().getDefinition().getName();
+                        var r1 = Arrays.stream(x).anyMatch(pattern -> pattern.asMatchPredicate().test(n));
+                        if (r1) return false;
+                        var id = e.getItem().getId();
+                        var r2 = supplies.stream().anyMatch(i -> i == id);
+                        if (r2) return false;
+                        return true;
+                    }));
+        } catch (Exception e) {
+            log.error("Unable to updateItemFilter", e);
+        }
+    }
+
+    @Override
+    public void onSettingsConfirmed() {
+        var isPaused = this.isPaused();
+        log.debug(String.format("settings confirmed %s, isPaused %s", settings.toString(), isPaused));
+        DkState.setSettings(settings);
+        updateItemFilter();
+        DkState.setPaused(isPaused);
+        if (!isPaused) {
+            resetKill();
+            addListener(prayerFlicker);
+            addListener(consumeables);
+        }
+        if (settings != null
+                && settings.specEquipment() != null
+                && !settings.specEquipment().isEmpty()
+                && settings.specEquipment().getDefinition(Equipment.Slot.WEAPON) != null) {
+            this.specEnergy = SpecialAttackCost.getCost(settings.specEquipment().getDefinition(Equipment.Slot.WEAPON).getId());
+            this.specCombatStyle = util.getCombatStyle(settings.specEquipment());
+        } else {
+            this.specEnergy = 50;
+            this.specCombatStyle = CombatStyle.Melee;
+        }
+        this.breakManager = new BreakManager(settings);
+    }
+
+    private LoopState<DkState> getState(DkState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this);
+            case TRAVERSING:
+                return new TraverseState(prayerFlicker);
+            case FIGHTING:
+//                return new FightState2(this.dkListener, this.prayerFlicker, this,
+//                        boostPrayers, combatStyle);
+                return new FightState(this.dkListener, this.prayerFlicker, this,
+                        settings, specEnergy, specCombatStyle);
+            case RESTORING:
+                return new RestoreState(prayerFlicker, dkListener, breakManager);
+            case HOPPING:
+                return new HoppingState();
+            case RESTOCKING:
+                return new RestockState();
+            case OFF_TICK:
+                return new OffTickState(dkListener, this);
+            case ENTERING_LAIR:
+                return new EnterLairState(dkListener, this);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, DkState.BREAKING, DkState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    public void onLoop() {
+        if (DkState.isPaused()) return;
+        if (DkState.getSettings() == null) return;
+        if (Players.getLocal() == null) return;
+        if (currentState == null) {
+            this.currentState = new StartingState(this);
+        }
+        if (currentState.fatalError() != null && !currentState.fatalError().isEmpty()) {
+            log.error(String.format("Fatal error from %s: %s", currentState.get(), currentState.fatalError()));
+            updateStatus(String.format("STOPPING during %s, error: %s", currentState.fatalError(), currentState.get()));
+            this.stop(currentState.fatalError());
+            return;
+        }
+        if (currentState.done() || (forcedState != null && this.forcedState != currentState.get())) {
+            var tState = currentState.deactivate(this.getEventDispatcher());
+            var newState = forcedState == null ? tState : forcedState;
+            var newStateImpl = this.getState(newState);
+            newStateImpl.activate(this.getEventDispatcher());
+            var oldState = this.currentState;
+            this.currentState = newStateImpl;
+            if (forcedState != null) {
+                log.debug(String.format("FORCE change state from %s to %s", oldState.get(), newState));
+            } else {
+                log.debug(String.format("Change state from %s to %s", oldState.get(), newState));
+            }
+        }
+        forcedState = null;
+        if (!currentState.done())
+            currentState.executeLoop();
+    }
+
+
+    public void forceState(DkState dkState) {
+        this.forcedState = dkState;
+    }
+
+    @Override
+    public void updateStatusText(String s) {
+        updateStatus(s);
+    }
+}

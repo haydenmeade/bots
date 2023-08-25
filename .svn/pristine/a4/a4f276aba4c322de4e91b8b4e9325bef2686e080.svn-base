@@ -1,0 +1,47 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.Hopping;
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingState")
+public class HoppingState implements LoopState<DkState> {
+    private boolean hopped = false;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        dk.updateStatus("Hopping");
+    }
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        return this.hopped ? DkState.STARTING : DkState.HOPPING;
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.HOPPING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return hopped;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (Hopping.hop(DkState.getSettings().worldRegion())) {
+            this.hopped = true;
+            Execution.delay(4000, 5000);
+        }
+        if (!this.hopped)
+            log.error("unable to hop worlds");
+    }
+}

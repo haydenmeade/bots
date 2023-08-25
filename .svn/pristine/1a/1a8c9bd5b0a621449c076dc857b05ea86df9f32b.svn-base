@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.EntityEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+@Log4j2(topic = "Phase32Fighter")
+public class Phase32Fighter implements EngineListener, PlayerListener, NpcListener {
+
+
+    private boolean isDead = false;
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        if (event.getEntityType() == EntityEvent.EntityType.NPC && ((Npc) event.getSource()).getName() == sire.Sire) {
+            isDead = true;
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        if (done()) return;
+        var s = u.getSire();
+        if (s.getAnimationId() == Phase3.explosionAnim) {
+            if (!Players.getLocal().getPosition().equals(Phase3.tile1S) &&
+                    !Players.getLocal().getPosition().equals(Phase3.tile2S)
+            ) {
+                util.moveTo(Phase3.getMoveToTile(Players.getLocal().getPosition()));
+            }
+            log.debug(String.format("Wait for explosion: SireId: %s, Animation: %s", s.getId(), s.getAnimationId()));
+        } else if (sire.onMiasmaPool()) {
+            log.debug("move");
+            util.moveTo(Phase3.getMoveToTile2(Players.getLocal().getPosition()));
+        } else if (Action.get() != Action.Attack || Players.getLocal().getTarget() == null) {
+            log.debug("attack");
+            u.attackSire();
+        }
+
+    }
+
+
+    public boolean done() {
+        if (isDead) return true;
+        var s = u.getSire();
+        return s == null || s.getId() == -1 || s.getId() == sire.SireId_Phase0;
+    }
+
+}

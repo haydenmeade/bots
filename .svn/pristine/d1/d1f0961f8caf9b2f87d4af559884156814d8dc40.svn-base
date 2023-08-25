@@ -1,0 +1,102 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GroundItem;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.region.GroundItems;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.tree.LeafTask;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.List;
+
+@Log4j2(topic = "LootTask")
+public class LootTask extends LeafTask {
+    public static List<String> ignoreLoot = Arrays.asList(
+            "Steel arrow",
+            "Fiendish ashes",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Chilli potato",
+            "Air talisman",
+            "Body talisman",
+            "Earth talisman",
+            "Fire talisman",
+            "Mind talisman",
+            "Water talisman",
+            "Cosmic talisman",
+            "Chaos talisman",
+            "Nature talisman");
+
+    public static void take(GroundItem gi) {
+        if (gi == null || !gi.isValid()) {
+            log.debug("null / invalid in take");
+            return;
+        }
+        if (sire.fightArea.contains(gi)) {
+            log.debug(String.format("looting: %s", gi.getDefinition().getName()));
+            DirectInput.send(MenuAction.forGroundItem(gi, "Take"));
+        } else {
+            log.debug("not reachable");
+        }
+    }
+
+    private static boolean itemStacksAndInInvent(GroundItem gi) {
+        if (gi == null || gi.getDefinition() == null) return false;
+        var stacks = gi.getDefinition().stacks() || gi.getDefinition().isNoted();
+        log.debug(String.format("stacks: %s", stacks));
+        var invItem = Inventory.getItems(gi.getId()).first();
+        log.debug(String.format("invItem: %s", invItem));
+        var res = stacks &&
+                Inventory.contains(gi.getId()) &&
+                (invItem.getDefinition().stacks() || invItem.getDefinition().isNoted());
+        log.debug(String.format("result: %s", res));
+        return res;
+    }
+
+    private @Nullable GroundItem getGroundItemToLoot() {
+        var gi = GroundItems.getLoaded(groundItem ->
+                sire.fightArea.contains(groundItem) && !ignoreLoot.contains(groundItem.getDefinition().getName()));
+        return gi.isEmpty() ? null : gi.nearest();
+    }
+
+    @Override
+    public void execute() {
+        sire.updateStatus("Looting");
+        SireState.setActivePrayers();
+        u.equipRanged();
+
+        var gi = getGroundItemToLoot();
+        if (gi != null) {
+            sire.updateStatus(String.format("Looting: %s", gi));
+            log.debug(String.format("full: %d", Inventory.getUsedSlots()));
+            if (Inventory.getUsedSlots() >= 28 && !itemStacksAndInInvent((gi))) {
+                if (!Consumeables.restoreHitpoints()) {
+                    log.debug("full");
+                    SireState.setBotState(SireState.RESTORING);
+                    return;
+                } else {
+                    Execution.delay(1200, 1800);
+                }
+            }
+            take(gi);
+        } else {
+            SireState.resetKill();
+            if (!util.hasSlayerTask()) {
+                sire.updateStatus("Finished slayer task");
+                Traverse.breakHouseTab();
+                SireState.setPaused(true);
+                SireState.setBotState(SireState.STOPPING);
+            } else if (SireState.needsBankAfterKill()) {
+                SireState.setBotState(SireState.RESTORING);
+            } else {
+                SireState.setBotState(SireState.FIGHTING);
+            }
+        }
+    }
+}

@@ -1,0 +1,148 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.Actor;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.SpecialAttack;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class FightState implements LoopState<SarachnisState>, EngineListener {
+    private final bot bot;
+    private final SarachnisListener sarachnisListener;
+    private final PrayerFlicker prayerFlicker;
+    private final Loadouts loadouts;
+    private final Sarachnis sarachnis;
+    private final Prayer[] boostPrayers;
+
+    public FightState(bot bot,
+                      SarachnisListener sarachnisListener,
+                      PrayerFlicker prayerFlicker
+    ) {
+        this.bot = bot;
+        this.loadouts = bot.loadouts;
+        this.sarachnisListener = sarachnisListener;
+        if (this.sarachnisListener.getSarachnis() == null) {
+            this.sarachnisListener.init();
+        }
+        this.sarachnis = this.sarachnisListener.getSarachnis();
+        this.prayerFlicker = prayerFlicker;
+        this.boostPrayers = this.loadouts.getAnyCombat().getBoostPrayers();
+    }
+
+    @Override
+    public SarachnisState deactivate(EventDispatcher d) {
+        log.debug("deactivate");
+        d.removeListener(this);
+        this.prayerFlicker.setActivePrayers();
+        if (this.sarachnisListener.isDead())
+            return SarachnisState.LOOTING;
+        else
+            return SarachnisState.STARTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Fighting");
+        d.addListener(this);
+        handlePrayer();
+    }
+
+    @Override
+    public SarachnisState get() {
+        return SarachnisState.FIGHTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.sarachnisListener.isDead() || this.sarachnis == null;
+    }
+
+    private void handlePrayer() {
+        if (this.sarachnis == null) return;
+        var prot = this.sarachnis.getNextExpectedAttack().equals(CombatStyle.Ranged)
+                ? Prayer.PROTECT_FROM_MISSILES
+                : Prayer.PROTECT_FROM_MELEE;
+
+        this.prayerFlicker.setActivePrayers(util.joinPrayers(this.boostPrayers, prot));
+    }
+
+    @Override
+    public void onTickStart() {
+        util.boostIfNeeded(loadouts.getEquipped().getStyle());
+        var myPos = Players.getLocal().getServerPosition();
+        var sarNpc = sarachnis.getNpc();
+        if (sarNpc == null || myPos == null) return;
+        this.handlePrayer();
+        var target = Players.getLocal().getTarget();
+        var desiredTarget = getDesiredTarget(immobilized());
+        //log.debug(desiredTarget);
+        if (immobilized()) {
+            if (sarNpc.getArea().getSurroundingCoordinates().contains(myPos)
+                    && sarNpc.equals(desiredTarget)) {
+                attackIfTargetNotSet(sarNpc, target);
+                return;
+            } else if (sarNpc.equals(desiredTarget)) {
+                util.eatIfHpAllows(Food.getAny());
+                return;
+            }
+        }
+        attackIfTargetNotSet(desiredTarget, target);
+    }
+
+    private Npc getDesiredTarget(boolean immobilised) {
+        var fs = bot.settings().fightStrategy();
+        if (fs.equals(FightStrategy.Default)) return sarachnis.getNpc();
+        var mage = sarachnis.getNearestMageSpawn();
+        if (fs.equals(FightStrategy.MageSpawnKiller)) {
+            return mage == null ? sarachnis.getNpc() : mage;
+        }
+        var melee = sarachnis.getNearestMeleeSpawn();
+        if (melee == null && mage == null) return sarachnis.getNpc();
+        if (fs.equals(FightStrategy.AllSpawnKiller)) {
+            if (immobilised) {
+                var p = Players.getLocal().getServerPosition();
+                if (mage != null && mage.getArea().getSurroundingCoordinates().contains(p))
+                    return mage;
+                return melee;
+            }
+            return mage == null ? melee : mage;
+        }
+        return sarachnis.getNpc();
+    }
+
+
+    private void attackIfTargetNotSet(Npc npc, Actor target) {
+        if (npc == null) return;
+        var hp = npc.getHealthGauge();
+        var needToSpec = npc.getId() == Sarachnis.ID && hp != null && hp.getPercent() < 33 && loadouts.getSpecLoadout() != null && SpecialAttack.getEnergy() >= this.loadouts.getSpecLoadout().getSpecEnergy();
+        if (needToSpec) {
+            loadouts.equip(loadouts.getSpecLoadout());
+            util.activateSpec();
+            if (target == null || !target.equals(npc))
+                util.attack(npc);
+        } else if (target == null || !target.equals(npc)) {
+            loadouts.equip(loadouts.getAnyCombat());
+            util.attack(npc);
+        } else {
+            loadouts.equip(loadouts.getAnyCombat());
+        }
+    }
+
+    private boolean immobilized() {
+        return sarachnis != null && sarachnis.isPlayerIsWebbed();
+    }
+
+    @Override
+    public void executeLoop() {
+    }
+}

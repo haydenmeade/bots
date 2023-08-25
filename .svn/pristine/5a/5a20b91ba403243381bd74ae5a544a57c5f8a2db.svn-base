@@ -1,0 +1,55 @@
+package com.neck_flexed.scripts.common.state;
+
+import com.neck_flexed.scripts.common.Hopping;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.location.WorldRegion;
+import com.runemate.game.api.script.Execution;
+import com.runemate.ui.setting.open.Settings;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingState")
+public class HoppingState<TSettings extends Settings, TState extends Enum<TState>> extends BaseState<TState> {
+    private final NeckBot<TSettings, TState> bot;
+    private final WorldRegion region;
+    private boolean hopped = false;
+
+    public HoppingState(NeckBot<TSettings, TState> bot, WorldRegion region, TState hoppingState) {
+        super(hoppingState);
+        this.bot = bot;
+        this.region = region;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Hopping");
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return hopped;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (Hopping.hop(region)) {
+            this.hopped = true;
+            Execution.delay(4000, 5000);
+        }
+        if (!this.hopped)
+            log.error("unable to hop worlds");
+        var p = Players.getLocal();
+        if (p != null) {
+            var hp = p.getHealthGauge();
+            if (hp != null && hp.isValid()) {
+                log.error("Hopper got into combat");
+                hopped = true;
+            }
+        }
+    }
+}

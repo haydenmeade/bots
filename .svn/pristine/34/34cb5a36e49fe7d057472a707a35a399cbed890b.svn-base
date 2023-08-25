@@ -1,0 +1,12 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.script.framework.tree.LeafTask;
+
+public class PausedTask extends LeafTask {
+
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        u.removeFightListeners();
+    }
+}

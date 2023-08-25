@@ -1,0 +1,118 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.Rune;
+import com.runemate.game.api.hybrid.local.hud.interfaces.SpriteItem;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+public interface TraverseMethod {
+    TraverseMethod[] SLAYER_TOWER = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.SlayerTower),
+            new HousePortalTraverse(PortalNexusTeleport.SalveGraveyard),
+            new FairyRingTraverse(FairyRing.CKS),
+            new HousePortalTraverse(PortalNexusTeleport.Kharyrll),
+    };
+
+    TraverseMethod[] NIEVE_CAVE = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.StrongholdSlayerCave),
+            new SpiritTreeTraverse(SpiritTreeTraverse.Destination.GnomeStronghold),
+            new ItemTraverse(items.royalSeedPod, "Commune"),
+    };
+    int[] SLAYER_TOWER_REGIONS = new int[]{13623, 13622, 13878, 13879, 14135};
+    int[] STRONGHOLD_REGIONS = new int[]{9782, 9781, 9525, 9526, 9881, 9880, 9624, 9625};
+    int[] CATACOMBS_REGIONS = new int[]{6457, 6813, 6557, 6556, 6812, 6966, 6967, 6711, 6712, 6456, 6713, 6969, 6968};
+    TraverseMethod[] CATACOMBS_TRAVERSES = new TraverseMethod[]{
+            new XericTraverse(Xeric.Heart),
+            new TeleportTraverse(Magic.KOUREND_CASTLE_TELEPORT, 69, Rune.FIRE, Rune.WATER, Rune.LAW, Rune.SOUL),
+            new HouseXericTraverse(Xeric.Heart),
+            new HousePortalTraverse(PortalNexusTeleport.KourendCastle),
+            new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Hosidius),
+            new HouseLocationTraverse(House.Location.KOUREND)
+    };
+    int[] FREM_SLAYER_REGIONS = new int[]{11164, 10908, 10907, 11064};
+    TraverseMethod[] FREM_SLAYER_TRAVERSES = new TraverseMethod[]{
+            new SlayerRingTraverse(SlayerRingDestination.FremennikSlayerDungeon),
+            new FairyRingTraverse(FairyRing.AJR)
+    };
+
+    Collection<Requirement> requirements(HouseConfig houseConfig);
+
+    boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition);
+
+    default boolean isHouse(HouseConfig houseConfig) {
+        return requirements(houseConfig).stream().anyMatch(Requirement::isHouse);
+    }
+
+    default boolean meetsRequirement(HouseConfig houseConfig, Collection<SpriteItem> itemsSource) {
+        for (var r : this.requirements(houseConfig)) {
+            if (r.meetsRequirement(houseConfig, itemsSource)) {
+                if (r.isHouse() && !util.hasHouseTeleport(itemsSource))
+                    continue;
+                var items = r.items();
+                if (util.hasItemsForTraverse(items, itemsSource))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    default TraverseBank getBank(HouseConfig houseConfig, boolean preferHouse) {
+        var reqs = this.requirements(houseConfig);
+        Requirement useRequirement = null;
+
+        if (preferHouse) {
+            for (var r : reqs.stream().filter(Requirement::isHouse).collect(Collectors.toList())) {
+                if (r.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                    useRequirement = r;
+                    break;
+                }
+            }
+        }
+
+        if (useRequirement == null)
+            for (var r : reqs) {
+                if (r.meetsRequirement(houseConfig, util.inventoryEquipmentBankSource())) {
+                    useRequirement = r;
+                    break;
+                }
+            }
+
+        if (useRequirement == null) return null;
+        var itemMap = NeckBank.toMap(1, useRequirement.items().toArray(new Pattern[0]));
+        var runes = useRequirement.runes();
+        return new TraverseBank(itemMap, runes, useRequirement.isHouse());
+    }
+
+    @RequiredArgsConstructor
+    class TraverseBank {
+        @Getter
+        private final Map<Pattern, Integer> items;
+        private final Collection<Rune> runes;
+        private final boolean needHouseTeleport;
+
+
+        public Collection<Rune> getRunes() {
+            if (!needHouseTeleport) return runes;
+            var runeWithHouse = new ArrayList<>(runes);
+            runeWithHouse.add(Rune.EARTH);
+            runeWithHouse.add(Rune.AIR);
+            runeWithHouse.add(Rune.LAW);
+            return runeWithHouse;
+        }
+
+        public boolean needsHouseTeleport() {
+            return this.needHouseTeleport;
+        }
+    }
+}
+

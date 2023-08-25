@@ -1,0 +1,83 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.ui.setting.open.Settings;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState<TSettings extends Settings, TState extends Enum> implements LoopState<TState> {
+    private final NeckBot<TSettings, TState> bot;
+    private final TState traversState;
+    private final TState restockState;
+    private final Pattern[] except;
+    private final Map<Pattern, Integer>[] withdraw;
+    private String error = null;
+    private boolean done;
+
+    public RestockState(NeckBot<TSettings, TState> bot, TState traversState, TState restockState,
+                        Pattern[] except, Map<Pattern, Integer>... withdraw
+    ) {
+        this.bot = bot;
+        this.traversState = traversState;
+        this.restockState = restockState;
+        this.except = except;
+        this.withdraw = withdraw;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus(String.format("Restocking"));
+        if (this.bot.prayerFlicker != null) {
+            this.bot.prayerFlicker.setActivePrayers();
+        }
+    }
+
+    @Override
+    public TState deactivate(EventDispatcher d) {
+        return this.traversState;
+    }
+
+    @Override
+    public TState get() {
+        return this.restockState;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Bank.isOpen()) {
+            Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 5000);
+            var b = Banks.getLoaded().nearest();
+            if (b == null || b.getPosition() == null) {
+                error = "unable to load bank";
+                return;
+            }
+            DirectInput.sendMovement(b.getPosition());
+            if (!Execution.delayUntil(() -> Bank.open(), 30000)) {
+                error = "unable to open bank";
+                return;
+            }
+
+        }
+        if (NeckBank.doBankLoop(except, withdraw)) {
+            Bank.close();
+            this.done = true;
+        }
+    }
+}

@@ -1,0 +1,63 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public class RestockState extends com.neck_flexed.scripts.common.RestockState<DkSettings, DkState> {
+
+    public RestockState(NeckBot<DkSettings, DkState> bot) {
+        super(bot, DkState.TRAVERSING, DkState.RESTOCKING);
+    }
+
+    @Override
+    protected Map<Pattern, Integer>[] getWithdraw() {
+        return new Map[]{
+                // withdraw
+                NeckBank.getBoostsNeeded(
+                        bot.settings().boostMagic().equals(Boost.ImbuedHeart) ? 1 : bot.settings().boostAmount(),
+                        false,
+                        bot.settings().boostMagic()
+                ),
+                NeckBank.getBoostsNeeded(bot.settings().boostAmount(),
+                        false,
+                        bot.settings().boostMelee()
+                ),
+                NeckBank.getBoostsNeeded(bot.settings().boostAmount(),
+                        false,
+                        bot.settings().boostRanged()
+                ),
+                bot.settings().antipoisonAmount() > 0
+                        ? NeckBank.toMap(bot.settings().antipoisonAmount(), bot.settings().antipoison().pattern())
+                        : Collections.emptyMap(),
+                Bank.getQuantity(items.stamina4Dose) > 0
+                        ? NeckBank.toMap(1, items.stamina4Dose)
+                        : Collections.emptyMap(),
+                NeckBank.toMap(1, items.prayer4Dose),
+                NeckBank.toMap(1, dk.petRock),
+                NeckBank.toMap(1, dk.runeThrowingAxe),
+                NeckBank.toMap(0, bot.settings().food().gameName())
+        };
+    }
+
+    @Override
+    protected Pattern[] getExcept() {
+        // deposit exceptions
+        return util.concatenate(
+                util.toPatternArray(new String[]{"Dust rune", "Law rune", "Earth rune", "Air rune", "Water rune", "Fire rune", "Nature rune", "Mist rune", "Mud rune", "Smoke rune", "Steam rune", "Lava rune",
+                        items.houseTab, dk.petRock, dk.runeThrowingAxe, items.fremBoots4,
+                }),
+                new Pattern[]{items.runePouch, items.imbuedHeart, items.constructionCape,},
+                util.toItemList(bot.settings().meleeEquipment()),
+                util.toItemList(bot.settings().magicEquipment()),
+                util.toItemList(bot.settings().rangedEquipment()),
+                util.toItemList(bot.settings().specEquipment())
+        );
+
+    }
+}

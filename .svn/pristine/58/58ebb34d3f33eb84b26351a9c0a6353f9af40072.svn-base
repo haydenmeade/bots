@@ -1,0 +1,201 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.SpotAnimationListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.NpcSpawnedEvent;
+import com.runemate.game.api.script.framework.listeners.events.SpotAnimationSpawnEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+@Log4j2(topic = "CerbListener")
+public class CerbListener implements NpcListener, EngineListener, SpotAnimationListener {
+    //4491
+    //4490
+    //4489
+    private static final int cerbAttackGhost = 4494;
+    private static final int cerbAttackLava = 4493;
+    private static final int cerbDeath = 4495;
+    private static final int cerbMeleeAttackId = 4491;
+    private static final int cerbMageAttackId = 4489;
+    private static final int cerbRangeAttackId = 4490;
+    private final Prayer[] boostPrayers;
+    private final PrayerFlicker prayerFlicker;
+    private cerb bot;
+    private boolean isDead = false;
+    private Area deadArea;
+    private int cerbAttacks = 0;
+    private int cerbNormalAttacks = 0;
+    private Phase phase = Phase.Combo;
+
+    public CerbListener(Prayer[] boostPrayers, PrayerFlicker prayerFlicker, cerb bot) {
+        this.boostPrayers = boostPrayers;
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        log.debug(event);
+        var npc = event.getNpc();
+        if (npc == null) return;
+        if (npc.getName().equals("Summoned Soul"))
+            this.bot.forceState(CerbState.GHOSTS);
+    }
+
+    @Override
+    public void onSpotAnimationSpawned(SpotAnimationSpawnEvent event) {
+        var anim = event.getSpotAnimation();
+        if (anim == null) return;
+        log.debug(event);
+        if (anim.getId() == 1246)
+            log.debug("LAVA");
+    }
+    //4493
+    // 4495
+
+    public int getCerbAnimation() {
+        var c = cerb.getCerb();
+        if (c == null) return -1;
+        return c.getAnimationId();
+    }
+
+    public int getCerbHealth() {
+        var c = cerb.getCerb();
+        if (c == null || c.getHealthGauge() == null)
+            return 600;
+        var h = c.getHealthGauge();
+        return h.getPercent() / 100 * 600;
+
+    }
+
+    public Phase getNextPhase() {
+        if (cerbNormalAttacks % 10 == 0)
+            return Phase.Combo;
+        if (getCerbHealth() < 400
+                && cerbAttacks % 7 == 0)
+            return Phase.Ghost;
+        if (getCerbHealth() < 200
+                && cerbAttacks % 5 == 0)
+            return Phase.Lava;
+        return Phase.Auto;
+    }
+
+    public Phase getCurrentPhase() {
+        return phase;
+    }
+
+    @Override
+    public void onTickStart() {
+        var c = cerb.getCerb();
+        log.debug(String.format("Cerb PHASE %s", this.getCurrentPhase()));
+        log.debug(String.format("Cerb NEXT PHASE %s", this.getNextPhase()));
+        if (c != null) {
+            //  log.debug(String.format("Cerb ID %s", c.getId()));
+            if (c.getAnimationId() != -1)
+                log.debug(String.format("Cerb ANIM ID %s", c.getAnimationId()));
+        }
+    }
+
+    private String getProtPrayer(Prayer[] prayers) {
+        for (var p :
+                prayers) {
+            if (p.name().toLowerCase().contains("protect")) {
+                return p.name();
+            }
+        }
+        return "";
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        if (event.getAnimationId() == -1) return;
+        //log.debug(event);
+        var npcId = getId(event.getSource());
+        var id = event.getAnimationId();
+        switch (npcId) {
+            case cerb.Id:
+                if (id == 4495) {
+                    this.bot.addKill();
+                    var c = cerb.getCerb();
+                    if (c == null) return;
+                    log.debug(String.format("DEAD on: %s", c.getPosition()));
+                    this.deadArea = c.getArea();
+                    this.isDead = true;
+                    return;
+                }
+                log.debug(String.format("CERB ATTACK %s", event));
+                if (this.getCurrentPhase().equals(Phase.Combo)) {
+                    if (id == cerbMageAttackId) {
+                        log.debug(String.format("COMBO MAGE ATTACK, praying %s", getProtPrayer(prayerFlicker.getActivePrayers())));
+
+                        this.prayerFlicker.setActivePrayers(
+                                util.joinPrayers(this.boostPrayers, Prayer.PROTECT_FROM_MISSILES));
+                    } else if (id == cerbRangeAttackId) {
+                        log.debug(String.format("COMBO RANGE ATTACK, praying %s", getProtPrayer(prayerFlicker.getActivePrayers())));
+                        this.prayerFlicker.setActivePrayers(
+                                util.joinPrayers(this.boostPrayers, Prayer.PROTECT_FROM_MELEE));
+                    } else if (id == cerbMeleeAttackId) {
+                        log.debug(String.format("COMBO MELEE ATTACK, praying %s", getProtPrayer(prayerFlicker.getActivePrayers())));
+                        cerbAttacks++;
+                        cerbNormalAttacks++;
+                        this.prayerFlicker.setActivePrayers(
+                                util.joinPrayers(this.boostPrayers, Prayer.PROTECT_FROM_MAGIC));
+                    } else {
+                        log.debug("weird attack");
+                    }
+                } else {
+                    log.debug("not combo");
+                    cerbAttacks++;
+                    if (id == cerbMageAttackId || id == cerbRangeAttackId || id == cerbMeleeAttackId) {
+                        cerbNormalAttacks++;
+                    }
+                }
+                break;
+            case cerb.ghostRangedId:
+            case cerb.ghostMageId:
+            case cerb.ghostMeleeId:
+                log.debug(String.format("GHOST ATTACK %s", event));
+                break;
+            default:
+                break;
+        }
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        log.debug(event);
+    }
+
+    public boolean isDead() {
+        return isDead;
+    }
+
+    public void reset() {
+        log.debug("reset");
+        isDead = false;
+        deadArea = null;
+        this.cerbAttacks = 0;
+        this.cerbNormalAttacks = 0;
+        this.phase = Phase.Combo;
+    }
+
+    public Area getDeadArea() {
+        return deadArea;
+    }
+}

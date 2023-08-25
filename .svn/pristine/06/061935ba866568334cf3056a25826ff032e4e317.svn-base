@@ -1,0 +1,86 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.traverse.*;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.hybrid.local.hud.interfaces.NpcContact;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import lombok.Getter;
+
+import java.util.regex.Pattern;
+
+public enum SlayerMaster implements NpcContact.Contact {
+    DURADEL("Duradel", new Coordinate(2868, 2982, 1)),
+    NIEVE_STEVE("Nieve|Steve", new Coordinate(2434, 3423, 0)),
+    TURAEL("Turael", new Coordinate(2930, 3536, 0)),
+    ;
+
+    private final Pattern name;
+    @Getter
+    private final Coordinate location;
+
+    private SlayerMaster(String name, Coordinate location) {
+        this.name = Pattern.compile("^" + name + "$");
+        this.location = location;
+    }
+
+    public InterfaceComponent getComponent() {
+        return Interfaces.newQuery().actions(this.getAction()).containers(this.getContainerId()).types(InterfaceComponent.Type.CONTAINER).results().first();
+    }
+
+    public int getContainerId() {
+        return 75;
+    }
+
+    public Pattern getAction() {
+        return this.name;
+    }
+
+    public Npc getNpc() {
+        return Npcs.newQuery()
+                .names(this.name)
+                .actions("Assignment", "Rewards")
+                .results()
+                .first();
+    }
+
+    public String toString() {
+        return this.name();
+    }
+
+    public TraverseMethod[] getTraverses() {
+        switch (this) {
+            case DURADEL:
+                return new TraverseMethod[]{
+                        new ItemTraverse(Pattern.compile("^Karamja gloves 4$"), "Duradel")
+                };
+            case NIEVE_STEVE:
+                return new TraverseMethod[]{
+                        new SlayerRingTraverse(SlayerRingDestination.StrongholdSlayerCave),
+                };
+            case TURAEL:
+                return new TraverseMethod[]{
+                        new GamesNecklaceTraverse(GamesNecklaceTraverse.Destination.Burthorpe),
+                        new HouseJewelleryBoxTraverse(HouseJewelleryBoxTraverse.Destination.Burthorpe),
+                        new HouseLocationTraverse(House.Location.TAVERLEY),
+                        new ConstructionCapeTraverse(ConstructionCapeTraverse.Destination.Taverley)
+                };
+        }
+        return new TraverseMethod[0];
+    }
+
+    public int[] getPathRegions() {
+        switch (this) {
+            case DURADEL:
+                return new int[]{11310};
+            case NIEVE_STEVE:
+                return new int[]{9782, 9781, 9525, 9526};
+            case TURAEL:
+                return new int[]{11319, 11575, 11574,};
+        }
+        return null;
+    }
+}

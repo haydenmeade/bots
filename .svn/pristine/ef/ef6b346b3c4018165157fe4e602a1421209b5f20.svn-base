@@ -1,0 +1,153 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.FairyRing;
+import com.neck_flexed.scripts.common.traverse.FairyRingTraverse;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.location.navigation.basic.BresenhamPath;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.WaypointPath;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2(topic = "TraverseTask")
+public class TraverseState extends BaseState<SireState> {
+    private static final Area offerArea = Area.rectangular(new Coordinate(3027, 4786, 0), new Coordinate(3052, 4754, 0));
+    private static final String unsiredStr = "Unsired";
+    private final SireListener sireListener;
+    private final com.neck_flexed.scripts.sire.sireBot bot;
+    private final Traverser traverser;
+    private Path path1;
+    private Path pathx;
+    private Path path2;
+
+    public TraverseState(sireBot bot) {
+        super(SireState.TRAVERSING);
+        this.bot = bot;
+        this.sireListener = bot.sireListener;
+        this.traverser = new Traverser(
+                bot,
+                HouseConfig.parse(bot.settings()),
+                Phase2.tile1,
+                new int[]{12106, 11850},
+                this::overrideWebPath,
+                new FairyRingTraverse(FairyRing.DIP)
+        );
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.bot.sireListener.init();
+    }
+
+    @Override
+    public void executeLoop() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        if (offerArea.contains(p) && Inventory.contains(unsiredStr)) {
+            bot.updateStatus(String.format("Font of Consumption Baybe"));
+            var unsired = Inventory.getItems(unsiredStr).first();
+            var font = GameObjects.getLoaded("The Font of Consumption").first();
+            if (unsired == null || font == null) return;
+            DirectInput.sendItemUseOn(unsired, font);
+            Execution.delayUntil(() -> !Inventory.contains(unsiredStr), 10000);
+        } else {
+            traverser.executeLoop();
+        }
+    }
+
+    private void createPath1ToSire(Coordinate pos) {
+        path1 = WaypointPath.create(
+                pos
+                , new Coordinate(3022, 4764, 0)
+                , new Coordinate(3007, 4762, 0)
+                , new Coordinate(2997, 4752, 0)
+                , new Coordinate(2983, 4751, 0)
+                , new Coordinate(2973, 4753, 0)
+                , new Coordinate(2970, 4756, 0)
+                , new Coordinate(2970, 4769, 0)
+                , new Coordinate(2970, 4780, 0)
+        );
+    }
+
+    public void traverseToSire() {
+        var p = Players.getLocal();
+        if (p == null) return;
+        var pos = p.getPosition();
+        if (pos == null) return;
+        var destination1 = Area.rectangular(Phase2.tile1, Phase2.tile2);
+        if (!Phase2.tile1.isLoaded()) {
+            log.debug("path1");
+            if (path1 == null)
+                createPath1ToSire(pos);
+            if (path1 != null) {
+                if (!path1.step()) {
+                    log.debug("step failed");
+                    path1 = null;
+                }
+                Execution.delay(600, 1200);
+            } else {
+                log.debug("Could not generate path1 in traverseToSire");
+            }
+        }
+        var x = pos.getX();
+        var isWalkingSafe = x >= Phase2.tile2.getX() && x <= Phase2.tile1.getX();
+        if (Phase2.tile1.isLoaded() && !isWalkingSafe) {
+            // walk so we don't get hit by tentacles.
+            log.debug("Pathx");
+            var destinationx = Area.rectangular(new Coordinate(Phase2.tile2.getX(), 4759), new Coordinate(Phase2.tile1.getX(), 4761));
+            if (!sireListener.init() && !destinationx.contains(p)) {
+                if (pathx == null)
+                    pathx = BresenhamPath.buildTo(destinationx);
+                if (pathx != null) {
+                    if (!pathx.step())
+                        pathx = null;
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate pathx in traverseToSire");
+                }
+            }
+        } else if (Phase2.tile1.isLoaded()) {
+            var destination2 = Phase2.tile1;
+            if (!sireListener.init() && !destination2.equals(pos)) {
+                log.debug("Path2");
+                if (bot.isPaused()) return;
+                if (path2 == null)
+                    path2 = BresenhamPath.buildTo(destination2);
+                if (path2 != null) {
+                    if (!path2.step())
+                        path2 = null;
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate path2 in traverseToSire");
+                }
+            }
+        }
+    }
+
+    private boolean overrideWebPath(Coordinate dest) {
+        var p = Players.getLocal();
+        if (p == null) return false;
+        if (sireBot.abyssalNexus.contains(p)) {
+            log.debug("traversing in nexus");
+            bot.updateStatus(String.format("Traversing in nexus"));
+            traverseToSire();
+            bot.loadouts.invalidateCurrent();
+            return true;
+        }
+        return false;
+    }
+}

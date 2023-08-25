@@ -1,0 +1,79 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.CombatStyle;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+public enum King {
+    Prime("Dagannoth Prime", dk.PrimeId, Prayer.PROTECT_FROM_MAGIC, CombatStyle.Ranged),
+    Supreme("Dagannoth Supreme", dk.SupremeId, Prayer.PROTECT_FROM_MISSILES, CombatStyle.Melee),
+    Rex("Dagannoth Rex", dk.RexId, Prayer.PROTECT_FROM_MELEE, CombatStyle.Magic);
+
+    private final String name;
+    private final int id;
+    private final Prayer protect;
+    private final CombatStyle attackWith;
+
+    King(String name, int id, Prayer protect, CombatStyle attackWith) {
+        this.name = name;
+        this.id = id;
+        this.protect = protect;
+        this.attackWith = attackWith;
+    }
+
+    public static King fromNpc(Npc npc) {
+        if (npc == null) return null;
+        switch (npc.getId()) {
+            case dk.SupremeId:
+                return King.Supreme;
+            case dk.PrimeId:
+                return King.Prime;
+            case dk.RexId:
+                return King.Rex;
+            default:
+                return null;
+        }
+    }
+
+    public static List<King> getAllKings() {
+        return Npcs.newQuery().ids(King.Supreme.id, King.Rex.id, King.Prime.id)
+                .results()
+                .stream()
+                .map(King::fromNpc)
+                .collect(Collectors.toList());
+    }
+
+    public static List<King> getAttackingKings() {
+        return Npcs.newQuery().ids(King.Supreme.id, King.Rex.id, King.Prime.id)
+                .filter(n -> n.getTarget() != null && n.getTarget().equals(Players.getLocal()))
+                .results()
+                .stream()
+                .map(King::fromNpc)
+                .collect(Collectors.toList());
+    }
+
+    public CombatStyle getAttackWith() {
+        return attackWith;
+    }
+
+    public Prayer getProtect() {
+        return protect;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Npc getNpc() {
+        return Npcs.newQuery().ids(this.id).names(this.name).results().first();
+    }
+}

@@ -1,0 +1,87 @@
+package com.neck_flexed.scripts.common.state;
+
+import com.neck_flexed.scripts.common.DiBank;
+import com.neck_flexed.scripts.common.NeckBank;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.BankTraverser;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.ui.setting.open.Settings;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public abstract class RestockState<TSettings extends Settings, TState extends Enum<TState>> extends BaseState<TState> {
+    protected final NeckBot<TSettings, TState> bot;
+    protected final TState restockState;
+    private final BankTraverser traverser;
+    protected String error = null;
+    private boolean done;
+    private Map<Pattern, Integer>[] withdraw;
+    private Pattern[] except;
+
+    public RestockState(NeckBot<TSettings, TState> bot, TState restockState
+    ) {
+        super(bot, restockState);
+        this.bot = bot;
+        this.restockState = restockState;
+        this.traverser = new BankTraverser(bot, Players.getLocal().getServerPosition());
+    }
+
+    protected abstract Map<Pattern, Integer>[] getWithdraw();
+
+    protected abstract Pattern[] getExcept();
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Restocking"));
+        if (this.bot.prayerFlicker != null) {
+            this.bot.prayerFlicker.disable();
+        }
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        new DiBank(bot.di).close();
+        Bank.close();
+        Execution.delay(750, 850);
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (except != null && withdraw != null && NeckBank.checkBankCompleted(except, withdraw)) {
+            new DiBank(bot.di).close();
+            this.done = true;
+            return;
+        }
+        if (!Bank.isOpen()) {
+            traverser.traverseAndOpen();
+            return;
+        }
+        // bank open
+        if (this.withdraw == null) {
+            this.withdraw = getWithdraw();
+        }
+        if (this.except == null) {
+            this.except = getExcept();
+        }
+        if (NeckBank.doBankLoop(bot, except, withdraw)) {
+            new DiBank(bot.di).close();
+        }
+    }
+
+}

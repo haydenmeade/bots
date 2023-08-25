@@ -1,0 +1,88 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class ItemTraverse implements TraverseMethod {
+    private final Pattern item;
+    private final String[] options;
+
+    public ItemTraverse(Pattern item, String... options) {
+        this.item = item;
+        this.options = options;
+    }
+
+    public ItemTraverse(String item, String... options) {
+        this.item = Pattern.compile(item);
+        this.options = options;
+    }
+
+    @Override
+    public boolean hasSupport(HouseConfig houseConfig) {
+        return Inventory.contains(item) || Equipment.contains(item);
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        var currReg = Players.getLocal().getServerPosition().getContainingRegionId();
+        if (currReg != startPosition.getContainingRegionId()) return true;
+        var item = Inventory.contains(this.item)
+                ? Inventory.getItems(this.item).first()
+                : Equipment.getItems(this.item).first();
+
+        if (item == null) {
+            log.error("Unable to find {}", this.item);
+            return false;
+        }
+        if (this.options.length == 0) {
+            log.error("no options {}", this.item);
+            return false;
+        }
+
+        if (!ChatDialog.isOpen()) {
+            var def = item.getDefinition();
+            if (def == null) return false;
+            var actions = Inventory.contains(this.item)
+                    ? def.getInventoryActions()
+                    : def.getWornActions();
+            var firstOpt = actions.stream()
+                    .filter(o -> Arrays.asList(this.options).contains(o))
+                    .findFirst();
+            if (firstOpt.isEmpty()) {
+                log.error("Unable to get first option {}", this.item);
+                return false;
+            }
+            if (!item.interact(firstOpt.get())) {
+                log.error("Unable to option: {} on {}", firstOpt.get(), this.item);
+            }
+            Execution.delayUntil(ChatDialog::isOpen, util::playerAnimating, 2000, 2400);
+            return false;
+        }
+        for (var opt : this.options) {
+            var option = ChatDialog.getOption(opt);
+            if (option != null && option.isValid()) {
+                if (!option.select()) {
+                    log.error("Unable to select: {} on {}", opt, this.item);
+                    return false;
+                }
+                Execution.delayUntil(
+                        () -> Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId() || ChatDialog.getOption(opt) == null,
+                        util::playerAnimating,
+                        1200, 2400);
+                break;
+            }
+        }
+        return Players.getLocal().getServerPosition().getContainingRegionId() != startPosition.getContainingRegionId();
+    }
+}

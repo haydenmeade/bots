@@ -1,0 +1,64 @@
+package com.neck_flexed.scripts.common.breaking;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.runemate.game.api.hybrid.GameEvents;
+import com.runemate.game.api.hybrid.RuneScape;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@Log4j2
+public class BreakHandlerState<T extends Enum<T>> extends BaseState<T> {
+    private final BreakManager breakManager;
+    private final NeckBot bot;
+
+    public BreakHandlerState(BreakManager breakManager,
+                             NeckBot<?, T> bot,
+                             T breakState
+    ) {
+        super(bot, breakState);
+        this.breakManager = breakManager;
+        this.bot = bot;
+    }
+
+
+    @Override
+    public void activate() {
+        log.debug("Activated break  {}", this.breakManager);
+        if (this.breakManager.breaking()) {
+            this.breakManager.initiateBreak();
+            GameEvents.Universal.LOGIN_HANDLER.disable();
+            if (RuneScape.isLoggedIn())
+                RuneScape.logout();
+        }
+    }
+
+    @Override
+    public void deactivate() {
+        GameEvents.Universal.LOGIN_HANDLER.enable();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !this.breakManager.breaking();
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.breakManager.breaking()) {
+            if (RuneScape.isLoggedIn() && !bot.isPaused())
+                RuneScape.logout();
+            bot.updateStatus(String.format("Breaking for another %s Seconds", this.breakManager.timeLeft()));
+            Execution.delay(10000, 15000);
+        } else if (this.breakManager.stopBot()) {
+            bot.updateStatus(String.format("Stopping"));
+            bot.stop("Reached stop condition");
+        }
+    }
+}

@@ -1,0 +1,84 @@
+## Supported
+
+- Aberrant Spectres
+- Abyssal Demons
+- Adamant Dragons
+- Ankou
+- Banshees
+- Basilisks
+- Black Demons
+- Black Dragons
+- Bloodveld
+- Blue Dragons
+- Cave Horrors
+- Cave Kraken
+- Cave crawlers
+- Cave slime
+- Cockatrice
+- Dagannoth
+- Dark Beasts
+- Drakes
+- Dust Devils
+- Elves
+- Fire Giants
+- Fossil Island Wyverns
+- Gargoyles
+- Greater Demons
+- Hellhounds
+- Hill Giants
+- Infernal Mages
+- Iron Dragons
+- Jellies
+- Kalphites
+- Kurask
+- Lesser demons
+- Lizardmen
+- Lizards
+- Mithril Dragons
+- Mutated Zygomites
+- Nechryael
+- Pyrefiends
+- Rockslugs
+- Rune Dragons
+- Skeletal Wyverns
+- Smoke Devils
+- Steel Dragons
+- Suqah
+- Trolls
+- Turoth
+- Vampyres
+- Waterfiends
+- Wyrms
+
+## Unsupported
+
+- *Earth warriors
+- *Green dragons
+- Aviansies
+- Brine rats
+- Bronze dragons
+- Crocodiles
+- Fever spiders
+- Ghouls
+- Harpie Bug Swarms
+- Hobgoblins
+- Ice giants
+- Ice warriors
+- Jungle horrors
+- Killerwatts
+- Minions Of Scabaras
+- Mogres
+- Molanisks
+- Moss giants
+- Ogres
+- Otherworldly beings
+- Red Dragons
+- Sea snakes
+- Shades
+- Shadow warriors
+- Spiritual Creatures
+- Terror dogs
+- TzHaar
+- Vampyres
+- Wall beasts
+- Werewolves

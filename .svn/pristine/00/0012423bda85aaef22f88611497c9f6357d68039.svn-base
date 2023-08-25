@@ -1,0 +1,225 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.items;
+import com.runemate.game.api.hybrid.local.Skill;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Health;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.PlayerListener;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.HitsplatEvent;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Consumeables")
+public class Consumeables implements EngineListener, PlayerListener {
+
+    public static boolean restoreHitpoints() {
+        if (consume(SireState.getFood(), "Eat", 3)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean curePoison() {
+        if (Health.isPoisoned()) {
+            if (consume(5958, "Drink", 0)) {
+            } else if (consume(5956, "Drink", 0)) {
+            } else if (consume(5954, "Drink", 0)) {
+            } else if (consume(5952, "Drink", 0)) {
+            } else if (consume(Pattern.compile("Superantipoison.*"), "Drink", 0)) {
+            } else if (consume(Pattern.compile("Antipoison.*"), "Drink", 0)) {
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    public static boolean boostPhase1IfNeeded() {
+        if (SireState.getSettings().phase1Boost() == Phase1Boost.None) return false;
+        if (SireState.getSettings().phase1Boost() == Phase1Boost.ImbuedHeart) {
+            int boostThresh = 5;
+            var boost = Skill.MAGIC.getCurrentLevel() - Skill.MAGIC.getBaseLevel();
+            if (boost < boostThresh) {
+                return invigorateHeart();
+            }
+        } else {
+            int boostThresh = 5;
+            var boost = Skill.RANGED.getCurrentLevel() - Skill.RANGED.getBaseLevel();
+            if (boost < boostThresh) {
+                return consumeRangedBoost();
+            }
+        }
+        return false;
+    }
+
+    public static boolean boostMeleeIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+        if (boost < boostThresh) {
+            return consumeMeleeBoost();
+        }
+        return false;
+    }
+
+    private static boolean consumeMeleeBoost() {
+        for (Integer b :
+                items.combatBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean consumeAttackBoostIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.ATTACK.getCurrentLevel() - Skill.ATTACK.getBaseLevel();
+        if (boost < boostThresh) {
+            for (Integer b :
+                    items.attackBoosts) {
+                if (consume(b, "Drink", 0)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean consumeDefenceBoostIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.DEFENCE.getCurrentLevel() - Skill.DEFENCE.getBaseLevel();
+        if (boost < boostThresh) {
+            for (Integer b :
+                    items.defenceBoosts) {
+                if (consume(b, "Drink", 0)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean consumeStrengthBoostIfNeeded() {
+        int boostThresh = 10;
+        var boost = Skill.STRENGTH.getCurrentLevel() - Skill.STRENGTH.getBaseLevel();
+        if (boost < boostThresh) {
+            for (Integer b :
+                    items.strengthBoosts) {
+                if (consume(b, "Drink", 0)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean consume(int itemId, String action, int attackTickDelay) {
+        try {
+            var si = Inventory.getItems(itemId).first();
+            if (si != null) {
+                log.debug(String.format("consuming: %s", si.getDefinition().getName()));
+                var slot = si.getIndex();
+                si.interact(action);
+                Action.set(Action.Consume);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("Consume", e);
+        }
+        return false;
+    }
+
+    private static boolean consume(String itemName, String action, int attackTickDelay) {
+        var si = Inventory.getItems(itemName).first();
+        if (si == null) return false;
+        return consume(si.getId(), action, attackTickDelay);
+    }
+
+    private static boolean consume(Pattern itemName, String action, int attackTickDelay) {
+        var si = Inventory.getItems(itemName).first();
+        if (si == null) return false;
+        return consume(si.getId(), action, attackTickDelay);
+    }
+
+    private static boolean invigorateHeart() {
+        for (String b :
+                new String[]{items.imbuedHeart, items.saturatedHeart}) {
+            if (consume(b, items.invigorate, 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean consumeRangedBoost() {
+        for (Integer b :
+                items.rangedBoosts) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean restorePrayer() {
+        for (Integer b :
+                items.prayerRestores) {
+            if (consume(b, "Drink", 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static void eatIfHpAllows() {
+        if (Health.getMaximum() - Health.getCurrent() > 20)
+            Consumeables.restoreHitpoints();
+    }
+
+    private static void checkAndConsume() {
+        if (SireState.isPaused()) return;
+        if (Health.getCurrentPercent() < 30) {
+            if (!restoreHitpoints()) {
+                SireState.setBotState(SireState.RESTORING);
+                Traverse.breakHouseTab();
+            }
+        }
+        if (Prayer.getPoints() < 5) {
+            if (!restorePrayer()) {
+                SireState.setBotState(SireState.RESTORING);
+            }
+        }
+        if (Health.isPoisoned()) {
+            if (!curePoison())
+                SireState.setBotState(SireState.RESTORING);
+        }
+        if (Traversal.getRunEnergy() < 10) {
+            Traversal.drinkStaminaEnhancer();
+        }
+    }
+
+    @Override
+    public void onPlayerDeath(DeathEvent event) {
+        log.info("death");
+        sire.updateStatus("dead");
+        SireState.setPaused(true);
+        SireState.setBotState(SireState.STOPPING);
+    }
+
+    @Override
+    public void onTickStart() {
+        checkAndConsume();
+    }
+
+    @Override
+    public void onPlayerHitsplat(HitsplatEvent event) {
+        checkAndConsume();
+    }
+}

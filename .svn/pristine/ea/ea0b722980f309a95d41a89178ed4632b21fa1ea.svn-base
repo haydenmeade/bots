@@ -1,0 +1,55 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "FightState")
+public class OffTickState implements LoopState<DkState>, EngineListener {
+    private final DkListener dkListener;
+    private final dk bot;
+    private boolean done = false;
+
+    public OffTickState(DkListener dkListener,
+                        dk bot
+    ) {
+        this.dkListener = dkListener;
+        this.bot = bot;
+    }
+
+
+    @Override
+    public DkState deactivate(EventDispatcher d) {
+        return DkState.FIGHTING;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        Action.set(Action.None);
+    }
+
+    @Override
+    public DkState get() {
+        return DkState.OFF_TICK;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        var s = DkState.getSettings();
+        var target = Players.getLocal().getTarget();
+        done = true;
+    }
+}

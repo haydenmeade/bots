@@ -1,0 +1,22 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.script.framework.tree.LeafTask;
+
+import java.util.EventListener;
+
+public class PausedTask extends LeafTask {
+    @Override
+    public void execute() {
+        SireState.setActivePrayers();
+        for (EventListener l :
+                SireState.getEventDispatcher().getListeners()) {
+            if (l.getClass().getName().equals(Phase2Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase31Fighter.class.getName()) ||
+                    l.getClass().getName().equals(Phase32Fighter.class.getName())) {
+                SireState.getEventDispatcher().removeListener(l);
+            }
+        }
+
+
+    }
+}

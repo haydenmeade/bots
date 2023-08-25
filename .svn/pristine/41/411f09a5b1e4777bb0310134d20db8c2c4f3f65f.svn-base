@@ -1,0 +1,78 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import com.neck_flexed.scripts.common.CombatStyle;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+
+import javax.annotation.Nullable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+@Getter
+@Log4j2(topic = "Sarachnis")
+@RequiredArgsConstructor
+public class Sarachnis {
+    public static final int MAX_HIT = 31;
+    public static final int MAX_HP = 400;
+    public static final int ID = 8713;
+    public static final int MAGE_SPAWN_ID = 8715;
+    public static final int MELEE_SPAWN_ID = 8714;
+    public static final int DEATH_ANIM = 8318;
+    //4410 - immobilize
+    //8147 melee
+    private static final long webDuration = 3000;
+    @Nullable
+    private final Npc npc;
+    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+    private boolean playerIsWebbed;
+
+    public Npc getNearestMeleeSpawn() {
+        return Npcs.newQuery()
+                .ids(Sarachnis.MELEE_SPAWN_ID)
+                .filter(n -> n.getAnimationId() != DEATH_ANIM)
+                .results().nearest();
+    }
+
+    public Npc getNearestMageSpawn() {
+        return Npcs.newQuery()
+                .ids(Sarachnis.MAGE_SPAWN_ID)
+                .filter(n -> n.getAnimationId() != DEATH_ANIM)
+                .results().nearest();
+    }
+
+    public void attack() {
+        if (npc == null) return;
+        DirectInput.send(MenuAction.forNpc(npc, "Attack"));
+    }
+
+    public CombatStyle getNextExpectedAttack() {
+        if (npc == null) return CombatStyle.Ranged;
+        if (playerIsWebbed) return CombatStyle.Ranged;
+        if (npc.getArea().getSurroundingCoordinates().contains(Players.getLocal().getServerPosition()))
+            return CombatStyle.Melee;
+        return CombatStyle.Ranged;
+    }
+
+    private int getHp() {
+        if (npc == null) return MAX_HP;
+        var h = npc.getHealthGauge();
+        if (h == null) return MAX_HP;
+        return h.getPercent() / 100 * MAX_HP;
+    }
+
+    public void handleWebbed() {
+        this.playerIsWebbed = true;
+        log.debug("webbed");
+        this.executor.schedule(() -> {
+            this.playerIsWebbed = false;
+            log.debug("free from web");
+        }, webDuration, TimeUnit.MILLISECONDS);
+    }
+}

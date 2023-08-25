@@ -1,0 +1,107 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.location.navigation.Landmark;
+import com.runemate.game.api.hybrid.location.navigation.Path;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.web.WebPath;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import com.runemate.ui.setting.open.Settings;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Map;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "RestockState")
+public abstract class RestockState<TSettings extends Settings, TState extends Enum> implements LoopState<TState> {
+    protected final NeckBot<TSettings, TState> bot;
+    protected final TState traversState;
+    protected final TState restockState;
+    protected String error = null;
+    private boolean done;
+    private Path path;
+
+    public RestockState(NeckBot<TSettings, TState> bot, TState traversState, TState restockState
+    ) {
+        this.bot = bot;
+        this.traversState = traversState;
+        this.restockState = restockState;
+    }
+
+    protected abstract Map<Pattern, Integer>[] getWithdraw();
+
+    protected abstract Pattern[] getExcept();
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus(String.format("Restocking"));
+        if (this.bot.prayerFlicker != null) {
+            this.bot.prayerFlicker.setActivePrayers();
+        }
+    }
+
+    @Override
+    public TState deactivate(EventDispatcher d) {
+        return this.traversState;
+    }
+
+    @Override
+    public TState get() {
+        return this.restockState;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!Bank.isOpen()) {
+            Execution.delayUntil(() -> !Banks.getLoaded().isEmpty() && Banks.getLoaded().nearest() != null, 500);
+            var booth = Banks.getLoadedBankBooths().nearest();
+            var chest = Banks.getLoadedBankChests().nearest();
+            var b = booth != null
+                    ? booth
+                    : chest != null
+                    ? chest
+                    : Banks.getLoaded().nearest();
+
+            if (b == null || b.getPosition() == null) {
+                if (path == null) {
+                    this.path = WebPath.buildTo(Landmark.BANK);
+                }
+                if (path != null) {
+                    path.step();
+                } else {
+                    error = "Could not generate path to bank";
+                }
+                return;
+            }
+            DirectInput.sendMovement(b.getPosition());
+            if (!Execution.delayUntil(() -> Bank.open(b), 30000)) {
+                if (path == null) {
+                    this.path = WebPath.buildTo(Landmark.BANK);
+                }
+                if (path != null) {
+                    path.step();
+                } else {
+                    error = "Could not generate path to bank";
+                }
+                return;
+            }
+
+        }
+        if (NeckBank.doBankLoop(getExcept(), getWithdraw())) {
+            Bank.close();
+            this.done = true;
+        }
+    }
+}

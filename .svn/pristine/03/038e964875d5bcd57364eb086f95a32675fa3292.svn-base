@@ -1,0 +1,90 @@
+package com.neck_flexed.scripts.slayer.state;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2
+public class SwitchSpellBookState extends BaseState<SlayerState> {
+    private final com.neck_flexed.scripts.slayer.bot bot;
+    private final Magic.Book desiredSpellbook;
+    private final HouseConfig houseConfig;
+
+    public SwitchSpellBookState(com.neck_flexed.scripts.slayer.bot bot, Magic.Book desiredSpellbook) {
+        super(bot, SlayerState.SWITCH_SPELLBOOK);
+        this.bot = bot;
+        this.desiredSpellbook = desiredSpellbook;
+        this.houseConfig = bot.getHouseConfig();
+        bot.prayerFlicker.disable();
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Changing spellbook to %s", desiredSpellbook));
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        if (!houseConfig.getAltar().supportsSwitchTo(desiredSpellbook)) return true;
+        return Objects.equals(Magic.Book.getCurrent(), desiredSpellbook);
+    }
+
+    @Override
+    public void executeLoop() {
+        if (!House.isInside()) {
+            if (!util.hasHouseTeleport()) {
+                bot.forceState(SlayerState.RESTOCKING);
+                return;
+            }
+            util.teleToHouse();
+            Execution.delay(600, 800);
+            return;
+        }
+
+        var gameObject = houseConfig.getAltar().getGameObject();
+        if (gameObject == null) {
+            Execution.delay(10000);
+            if (houseConfig.getAltar().getGameObject() == null) {
+                log.error("Unable to find altar {}", gameObject);
+                bot.forceState(SlayerState.STARTING);
+                return;
+            }
+            return;
+        }
+
+        var def = gameObject.getActiveDefinition();
+        if (def == null) return;
+        var act = Pattern.compile(this.desiredSpellbook.name(), Pattern.CASE_INSENSITIVE);
+        var strAction = def.getActions().stream().filter(a -> act.matcher(a).find()).findFirst();
+        if (strAction.isEmpty()) {
+            log.error("Unable to use altar {} to switch to {}", gameObject, desiredSpellbook);
+            bot.forceState(SlayerState.STARTING);
+            return;
+        }
+
+        di.send(MenuAction.forGameObject(gameObject, strAction.get()));
+
+        Execution.delayUntil(() -> Objects.equals(Magic.Book.getCurrent(), desiredSpellbook),
+                util::playerAnimatingOrMoving, 2000, 3000);
+    }
+
+}

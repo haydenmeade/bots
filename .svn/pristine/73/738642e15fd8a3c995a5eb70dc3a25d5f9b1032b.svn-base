@@ -1,0 +1,28 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import lombok.Getter;
+
+public class DuelingRingTraverse extends ItemTraverse implements TraverseMethod {
+    private final Destination dest;
+
+    public DuelingRingTraverse(Destination dest) {
+        super(items.slayerRing, util.join(dest.getOptions(), "Rub", "Teleport").toArray(new String[0]));
+        this.dest = dest;
+    }
+
+    public enum Destination {
+        PvPArena("Al Kharid PvP Arena", "PvP Arena"),
+        CastleWars("Castle Wars Arena", "Castle Wars"),
+        Ferox("Ferox Enclave"),
+        ;
+
+        @Getter
+        private final String[] options;
+
+        private Destination(String... options) {
+            this.options = options;
+        }
+    }
+}

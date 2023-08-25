@@ -1,0 +1,6 @@
+package com.neck_flexed.scripts.sarachnis;
+
+public enum RestoreAndBankStrategy {
+    House,
+    RingOfDueling,
+}

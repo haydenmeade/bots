@@ -1,0 +1,46 @@
+package com.neck_flexed.scripts.common.traverse;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.awt.event.KeyEvent;
+
+public class SpiritTreeTraverse implements TraverseMethod {
+    private final Destination destination;
+
+    public SpiritTreeTraverse(Destination destination) {
+        this.destination = destination;
+    }
+
+    @Override
+    public boolean hasSupport(HouseConfig houseConfig) {
+        return false;
+    }
+
+    @Override
+    public boolean doTraverseLoop(HouseConfig houseConfig, Coordinate startPosition) {
+        return false;
+    }
+
+    @Getter
+    @RequiredArgsConstructor
+    public enum Destination {
+        TreeGnomeVillage("Tree Gnome Village", KeyEvent.VK_1),
+        GnomeStronghold("Gnome Stronghold", KeyEvent.VK_2),
+        BattlefieldOfKhazard("Battlefield of Khazard", KeyEvent.VK_3),
+        GrandExchange("Grand Exchange", KeyEvent.VK_4),
+        FeldipHill("Feldip Hill", KeyEvent.VK_5),
+        Prifddinas("Prifddinas", KeyEvent.VK_6),
+        Etceteria("Etceteria", KeyEvent.VK_7),
+        PortSarim("Port Sarim", KeyEvent.VK_9),
+        Brimhaven("Brimhaven", KeyEvent.VK_9),
+        Hosidius("Hosidius", KeyEvent.VK_A),
+        FarmingGuild("Farming Guild", KeyEvent.VK_B),
+        House("Your house", KeyEvent.VK_C);
+
+        private final String label;
+        private final int key;
+    }
+}

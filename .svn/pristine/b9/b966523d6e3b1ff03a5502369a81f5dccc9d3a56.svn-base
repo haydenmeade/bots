@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Consumeables.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/Consumeables.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/RestockTask.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/RestockTask.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/sire.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/sire.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/u.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/neck_flexed/scripts/sire/u.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Enum" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="OptimizeOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectId" id="2QRyEawx83s19dkxmxRIYkXF8C1" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.JavaDocs&quot;: &quot;true&quot;,
+    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Hayden/IdeaProjects/LizardLick/src/com/goblinneck/scripts/sire&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;rearrange.code.on.save&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;vcs.Subversion&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CreateClassDialog.RecentsKey">
+      <recent name="com.neck_flexed.scripts.sire" />
+      <recent name="com.goblinneck.scripts.sire" />
+    </key>
+    <key name="MoveMembersDialog.RECENTS_KEY">
+      <recent name="com.neck_flexed.scripts.sire.u" />
+      <recent name="com.goblinneck.scripts.sire.Traverse" />
+      <recent name="com.goblinneck.scripts.sire.u" />
+      <recent name="com.goblinneck.scripts.sire.sire" />
+      <recent name="com.goblinneck.scripts.sire.Phase2" />
+    </key>
+    <key name="CopyClassDialog.RECENTS_KEY">
+      <recent name="com.goblinneck.scripts.sire" />
+      <recent name="com.goblinneck.scripts.lizard" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="Launch" type="Application" factoryName="Application">
+      <envs>
+        <env name="RUNEMATE_USERNAME" value="hmeade.osrs@gmail.com" />
+        <env name="RUNEMATE_PASSWORD" value="mysmellyoldsocks" />
+      </envs>
+      <option name="MAIN_CLASS_NAME" value="com.runemate.client.boot.Boot" />
+      <module name="Bots" />
+      <option name="PROGRAM_PARAMETERS" value="--dev" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="SvnConfiguration" cleanupOnStartRun="true">
+    <configuration>C:\Users\Hayden\AppData\Roaming\Subversion</configuration>
+    <supportedVersion>125</supportedVersion>
+  </component>
+  <component name="SvnFileUrlMappingImpl">
+    <option name="myMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+    <option name="myMoreRealMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+          <option name="myCopyRoot" value="C:\Users\Hayden\IdeaProjects\LizardLick" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="892dffff-1b51-4179-be81-f53ca1df8244" name="Changes" comment="" />
+      <created>1685330583571</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1685330583571</updated>
+    </task>
+    <task id="LOCAL-00001" summary="add stuff for bot">
+      <created>1685877619277</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1685877619277</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Fix not allowed stuff">
+      <created>1685922723201</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1685922723201</updated>
+    </task>
+    <task id="LOCAL-00003" summary="fix tree conditions">
+      <created>1685922786588</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1685922786588</updated>
+    </task>
+    <task id="LOCAL-00004" summary="remove lizard">
+      <created>1685924249218</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1685924249218</updated>
+    </task>
+    <task id="LOCAL-00005" summary="whoops, fix refences to botstate">
+      <created>1685924433646</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1685924433646</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fix manifest">
+      <created>1685924747359</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1685924747359</updated>
+    </task>
+    <task id="LOCAL-00007" summary="fix manifest">
+      <created>1685925128254</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1685925128254</updated>
+    </task>
+    <task id="LOCAL-00008" summary="add README.md">
+      <created>1685925327541</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1685925327542</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Fix instructions">
+      <created>1685926250749</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1685926250749</updated>
+    </task>
+    <task id="LOCAL-00010" summary="remove some exceptions">
+      <created>1685926783196</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1685926783196</updated>
+    </task>
+    <task id="LOCAL-00011" summary="more instructions">
+      <created>1685926898244</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1685926898244</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT" value="false" />
+    <option name="CHECK_NEW_TODO" value="false" />
+    <MESSAGE value="add stuff for bot" />
+    <MESSAGE value="Fix not allowed stuff" />
+    <MESSAGE value="fix tree conditions" />
+    <MESSAGE value="remove lizard" />
+    <MESSAGE value="whoops, fix refences to botstate" />
+    <MESSAGE value="fix manifest" />
+    <MESSAGE value="add README.md" />
+    <MESSAGE value="Fix instructions" />
+    <MESSAGE value="remove some exceptions" />
+    <MESSAGE value="more instructions" />
+    <option name="LAST_COMMIT_MESSAGE" value="more instructions" />
+  </component>
+</project>

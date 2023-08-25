@@ -1,0 +1,167 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.NpcSpawnedEvent;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "DkListener")
+public class DkListener implements NpcListener, EngineListener {
+    private static final int attackTicks = 4;
+    private static final int respawnTicks = 150;
+    private final PrayerFlicker prayerFlicker;
+    long tick = 0;
+    private dk bot;
+    private Map<King, Long> lastAttacks;
+    private Prayer[] boostPrayers = new Prayer[0];
+
+    public DkListener(PrayerFlicker prayerFlicker, dk bot) {
+        this.prayerFlicker = prayerFlicker;
+
+        this.bot = bot;
+        this.lastAttacks.putIfAbsent(King.Prime, 0L);
+        this.lastAttacks.putIfAbsent(King.Rex, 0L);
+        this.lastAttacks.putIfAbsent(King.Supreme, 0L);
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        log.debug(event);
+        var npc = event.getNpc();
+        if (npc == null) return;
+
+        var id = getId(event.getNpc());
+        switch (id) {
+            case dk.PrimeId:
+                this.lastAttacks.putIfAbsent(King.Prime, 0L);
+                break;
+            case dk.RexId:
+                this.lastAttacks.putIfAbsent(King.Rex, 0L);
+                break;
+            case dk.SupremeId:
+                this.lastAttacks.putIfAbsent(King.Supreme, 0L);
+                break;
+        }
+
+        // add to attacks
+    }
+
+    @Override
+    public void onTickStart() {
+        tick++;
+
+    }
+
+    public void setBoost(Prayer[] boostPrayers) {
+        this.boostPrayers = boostPrayers;
+    }
+
+    @Override
+    public void onCycleStart() {
+        var next = attacksNextFirst();
+        if (next != null) {
+            prayerFlicker.setActivePrayers(
+                    util.joinPrayers(
+                            this.boostPrayers,
+                            next.getProtect()
+                    ));
+        }
+    }
+
+    private King attacksNextFirst() {
+        if (lastAttacks.isEmpty()) return null;
+        var nextAttacks = lastAttacks.entrySet().stream()
+                .filter(kv -> kv.getValue() > tick)
+                .sorted(Comparator.comparingLong(kv -> kv.getValue()))
+                .collect(Collectors.toList());
+        if (nextAttacks.isEmpty()) return null;
+        var firstNA = nextAttacks.stream().findFirst().get().getKey();
+        log.debug(String.format("Next Attack: %s", firstNA));
+        return firstNA;
+    }
+
+    private List<King> attacksNext() {
+        if (lastAttacks.isEmpty()) return null;
+        var nextAttacks = lastAttacks.entrySet().stream()
+                .filter(kv -> kv.getValue() > tick)
+                .sorted(Comparator.comparingLong(Map.Entry::getValue))
+                .collect(Collectors.toList());
+        if (nextAttacks.isEmpty()) return null;
+        var minT = nextAttacks.stream().min(Comparator.comparingLong(Map.Entry::getValue)).get().getValue();
+        var allAttacks = nextAttacks.stream().filter(kv -> Objects.equals(kv.getValue(), minT));
+        log.debug(String.format("Next Attacks: %s", allAttacks));
+        log.debug(String.format("Next Attacks Count: %s", allAttacks.count()));
+        return allAttacks.map(Map.Entry::getKey).collect(Collectors.toList());
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        if (event.getAnimationId() == -1) return;
+        var npcId = getId(event.getSource());
+        // TODO death animation might mess this up?
+        switch (npcId) {
+            case dk.PrimeId:
+                lastAttacks.replace(King.Prime, tick);
+                log.debug(String.format("Prime ATTACK %s", event));
+                break;
+            case dk.SupremeId:
+                lastAttacks.replace(King.Supreme, tick);
+                log.debug(String.format("Supreme ATTACK %s", event));
+                break;
+            case dk.RexId:
+                lastAttacks.replace(King.Rex, tick);
+                log.debug(String.format("Rex ATTACK %s", event));
+                break;
+            default:
+                break;
+        }
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        log.debug(event);
+        // remove from attacks
+        var id = getId(event.getSource());
+        switch (id) {
+            case dk.PrimeId:
+                this.lastAttacks.remove(King.Prime);
+                break;
+            case dk.RexId:
+                this.lastAttacks.remove(King.Rex);
+                break;
+            case dk.SupremeId:
+                this.lastAttacks.remove(King.Supreme);
+                break;
+        }
+    }
+
+
+    public void reset() {
+        log.debug("reset");
+        this.lastAttacks.put(King.Prime, 0L);
+        this.lastAttacks.put(King.Rex, 0L);
+        this.lastAttacks.put(King.Supreme, 0L);
+    }
+
+}

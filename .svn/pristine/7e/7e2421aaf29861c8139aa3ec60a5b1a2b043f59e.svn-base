@@ -1,0 +1,58 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.traverse.Traverses;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.runemate.game.api.hybrid.region.Players;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState extends BaseState<SlayerState> {
+    private final NeckBot<?, SlayerState> bot;
+    private final BarrageMonster barrageMonster;
+    private final Traverser traverser;
+    private String error;
+
+    public TraverseState(NeckBot<?, SlayerState> bot, BarrageMonster barrageMonster, HouseConfig houseConfig) {
+        super(bot, SlayerState.TRAVERSING);
+        this.bot = bot;
+        this.barrageMonster = barrageMonster;
+        this.traverser = new Traverser(
+                bot,
+                houseConfig,
+                barrageMonster.getArea().getCenter(),
+                Traverses.CATACOMBS_REGIONS,
+                null,
+                Traverses.CATACOMBS_TRAVERSES
+        );
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        bot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Traversing");
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return barrageMonster.getArea().contains(Players.getLocal());
+    }
+
+    @Override
+    public void executeLoop() {
+        traverser.executeLoop();
+    }
+}

@@ -1,0 +1,16 @@
+package com.neck_flexed.scripts.sarachnis;
+
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public enum TraverseStrategy {
+    House("House Mounted Xeric's"),
+    Xeric("Xeric's Talisman");
+
+    private final String label;
+
+    @Override
+    public String toString() {
+        return this.label;
+    }
+}

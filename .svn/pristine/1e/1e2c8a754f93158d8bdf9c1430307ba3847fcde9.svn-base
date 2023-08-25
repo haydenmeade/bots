@@ -1,0 +1,28 @@
+<manifest>
+    <main-class>com.neck_flexed.scripts.ashes.ashes</main-class>
+    <name>Necks Wildy Demonic Offerer</name>
+    <tag-line>Offers Ashes at Fountain of Rune</tag-line>
+    <description>Uses Wildy sword 4 and locator orb to offer ashes using demonic offering</description>
+    <access>public</access>
+    <price>0.03</price>
+    <version>0.0.10</version>
+    <open-source>true</open-source>
+    <internal-id>Neck_Ashes</internal-id>
+    <compatibility>
+        <game>OSRS</game>
+    </compatibility>
+    <categories>
+        <category>PRAYER</category>
+    </categories>
+    <obfuscation>
+        <exclude>com.neck_flexed.scripts.ashes.AshSettings</exclude>
+        <exclude>com.neck_flexed.scripts.common.breaking.BreakSettings</exclude>
+    </obfuscation>
+    <features>
+        <feature mode="REQUIRED">DIRECT_INPUT</feature>
+    </features>
+    <tags>
+        <tag>prayer</tag>
+        <tag>ashes</tag>
+    </tags>
+</manifest>

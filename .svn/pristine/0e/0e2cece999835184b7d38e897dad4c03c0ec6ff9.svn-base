@@ -1,0 +1,124 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.FairyRing;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.RegionPath;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "TraverseState")
+public class TraverseState implements LoopState<KqState> {
+    private String error;
+
+    private static GameObject getTunnelEntranceNoRope() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3227, 3108, 0))
+                .names("Tunnel entrance")
+                .results().first();
+    }
+
+    private static GameObject getTunnelEntrance() {
+        return GameObjects.newQuery()
+                .on(new Coordinate(3227, 3108, 0))
+                .ids(3827)
+                .actions("Climb-down")
+                .results().first();
+    }
+
+
+    @Override
+    public void activate(EventDispatcher d) {
+        kq.updateStatus("Traversing");
+    }
+
+    @Override
+    public KqState deactivate(EventDispatcher d) {
+        if (kq.isInTunnels() || kq.lairEntryArea.contains(Players.getLocal())) {
+            return KqState.ENTERING_LAIR;
+        } else if (kq.isInLair()) {
+            return KqState.SEARCHING_LAIR;
+        }
+        return KqState.STARTING;
+    }
+
+    @Override
+    public KqState get() {
+        return KqState.TRAVERSING;
+    }
+
+    @Override
+    public String fatalError() {
+        return error;
+    }
+
+    @Override
+    public boolean done() {
+        return kq.atLairEntrance()
+                || kq.isInLair()
+                || (kq.isInTunnels() && kq.canUseCreviceShortcut());
+    }
+
+    @Override
+    public void executeLoop() {
+        // traverse from bank to kq room entrance.
+        if (House.isInside()) {
+            if (HouseUtil.FairyRingTo(util.getFairyRing(), FairyRing.BIQ)) {
+                Execution.delayUntil(kq::isAboveGround, 2000, 5000);
+            }
+            Execution.delay(600, 1200);
+        } else if (kq.isAboveGround()) {
+            var te = getTunnelEntrance();
+            if (te == null) {
+                var teNoRope = getTunnelEntranceNoRope();
+                if (teNoRope != null) {
+                    var rope = Inventory.getItems(items.rope).first();
+                    if (rope == null) {
+                        kq.updateStatus("no rope found");
+                        return;
+                    }
+                    DirectInput.sendItemUseOn(rope, teNoRope);
+                    Execution.delayUntil(() -> getTunnelEntrance() != null, 4500, 5500);
+                }
+                kq.updateStatus("Error during traverse");
+                log.error("Error during traverse");
+                return;
+            }
+            DirectInput.send(MenuAction.forGameObject(te, "Climb-down"));
+            Execution.delayUntil(() -> !Players.getLocal().isMoving() || kq.tunnels.contains(Players.getLocal()), 2000, 3500);
+        } else if (kq.lairEntryArea.contains(Players.getLocal())) {
+        } else if (kq.tunnels.contains(Players.getLocal()) && kq.canUseCreviceShortcut()) {
+            return;
+        } else if (kq.tunnels.contains(Players.getLocal()) && !kq.canUseCreviceShortcut()) {
+            var path = RegionPath.buildTo(kq.crackUseTile);
+            if (path != null) {
+                path.step();
+                Action.set(Action.Move);
+            } else {
+                log.debug("Could not generate path in kq tunnels");
+            }
+        } else if (!kq.isInLair()) {
+            switch (KqState.getSettings().traverseMethod()) {
+                case HouseFairyRing:
+                    util.teleToHouse();
+                    Execution.delayUntil(() -> House.isInside(), 5000, 6000);
+                    break;
+                case ArdyCloakFairyRing:
+                    if (util.ardyCloakTele.contains(Players.getLocal())) {
+                        util.ArdyCloakFairyRingTo(FairyRing.BIQ);
+                    } else {
+                        util.ardyCloakTele();
+                    }
+                    break;
+            }
+        }
+    }
+}

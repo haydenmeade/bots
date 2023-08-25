@@ -1,0 +1,38 @@
+package com.neck_flexed.scripts.slayer.traverse;
+
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+public class GiantsDenTraverseOverride implements TraverseOverride {
+    private final Coordinate monsterDest;
+
+    @Override
+    public boolean overrideLoop(NeckBot<?, ?> bot, Coordinate destination) {
+        if (Players.getLocal().getServerPosition().getContainingRegionId() == 5786) {
+            Traverser.regionPathTraverser(monsterDest).executeLoop();
+            return true;
+        }
+
+        var rope = GameObjects.newQuery()
+                .names("Vine")
+                .actions("Climb-up")
+                .on(new Coordinate(1639, 10047, 0))
+                .results().first();
+        if (rope != null) {
+            DirectInput.send(MenuAction.forGameObject(rope, "Climb-up"));
+            Execution.delayUntil(() -> Players.getLocal().getServerPosition().getContainingRegionId() == 5786,
+                    util::playerAnimatingOrMoving, 1500, 2500);
+            return true;
+        }
+        return false;
+    }
+}

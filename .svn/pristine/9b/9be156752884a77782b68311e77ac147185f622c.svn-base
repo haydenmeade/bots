@@ -1,0 +1,82 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+@RequiredArgsConstructor
+@Log4j2(topic = "RestoreTask")
+public class RestoreState implements LoopState<SireState> {
+
+    private final sireBot bot;
+    private final PrayerFlicker prayerFlicker;
+    private final BreakManager breakManager;
+    private EventDispatcher dispatcher;
+    private boolean done = false;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        this.dispatcher = d;
+        this.prayerFlicker.setActivePrayers();
+        bot.updateStatus("Restoring");
+    }
+
+    @Override
+    public SireState deactivate(EventDispatcher d) {
+        if (breakManager.breaking() || breakManager.stopBot())
+            return SireState.BREAKING;
+        boolean needsRestock = this.bot.doWeNeedToRestock();
+        return needsRestock ? SireState.RESTOCKING : SireState.TRAVERSING;
+    }
+
+    @Override
+    public SireState get() {
+        return SireState.RESTORING;
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (bot.settings().hasHouseFairyRing()) {
+            if (!House.isInside()) {
+                util.teleToHouse();
+                return;
+            }
+
+            if (!HouseUtil.restoreStatsInHouse(bot)) {
+                return;
+            }
+
+            if (!Traversal.isRunEnabled())
+                Traversal.toggleRun();
+
+            if (!this.bot.doWeNeedToRestock()) {
+                this.done = true;
+            } else {
+                this.done = HouseUtil.JbToCastleWars();
+            }
+        } else {
+            if (!util.ferox.contains(Players.getLocal()) && !util.ringOfDuelingToEnclave()) {
+                log.error("Unable to tele to ferox");
+            } else if (!util.restoreAtFerox(bot)) {
+                log.error("unable to restore at ferox");
+            } else {
+                this.done = true;
+            }
+        }
+    }
+}

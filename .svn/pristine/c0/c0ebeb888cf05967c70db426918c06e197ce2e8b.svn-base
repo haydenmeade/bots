@@ -1,0 +1,37 @@
+package com.neck_flexed.scripts.turael;
+
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.hybrid.local.hud.interfaces.NpcContact;
+
+import java.util.regex.Pattern;
+
+public enum SlayerMaster implements NpcContact.Contact {
+    DURADEL("Duradel"),
+    KONAR("Konar"),
+    NIEVE_STEVE("Nieve|Steve"),
+    KRYSTILIA("Krystilia"),
+    ;
+
+    private final Pattern name;
+
+    private SlayerMaster(String name) {
+        this.name = Pattern.compile("^" + name + "$");
+    }
+
+    public InterfaceComponent getComponent() {
+        return Interfaces.newQuery().actions(this.getAction()).containers(this.getContainerId()).types(InterfaceComponent.Type.CONTAINER).results().first();
+    }
+
+    public int getContainerId() {
+        return 75;
+    }
+
+    public Pattern getAction() {
+        return this.name;
+    }
+
+    public String toString() {
+        return "Contact." + this.name();
+    }
+}

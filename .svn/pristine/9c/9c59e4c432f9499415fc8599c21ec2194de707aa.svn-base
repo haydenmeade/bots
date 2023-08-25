@@ -1,0 +1,265 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.Action;
+import com.runemate.game.api.hybrid.local.House;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.AbstractBot;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.stream.Collectors;
+
+import static com.neck_flexed.scripts.sire.sire.*;
+
+@Log4j2(topic = "SireState")
+public enum SireState {
+    STARTING(),
+    STOPPING(),
+    TRAVERSING(),
+    FIGHTING(),
+    LOOTING(),
+    RESTORING(),
+    HOPPING(),
+    RESTOCKING(),
+    ;
+    private static SireState botState;
+    private static EventDispatcher eventDispatcher;
+
+    private static List<Prayer> activePrayers;
+    private static int ticksUntilAttack;
+    private static FightState fightState;
+    private static boolean isStunned;
+    private static Timer currentStunTimer;
+    private static int respiratoryKilled = 0;
+    private static int lastSireId = 0;
+    private static SireSettings settings;
+    private static boolean isPaused = true;
+    private static AbstractBot bot;
+    private static int sireKilled = 0;
+    private static Coordinate phase32SafeTile;
+
+    private SireState() {
+    }
+
+    public static List<Prayer> getActivePrayers() {
+        return activePrayers;
+    }
+
+    public static void setActivePrayers(Prayer... _activePrayers) {
+        activePrayers = Arrays.stream(_activePrayers).collect(Collectors.toList());
+        for (Prayer p :
+                activePrayers) {
+            log.debug(String.format("Activating: %s", p.name()));
+        }
+    }
+
+    public static int getTicksUntilAttack() {
+        return SireState.ticksUntilAttack;
+    }
+
+    public static void setTicksUntilAttack(int ticksUntilAttack) {
+        SireState.ticksUntilAttack = ticksUntilAttack;
+    }
+
+    public static void addToTicksUntilAttack(int add) {
+        SireState.ticksUntilAttack += add;
+    }
+
+    public static void tick() {
+        if (SireState.ticksUntilAttack > 0) {
+            SireState.ticksUntilAttack -= 1;
+        }
+    }
+
+    public static String getFood() {
+        return SireState.getSettings() == null ? "Shark" : SireState.getSettings().food().name;
+    }
+
+    public static @Nullable SireState getInitialState() {
+        var p = Players.getLocal();
+        if (p == null) return null;
+        boolean needsRestock = Inventory.getItems(getFood()).stream().count() < 3;
+        if (castleWars.contains(p)) {
+            return needsRestock ? RESTOCKING : TRAVERSING;
+        }
+        if (House.isInside()) {
+            return needsRestock || !u.isRestored() ? RESTORING : TRAVERSING;
+        }
+        if (u.getSire() != null) {
+            if (u.needToHop())
+                return HOPPING;
+            return SireState.getFightState() != FightState.Phase0 ?
+                    FIGHTING :
+                    needsRestock ?
+                            RESTORING :
+                            FIGHTING;
+        }
+        if (abyssalNexus.contains(p)) {
+            return needsRestock || !u.isRestored() ? RESTORING : TRAVERSING;
+        }
+        return needsRestock || !u.isRestored() ? RESTORING : TRAVERSING;
+    }
+
+    public static SireState get() {
+        if (botState == null || botState == STARTING) {
+            botState = getInitialState();
+        }
+        return botState;
+    }
+
+    public static void setBotState(SireState botState) {
+        SireState.botState = botState;
+    }
+
+    public static EventDispatcher getEventDispatcher() {
+        return eventDispatcher;
+    }
+
+    public static void setEventDispatcher(EventDispatcher eventDispatcher) {
+        SireState.eventDispatcher = eventDispatcher;
+    }
+
+    public static FightState getFightState() {
+        var s = u.getSire();
+        if (s != null) {
+            switch (s.getId()) {
+                case SireId_Phase0:
+                    return FightState.Phase0;
+                case SireId_Phase1_Awake:
+                case SireId_Phase1_Stunned:
+                    return FightState.Phase1;
+                case SireId_Phase2or3_Walk:
+                    if (fightState == FightState.Phase3_1) return FightState.Phase3_1;
+                    if (s.getPosition().getY() < Phase2.yy) {
+                        return FightState.Phase3_1;
+                    }
+                    return FightState.Phase2;
+                case SireId_Phase2:
+                    return FightState.Phase2;
+                case SireId_Phase3_1:
+                    return FightState.Phase3_1;
+                case SireId_Phase3_2:
+                    return FightState.Phase3_2;
+                case -1:
+                    return FightState.Dead;
+                default:
+                    break;
+            }
+        }
+        return fightState;
+    }
+
+    public static void setFightState(FightState fightState) {
+        SireState.fightState = fightState;
+    }
+
+    public static FightState getRawFightState() {
+        return fightState;
+    }
+
+    public static void startStunTimer() {
+        if (SireState.currentStunTimer != null)
+            SireState.currentStunTimer.cancel();
+        SireState.isStunned = true;
+        SireState.currentStunTimer = new Timer();
+        SireState.currentStunTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                SireState.isStunned = false;
+            }
+        }, 26000);
+    }
+
+    public static boolean isStunned() {
+        var s = u.getSire();
+        if (s != null && s.getId() == SireId_Phase1_Awake) {
+            if (SireState.currentStunTimer != null)
+                SireState.currentStunTimer.cancel();
+            SireState.isStunned = false;
+        }
+        return SireState.isStunned;
+    }
+
+    public static void resetStun() {
+        SireState.isStunned = false;
+        if (SireState.currentStunTimer != null)
+            SireState.currentStunTimer.cancel();
+    }
+
+    public static int getRespiratoryKilled() {
+        return respiratoryKilled;
+    }
+
+    public static void setRespiratoryKilled(int respiratoryKilled) {
+        SireState.respiratoryKilled = respiratoryKilled;
+    }
+
+    public static int getLastSireId() {
+        return lastSireId;
+    }
+
+    public static void setLastSireId(int lastSireId) {
+        SireState.lastSireId = lastSireId;
+    }
+
+    public static void resetKill() {
+        Action.set(Action.None);
+        setLastSireId(-1);
+        setRespiratoryKilled(0);
+        setFightState(FightState.Phase0);
+        setActivePrayers();
+        resetStun();
+    }
+
+    public static boolean needsBankAfterKill() {
+        return Inventory.getItems(getFood()).stream().count() < 3;
+    }
+
+    public static SireSettings getSettings() {
+        return settings;
+    }
+
+    public static void setSettings(SireSettings settings) {
+        SireState.settings = settings;
+    }
+
+    public static boolean isPaused() {
+        return SireState.isPaused;
+    }
+
+    public static void setPaused(boolean paused) {
+        SireState.isPaused = paused;
+    }
+
+    public static AbstractBot getBot() {
+        return bot;
+    }
+
+    public static void setBot(AbstractBot bot) {
+        SireState.bot = bot;
+    }
+
+    public static int getSireKilled() {
+        return sireKilled;
+    }
+
+    public static void setSireKilled(int sireKilled) {
+        SireState.sireKilled = sireKilled;
+    }
+
+    public static Coordinate getPhase32SafeTile() {
+        return phase32SafeTile;
+    }
+
+    public static void setPhase32SafeTile(Coordinate phase32SafeTile) {
+        SireState.phase32SafeTile = phase32SafeTile;
+    }
+}

@@ -1,0 +1,87 @@
+package com.neck_flexed.scripts.kq;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.loot.Loot;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Objects;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState extends BaseState<KqState> {
+    public static final Pattern[] mustLoot = util.toPatternArray(
+            "Dragon chainbody",
+            "Kq head",
+            "Dragon 2h sword",
+            "Dragon pickaxe",
+            "Jar of sand",
+            "Kq head (tattered)"
+    );
+    public static final Pattern[] ignoreLoot = util.toPatternArray(
+            "Mithril arrow",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final KqListener kqListener;
+    private final kq bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(KqListener kqListener, kq bot, BreakManager breakManager) {
+        super(bot, KqState.LOOTING);
+        this.kqListener = kqListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Looting");
+        if (kqListener.getDeadArea() == null) return;
+        util.moveTo(kqListener.getDeadArea().getCenter());
+        Loot.waitForLoot(kqListener.getDeadArea(), Pattern.compile(".*"), 10000);
+    }
+
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        bot.resetKill();
+        if (result.equals(Loot.LootResult.Full))
+            bot.forceState(KqState.RESTORING);
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(
+                null
+                , bot.settings()
+                , ignoreLoot
+                , mustLoot
+                , bot.settings().phase1Boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().phase1Boost().patternAny()
+                // filter unnoted potato cactus
+                , g -> g.getDefinition() != null && "Potato cactus".equals(g.getDefinition().getName()) && !g.getDefinition().isNoted()
+                , 5000
+                , 600
+        );
+    }
+}

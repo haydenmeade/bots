@@ -1,0 +1,49 @@
+package com.neck_flexed.scripts.common;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
+@Getter
+public enum PortalNexusTeleport {
+    ArceuusLibrary("Arceuus Library"),
+    DraynorManor("Draynor Manor"),
+    Battlefront("Battlefront"),
+    Varrock("Varrock"),
+    GrandExchange("Grand Exchange"),
+    MindAltar("Mind Altar"),
+    Lumbridge("Lumbridge"),
+    Falador("Falador"),
+    SalveGraveyard("Salve Graveyard"),
+    Camelot("Camelot"),
+    SeersVillage("Seers' Village"),
+    FenkenstrainsCastle("Fenken' Castle"),
+    Ardougne("Ardougne"),
+    Watchtower("Watchtower"),
+    Yanille("Yanille"),
+    Senntisten("Senntisten"),
+    WestArdougne("West Ardougne"),
+    Marim("Marim"),
+    HarmonyIsland("Harmony Island"),
+    Kharyrll("Kharyrll"),
+    LunarIsle("Lunar Isle"),
+    KourendCastle("Kourend Castle"),
+    TheForgottenCemetery("Cemetery"),
+    WaterbirthIsland("Waterbirth Island"),
+    Barrows("Barrows"),
+    Carrallangar("Carrallangar"),
+    FishingGuild("Fishing Guild"),
+    Catherby("Catherby"),
+    Annakarl("Annakarl"),
+    ApeAtollDungeon("Ape Atoll Dungeon"),
+    Ghorrock("Ghorrock"),
+    TrollStronghold("Troll Stronghold"),
+    Weiss("Weiss");
+
+    private final String option;
+
+    @Override
+    public String toString() {
+        return this.option;
+    }
+}

@@ -1,0 +1,8 @@
+package com.neck_flexed.scripts.sire;
+
+public enum Phase1Boost {
+    None,
+    Ranging,
+    Ranging_Divine,
+    ImbuedHeart,
+}

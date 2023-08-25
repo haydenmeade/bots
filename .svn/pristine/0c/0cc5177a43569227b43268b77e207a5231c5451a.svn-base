@@ -1,0 +1,74 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.state.StateManager;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Bank;
+import com.runemate.game.api.hybrid.region.Banks;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
+public class SireStateManager extends StateManager<sireBot, SireState> {
+    private final SireListener sireListener;
+
+    public SireStateManager(sireBot sireBot, SireListener sireListener) {
+        super(sireBot);
+        this.sireListener = sireListener;
+    }
+
+    @Override
+    public SireState getNextState(SireState initiator) {
+        switch (initiator) {
+            case RESTORING:
+                if (!SlayerTask.hasTask()) {
+                    bot.updateStatus("Finished slayer task");
+                    Execution.delay(4000, 7000);
+                    bot.stop("Finished slayer task");
+                    return SireState.BREAKING;
+                }
+                break;
+            case LOOTING:
+                if (!SlayerTask.hasTask()) {
+                    log.debug("No task");
+                    return SireState.RESTORING;
+                }
+                if (bot.doWeNeedToRestock() || bot.breakManager.breaking() || bot.breakManager.stopBot()) {
+                    log.debug("Restore: {} {}", bot.doWeNeedToRestock(), bot.breakManager);
+                    return SireState.RESTORING;
+                } else {
+                    return SireState.FIGHTING;
+                }
+            case FIGHTING:
+                if (sireListener.isDead())
+                    return SireState.LOOTING;
+        }
+        var p = Players.getLocal();
+        if (p == null) return SireState.STARTING;
+        if (Bank.isOpen()) return SireState.RESTOCKING;
+        bot.loadouts.invalidateCurrent();
+        boolean needsRestock = this.bot.doWeNeedToRestock();
+        if (this.bot.sireListener.init()) {
+            if (u.needToHop())
+                return SireState.HOPPING;
+            return !this.bot.sireListener.getPhase().equals(Phase.Phase0) ?
+                    SireState.FIGHTING :
+                    needsRestock ?
+                            SireState.RESTORING :
+                            SireState.FIGHTING;
+        }
+        if (sireBot.abyssalNexus.contains(p)) {
+            return needsRestock || !u.isRestored() ? SireState.RESTORING : SireState.TRAVERSING;
+        }
+        if (bot.breakManager.breaking() || bot.breakManager.stopBot())
+            return SireState.BREAKING;
+        if (Bank.isOpen()) return SireState.RESTOCKING;
+        if (initiator != SireState.RESTOCKING && (needsRestock || initiator.equals(SireState.RESTORING))) {
+            if (util.isFullyRestored() && !Banks.getLoaded().isEmpty())
+                return SireState.RESTOCKING;
+            return SireState.RESTORING;
+        }
+        return !u.isRestored() ? SireState.RESTORING : SireState.TRAVERSING;
+    }
+}

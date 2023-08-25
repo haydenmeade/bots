@@ -1,0 +1,47 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Hopping;
+import com.neck_flexed.scripts.common.LoopState;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "HoppingState")
+public class HoppingState implements LoopState<CerbState> {
+    private boolean hopped = false;
+
+    @Override
+    public void activate(EventDispatcher d) {
+        cerb.updateStatus("Hopping");
+    }
+
+    @Override
+    public CerbState deactivate(EventDispatcher d) {
+        return this.hopped ? CerbState.STARTING : CerbState.HOPPING;
+    }
+
+    @Override
+    public CerbState get() {
+        return CerbState.HOPPING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return hopped;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (Hopping.hop(CerbState.getSettings().worldRegion())) {
+            this.hopped = true;
+            Execution.delay(4000, 5000);
+        }
+        if (!this.hopped)
+            log.error("unable to hop worlds");
+    }
+}

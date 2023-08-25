@@ -1,0 +1,19 @@
+package com.neck_flexed.scripts.sire;
+
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.GameObjectListener;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "LogListener")
+public class LogListener implements EngineListener, GameObjectListener {
+
+//    @Override
+//    public void onTickStart() {
+//        var s = getSire();
+//
+//        if (s != null && SireState.getLastSireId() != s.getId()) {
+//            SireState.setLastSireId(s.getId());
+//            log.debug(String.format("SIRE ID CHANGE______________________________________: %d,", s.getId()));
+//        }
+//    }
+}

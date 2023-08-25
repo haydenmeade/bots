@@ -1,0 +1,111 @@
+package com.neck_flexed.scripts.slayer.barrage;
+
+import com.neck_flexed.scripts.common.Loot;
+import com.neck_flexed.scripts.common.NeckBot;
+import com.neck_flexed.scripts.common.breaking.BreakManager;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerState;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.SneakyThrows;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.Arrays;
+import java.util.EventListener;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootState extends BaseState<SlayerState> {
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Mithril arrow",
+            "Steel arrow",
+            "Steel battleaxe",
+            "Adamant battleaxe",
+            "Adamant kiteshield",
+            "Iron arrow",
+            "Gold bar",
+            "Oyster pearls",
+            "Uncut ruby",
+            "Adamant axe",
+            "Cosmic talisman",
+            "Bones",
+            "Abyssal ashes",
+            "Ashes",
+            "Malicious ashes",
+            "Chaos talisman",
+            "Defence potion(3)",
+            "Ugthanki kebab",
+            "Black axe",
+            "Black sword",
+            "Black longsword",
+            "Mithril kiteshield",
+            "Pure essence",
+            "Adamant javelin",
+            "Rune javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Nature talisman");
+    private final BarrageListener barrageListener;
+    private final NeckBot<?, SlayerState> bot;
+    private final BreakManager breakManager;
+    private final Callable<Boolean> doWeNeedToRestock;
+    private final int minAlchValue;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootState(BarrageListener barrageListener, NeckBot<?, SlayerState> bot, BreakManager breakManager, Callable<Boolean> doWeNeedToRestock, int minAlchValue) {
+        super(SlayerState.LOOTING);
+        this.barrageListener = barrageListener;
+        this.bot = bot;
+        this.breakManager = breakManager;
+        this.doWeNeedToRestock = doWeNeedToRestock;
+        this.minAlchValue = minAlchValue;
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{barrageListener};
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Looting");
+        if (barrageListener.getDeadArea() == null) return;
+        util.moveTo(barrageListener.getDeadArea().getCenter());
+        Loot.waitForLoot(barrageListener.getDeadArea(), Pattern.compile(".*"), 10000);
+        this.bot.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MELEE);
+    }
+
+    @SneakyThrows
+    @Override
+    public void deactivate() {
+        super.deactivate();
+        log.debug(String.format("Time until break: %s", this.breakManager.timeLeft()));
+        if (this.result.equals(Loot.LootResult.Full)) {
+            bot.forceState(SlayerState.RESTORING);
+        }
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return !Objects.equals(this.result, Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        this.result = Loot.doLoop(this.barrageListener.getDeadArea(),
+                ignoreLoot,
+                new Pattern[0]
+                , 600, 2000, null, minAlchValue
+                , null
+        );
+
+    }
+}

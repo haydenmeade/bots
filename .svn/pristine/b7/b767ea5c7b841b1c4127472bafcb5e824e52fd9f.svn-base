@@ -1,0 +1,241 @@
+package com.neck_flexed.scripts.common.loadout;
+
+import com.google.common.base.Stopwatch;
+import com.neck_flexed.scripts.common.*;
+import com.runemate.game.api.hybrid.EquipmentLoadout;
+import com.runemate.game.api.hybrid.entities.definitions.ItemDefinition;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Equipment;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import lombok.Getter;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+
+import javax.annotation.Nullable;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Loadout")
+public class Loadout {
+    private final CombatStyle style;
+    private final EquipmentLoadout loadout;
+    private final boolean isTwoHanded;
+    private final boolean isDharoks;
+    private final boolean isTwoItems;
+    private final LoadoutRole role;
+    private final boolean isSpecLoadout;
+    private final int specEnergy;
+    private final String name;
+    private final Prayer[] boostPrayers;
+    @Getter
+    private final boolean hasSpectral;
+    @Getter
+    private final String weaponName;
+    // name:stacks
+    private final Map<Pattern, Boolean> itemMap;
+    @Getter
+    private int defenseStab;
+    @Getter
+    private int defenceMagic;
+    @Getter
+    private int defenceRange;
+
+    public Loadout(
+            @NotNull EquipmentLoadout l
+            , LoadoutRole role,
+            String name) {
+        this.loadout = l;
+        this.role = role;
+        this.name = name;
+        this.isSpecLoadout = !role.equals(LoadoutRole.Combat);
+        Stopwatch timer = Stopwatch.createStarted();
+        this.itemMap = new HashMap<Pattern, Boolean>();
+        for (var kv : l.entrySet()) {
+            this.itemMap.put(kv.getValue(), isStackable(kv.getValue()));
+        }
+        var w = l.getDefinition(Equipment.Slot.WEAPON);
+        log.debug("weapon definition load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        var style = util.getCombatStyle(w);
+        this.style = style;
+        log.debug("style load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        this.isTwoHanded = isTwoHanded(w);
+        log.debug("isTwoHanded load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        var shield = l.getDefinition(Equipment.Slot.SHIELD);
+        this.isTwoItems = isCurrentEquip2Items(w, shield);
+        log.debug("is equip2Items load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        this.specEnergy = getSpecCost(w);
+        log.debug("specCost load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        this.boostPrayers = util.getBoostPrayersA(style);
+        this.weaponName = w == null ? "" : w.getName();
+        isDharoks = isDharoks(this.weaponName);
+        this.hasSpectral = w != null && weaponName.equals(items.spectralSpiritShield);
+        log.debug("isDharoks/Spectral load done in {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
+        this.setDefences(l);
+    }
+
+    private static boolean isDharoks(String weaponName) {
+        return weaponName != null && weaponName.startsWith("Dharok");
+    }
+
+    public static Loadout fromEquipmentLoadout(EquipmentLoadout l, LoadoutRole role, String name) {
+        if (l == null) return null;
+        Stopwatch timer = Stopwatch.createStarted();
+        var theL = new Loadout(l, role, name);
+        log.debug("loadout construct done in: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        return theL;
+    }
+
+    private static int getSpecCost(ItemDefinition w) {
+        if (w == null) return 0;
+        var cost = SpecialAttackCost.getCost(w.getId());
+        return cost == null ? 0 : cost;
+    }
+
+    private static boolean isTwoHanded(ItemDefinition w) {
+        return w != null && w.isTwoHanded();
+    }
+
+    private static boolean isCurrentEquip2Items(ItemDefinition wep, ItemDefinition shield) {
+        return wep != null && shield != null;
+    }
+
+
+    private boolean isStackable(Pattern p) {
+        var s = p.toString().toLowerCase();
+        return s.contains("arrow") || s.contains("dart") || s.contains("bolts") || s.contains("knife");
+    }
+
+    private void setDefences(EquipmentLoadout l) {
+        int defenseStab = 0, defenseMagic = 0, defenseRange = 0;
+        // TODO
+        this.defenceMagic = 16;
+        this.defenceRange = 277;
+        this.defenseStab = 263;
+        if (true) return;
+
+        for (var slot : Equipment.Slot.values()) {
+            var item = l.getDefinition(slot);
+            if (item == null) {
+                continue;
+            }
+
+//            final ItemStats itemStats = itemManager.getItemStats(item.getId(), false);
+//
+//            if (itemStats == null) {
+//                continue;
+//            }
+//
+//            final ItemEquipmentStats itemStatsEquipment = itemStats.getEquipment();
+//
+//            if (itemStatsEquipment == null) {
+//                continue;
+//            }
+
+//            defenseStab += itemStatsEquipment.getDstab();
+//            defenseMagic += itemStatsEquipment.getDmagic();
+//            defenseRange += itemStatsEquipment.getDrange();
+
+        }
+        this.defenseStab = defenseStab;
+        this.defenceMagic = defenseMagic;
+        this.defenceRange = defenseRange;
+    }
+
+    public Loadout equip(Loadout current, boolean force, @Nullable LoadoutOverrider loadoutOverrider) {
+        Stopwatch timer = Stopwatch.createStarted();
+        if (!force && this.equals(current)) return this;
+        log.debug("equip {}", this.name);
+        // if inventory is full, loadout weapon is 2h, and have current weapon and shield.
+        if (current != null
+                && Inventory.isFull()
+                && this.isTwoHanded
+                && current.isTwoItems
+        ) {
+            log.debug("Dropping food to equip");
+            if (!Food.dropWorst())
+                log.error("error equiping 2h weapon");
+        }
+        for (var a : this.loadout.entrySet()) {
+            util.equip(getOverrideOrNot(loadoutOverrider, a));
+        }
+        log.debug("Equip Duration: " + timer.elapsed(TimeUnit.MILLISECONDS) + " ms");
+        return this;
+    }
+
+    private Pattern getOverrideOrNot(LoadoutOverrider loadoutOverrider, Map.Entry<Equipment.Slot, Pattern> a) {
+        if (loadoutOverrider == null) return a.getValue();
+        var r = loadoutOverrider.getSlotOverride(a.getKey());
+        return r != null ? r : a.getValue();
+    }
+
+    private void doEquip() {
+        if (this.loadout == null) {
+            log.debug("null loadout");
+            return;
+        }
+        for (EnumMap.Entry<Equipment.Slot, Pattern> a : this.loadout.entrySet()) {
+            util.equip(a.getValue());
+        }
+    }
+
+    public Prayer[] getBoostPrayers() {
+        return this.boostPrayers;
+    }
+
+    public CombatStyle getStyle() {
+        return style;
+    }
+
+    public EquipmentLoadout getLoadout() {
+        return loadout;
+    }
+
+    public boolean isSpecLoadout() {
+        return isSpecLoadout;
+    }
+
+    public int getSpecEnergy() {
+        return specEnergy;
+    }
+
+    public LoadoutRole getRole() {
+        return role;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public boolean isDharoks() {
+        return isDharoks;
+    }
+
+    public Map<Pattern, Integer> getBank() {
+        var m = new HashMap<Pattern, Integer>();
+        for (var s : itemMap.entrySet()) {
+            if (s.getKey().matcher(items.braceletOfSlaughter).find()
+                    || s.getKey().matcher(items.expeditiousBracelet).find()) {
+                m.put(s.getKey(), getRequiredBracelets());
+            } else {
+                m.put(s.getKey(), s.getValue() ? 0 : 1);
+            }
+        }
+        return m;
+    }
+
+    private int getRequiredBracelets() {
+        var c = SlayerTask.getCount();
+        if (c == 0) return 1;
+        return (int) Math.ceil((double) SlayerTask.getCount() / 150.0) + 1;
+    }
+
+    public enum LoadoutRole {
+        Combat,
+        SpecDefenseReduction,
+        SpecHeal,
+        SpecDps;
+    }
+}

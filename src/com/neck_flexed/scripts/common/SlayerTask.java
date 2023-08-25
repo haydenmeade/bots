@@ -1,0 +1,171 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.cache.configs.EnumDefinition;
+import com.runemate.game.api.hybrid.cache.configs.EnumDefinitions;
+import com.runemate.game.api.hybrid.local.Varbit;
+import com.runemate.game.api.hybrid.local.Varbits;
+import com.runemate.game.api.hybrid.local.Varp;
+import com.runemate.game.api.hybrid.local.Varps;
+import lombok.extern.log4j.Log4j2;
+
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
+@Log4j2
+public class SlayerTask {
+
+    /**
+     * Currently assigned slayer task if SLAYER_TASK_SIZE is greater than 0.
+     * Mapping of value to name can be found in ENUM_SLAYER_TASK_CREATURE. If value is 98 "Bosses",
+     * use enum ENUM_SLAYER_TASK_BOSS for boss name.
+     */
+    public static final int SLAYER_TASK_CREATURE = 395;
+
+    /**
+     * Assigned slayer task location. The mapping of value to name can be found in ENUM_SLAYER_TASK_LOCATION
+     */
+    public static final int SLAYER_TASK_LOCATION = 2096;
+
+    /**
+     * key: int
+     * val: string location name
+     */
+    public static final int ENUM_SLAYER_TASK_LOCATION = 4064;
+
+    /**
+     * Number of slayer creatures remaining on the assigned task
+     */
+    public static final int SLAYER_TASK_SIZE = 394;
+
+    /**
+     * key: int
+     * val: string creature name
+     */
+    public static final int ENUM_SLAYER_TASK_CREATURE = 693;
+
+    /**
+     * key: int
+     * val: string boss name
+     */
+    public static final int ENUM_SLAYER_TASK_BOSS = 1174;
+    public static final int SLAYER_TASK_STREAK_VARBIT = 4069;
+
+    public static final int VARBIT_SLAYER_TASK_BOSS = 4723;
+    private static final Varbit slayerBossVarbit = Varbits.load(VARBIT_SLAYER_TASK_BOSS);
+    private static final Varp slayerLocationVarp = Varps.getAt(SLAYER_TASK_LOCATION);
+    private static final Varp slayerCreatureVarp = Varps.getAt(SLAYER_TASK_CREATURE);
+    private static final Varp slayerTaskSizeVarp = Varps.getAt(SLAYER_TASK_SIZE);
+    private static final Varbit slayerTaskStreakVarbit = Varbits.load(SLAYER_TASK_STREAK_VARBIT);
+    private static final Map<Integer, String> creatures = new HashMap<>();
+    private static final Map<Integer, String> bosses = new HashMap<>();
+    private static final Map<Integer, String> location = new HashMap<>();
+    private static boolean initialized = false;
+
+    public static synchronized void initialize() {
+        if (!initialized) {
+            EnumDefinition enumDef = EnumDefinitions.load(ENUM_SLAYER_TASK_CREATURE);
+            if (enumDef != null) {
+                initialized = true;
+                for (int key : enumDef.getKeys()) {
+                    Serializable value = enumDef.get(key);
+                    if (value instanceof String) {
+                        creatures.put(key, (String) value);
+                    } else {
+                        log.warn(String.format("Key (%d) in Slayer_Task_Creature enum (%d) was not linked to a string value (%s)", key, ENUM_SLAYER_TASK_CREATURE, value));
+                    }
+                }
+            } else {
+                log.warn("null slayer creature enum def");
+            }
+
+            EnumDefinition enumDef2 = EnumDefinitions.load(ENUM_SLAYER_TASK_BOSS);
+            if (enumDef2 != null) {
+                initialized = true;
+                for (int key : enumDef2.getKeys()) {
+                    Serializable value = enumDef2.get(key);
+                    if (value instanceof String) {
+                        bosses.put(key, (String) value);
+                    } else {
+                        log.warn(String.format("Key (%d) in Slayer_Task_Boss enum (%d) was not linked to a string value (%s)", key, ENUM_SLAYER_TASK_BOSS, value));
+                    }
+                }
+            } else {
+                log.warn("null slayer boss enum def");
+            }
+
+            EnumDefinition enumDef3 = EnumDefinitions.load(ENUM_SLAYER_TASK_LOCATION);
+            if (enumDef3 != null) {
+                initialized = true;
+                for (int key : enumDef3.getKeys()) {
+                    Serializable value = enumDef3.get(key);
+                    if (value instanceof String) {
+                        location.put(key, (String) value);
+                    } else {
+                        log.warn(String.format("Key (%d) in Location enum (%d) was not linked to a string value (%s)", key, ENUM_SLAYER_TASK_LOCATION, value));
+                    }
+                }
+            } else {
+                log.warn("null location enum def");
+            }
+        }
+    }
+
+    @Nullable
+    public static String getCurrent() {
+        if (!hasTask()) return null;
+        if (!initialized) {
+            initialize();
+        }
+        var id = slayerCreatureVarp.getValue();
+        if (id == 98) {
+            // boss
+            return bosses.get(slayerBossVarbit.getValue());
+        }
+        return creatures.get(id);
+    }
+
+    @Nullable
+    public static Task getCurrentT() {
+        return Task.getTask(getCurrent());
+    }
+
+    public static boolean currentIsBoss() {
+        if (!hasTask()) return false;
+        if (!initialized) {
+            initialize();
+        }
+        return slayerCreatureVarp.getValue() == 98;
+    }
+
+    @Nullable
+    public static SlayerLocation getLocation() {
+        if (!hasTask()) return null;
+        if (!initialized) {
+            initialize();
+        }
+        var id = slayerLocationVarp.getValue();
+        if (id > 0) {
+            var strValue = location.get(id);
+            return SlayerLocation.getLocation(strValue);
+        }
+        return null;
+    }
+
+    public static int getCount() {
+        return slayerTaskSizeVarp.getValue();
+    }
+
+    public static boolean hasTask() {
+        return slayerTaskSizeVarp.getValue() > 0;
+    }
+
+    public static int getStreak() {
+        if (slayerTaskStreakVarbit == null) {
+            log.error("No slayer task streak varbit");
+            return 0;
+        }
+        return slayerTaskStreakVarbit.getValue();
+    }
+}

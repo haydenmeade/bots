@@ -1,0 +1,276 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.*;
+import com.neck_flexed.scripts.common.overlay.OverlayRenderSource;
+import com.neck_flexed.scripts.common.overlay.render.RenderTarget;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Npcs;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.ui.DefaultUI;
+import com.runemate.ui.setting.annotation.open.SettingsProvider;
+import javafx.scene.text.Text;
+import lombok.extern.log4j.Log4j2;
+import org.apache.commons.lang3.tuple.Triple;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EventListener;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "Cerb")
+public class cerb extends NeckBot<CerbSettings, CerbState> implements OverlayRenderSource {
+    public static final String name = "Cerberus";
+
+    public static final Coordinate centerSpawnTile =
+            new Coordinate(1240, 1252, 0);
+
+    public static final Coordinate rangingStartTile =
+            new Coordinate(1233, 1250, 0);
+    // starts as 5863 (no attack option)
+    public static final int IdStartNoAttack = 5863;
+    public static final int Id = 5862;
+    private static final Area aboveGround =
+            Area.rectangular(new Coordinate(2870, 3471, 0), new Coordinate(2971, 3350, 0));
+    private static final Area taverlyDungeon =
+            Area.rectangular(new Coordinate(2813, 9855, 0), new Coordinate(2955, 9720, 0));
+    // -> "Crawl" in "Cave" at 2873,9846,0
+    private static final Area cerbDungeon =
+            Area.rectangular(new Coordinate(1196, 1360, 0), new Coordinate(1410, 1215, 0));
+    private static final Area cerbLairEntryArea =
+            Area.rectangular(new Coordinate(1278, 1279, 0), new Coordinate(1343, 1234, 0));
+    private static final Area cerbFightArea =
+            Area.rectangular(new Coordinate(1229, 1257, 0), new Coordinate(1250, 1245, 0));
+    private static final Area cerbRoomArea =
+            Area.rectangular(new Coordinate(1229, 1257, 0), new Coordinate(1250, 1226, 0));
+    private CerbListener cerbListener;
+    private Consumeables consumeables;
+    private AlchListener alcher;
+    @SettingsProvider(updatable = true)
+    private CerbSettings settings;
+
+    public static boolean isInBossRoomIncludingEntrance() {
+        return cerbRoomArea.contains(Players.getLocal());
+    }
+
+    public static boolean isInBossRoom() {
+        return cerbFightArea.contains(Players.getLocal());
+    }
+
+    public static boolean atLairEntrance() {
+        return cerbLairEntryArea.contains(Players.getLocal());
+    }
+
+    public static boolean inTaverlyDungeon() {
+        return taverlyDungeon.contains(Players.getLocal());
+    }
+
+    public static boolean inCerbDungeonArea() {
+        return cerbDungeon.contains(Players.getLocal());
+    }
+
+    public static @Nullable Npc getCerb() {
+        return Npcs.newQuery().names(name).results().first();
+    }
+
+    public static void attack() {
+        var m = getCerb();
+        if (m == null) return;
+        log.debug("attack");
+        DirectInput.send(MenuAction.forNpc(m, "Attack"));
+        Action.set(Action.Attack);
+    }
+
+    public static boolean isAboveGround() {
+        return aboveGround.contains(Players.getLocal());
+    }
+
+    @Override
+    public Collection<RenderTarget> renderables() {
+        final var res = new ArrayList<RenderTarget>();
+//        var p = Players.getLocal();
+//        if (p != null) {
+//            res.add(new RenderTarget(p.getServerPosition(), Color.PURPLE));
+//        }
+        return res;
+    }
+
+    @Override
+    public Collection<Callable<String>> texts() {
+        return List.of(
+                () -> "Prayer: " + this.cerbListener.getBestProtectionPrayer(),
+                () -> {
+                    var c = this.cerbListener.getCerberus();
+                    return "HP: " + (c == null ? "" : c.getHp());
+                },
+                () -> {
+                    var c = this.cerbListener.getCerberus();
+                    if (c == null) return "";
+                    return "Phase: " + c.getLastAttackPhase();
+                },
+                () -> {
+                    final var a = this.cerbListener.getUpcomingAttacks();
+                    final var f = a.isEmpty() ? "None" : "t: " + a.get(0).getTick() + " a: " + a.get(0).getAttack();
+                    return "Attack: " + f;
+                }
+        );
+    }
+
+    public boolean doWeNeedToRestock() {
+        if (settings() == null) return false;
+        var boost = settings().boost();
+        if (boost != Boost.None && Inventory.getItems(boost.patternAny()).isEmpty()) {
+            return true;
+        }
+        if (settings().wildPieCount() > 0 && Inventory.getQuantity(items.wildPie, items.wildPieHalf) == 0) {
+            return true;
+        }
+        if (settings().fightStrategy().equals(FightStrategy.Default) && Food.countInventory() < settings().minFood()) {
+            return true;
+        }
+        return false;
+    }
+
+    public void setActivePrayers(Prayer... activePrayers) {
+        this.prayerFlicker.setActivePrayers(activePrayers);
+    }
+
+    public void resetKill() {
+        Action.set(Action.None);
+        setActivePrayers();
+        this.cerbListener.reset();
+    }
+
+    @Override
+    protected void initFromSettings(CerbSettings settings) {
+        this.updateItemFilter(util.concatenate(
+                util.toPatternArray(new String[]{items.houseTab,
+                        settings.food().gameName()}),
+                new Pattern[]{items.staminaPotions, items.ringOfDueling, items.dramenStaff,},
+                util.toItemList(settings.equipment()),
+                util.toItemList(settings.ghostEquipment()),
+                util.toItemList(settings.specEquipment())
+        ));
+
+        this.loadouts = Loadouts.fromEquipmentLoadouts(
+                Triple.of(settings().specEquipment(), Loadout.LoadoutRole.SpecHeal, "Spec"),
+                Triple.of(settings().equipment(), Loadout.LoadoutRole.Combat, CombatStyle.Melee.toString()),
+                Triple.of(settings().ghostEquipment(), Loadout.LoadoutRole.Combat, "Ghost")
+        );
+        this.breakManager = new BreakManager(settings);
+    }
+
+    @Override
+    public void onStop(String reason) {
+        super.onStop(reason);
+        this.executor.shutdown();
+    }
+
+    @Override
+    protected EventListener[] getEventListenerForRunning() {
+        return new EventListener[]{
+                junkDropper,
+                cerbListener,
+                prayerFlicker,
+                alcher,
+                consumeables
+        };
+    }
+
+    @Override
+    public void onStart(String... arguments) {
+        super.onStart(arguments);
+        log.debug(String.format("onStart"));
+        cerbListener = new CerbListener(this);
+        consumeables = new Consumeables(this, 55, CerbState.RESTORING);
+        this.alcher = new AlchListener(
+                "Rune platebody"
+                , "Rune chainbody"
+                , "Rune 2h sword"
+                , "Black d'hide body"
+                , "Rune axe"
+                , "Rune pickaxe"
+                , "Rune full helm"
+                , "Lava battlestaff"
+                , "Rune halberd"
+        );
+        this.getEventDispatcher().addListener(this);
+        this.breakManager = new BreakManager(settings());
+        this.setLoopDelay(10, 25);
+        resetKill();
+        DefaultUI.addPanel(0, this, "Instructions", new Text(
+                "Requires: Hellhound/cerberus task, DirectInput\n" +
+                        "House Traverse: House Located in taverly, House teleport or house tabs, DirectInput\n" +
+                        "Supporting alching if bringing alch runes"
+        ));
+
+        executor.scheduleAtFixedRate(diFixRunnable, 0, 30, TimeUnit.SECONDS);
+    }
+
+    protected LoopState<CerbState> getState(CerbState s) {
+        switch (s) {
+            case STARTING:
+                return new StartingState(this, loadouts);
+            case TRAVERSING:
+                return new TraverseState(this, prayerFlicker);
+            case FIGHTING:
+                if (settings().fightStrategy().equals(FightStrategy.Flinch))
+                    return new FightState(this.cerbListener, this.prayerFlicker, this);
+                return new FightState2(this.cerbListener, this.prayerFlicker, this);
+            case LOOTING:
+                return new LootState(this.cerbListener, this, breakManager);
+            case POST_LOOT_WAITING:
+                return new PostLootWaiting(this, this.prayerFlicker, cerbListener);
+            case RESTORING:
+                return new RestoreState(this, prayerFlicker, cerbListener, breakManager);
+            case HOPPING:
+                return new HoppingState(this, settings().worldRegion(), CerbState.STARTING, CerbState.HOPPING);
+            case RESTOCKING:
+                return new RestockState(this);
+            case ENTERING_LAIR:
+                return new EnterLairState(cerbListener, this);
+            case WALK_UNDER:
+                return new WalkUnderState(this, cerbListener);
+            case BREAKING:
+                return new BreakHandlerState(this.breakManager, this, CerbState.BREAKING, CerbState.STARTING);
+            default:
+                throw new IllegalStateException("Unexpected value: " + s);
+        }
+    }
+
+    @Override
+    protected LoopState<CerbState> getStartingState() {
+        return new StartingState(this, loadouts);
+    }
+
+    @Override
+    protected CerbState getBreakStateEnum() {
+        return CerbState.BREAKING;
+    }
+
+    @Override
+    protected CerbState getStartStateEnum() {
+        return CerbState.STARTING;
+    }
+
+    @Override
+    public void updateStatus(String s) {
+        var debugString = String.format("%s - Cerb KC: %d", s, this.getKillCount());
+        log.debug(debugString);
+        DefaultUI.setStatus(debugString);
+    }
+
+    @Override
+    public CerbSettings settings() {
+        return settings;
+    }
+}

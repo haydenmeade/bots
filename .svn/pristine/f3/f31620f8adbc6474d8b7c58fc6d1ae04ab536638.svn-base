@@ -1,0 +1,84 @@
+package com.neck_flexed.scripts.sire;
+
+import com.neck_flexed.scripts.common.HouseUtil;
+import com.neck_flexed.scripts.common.items;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.FairyRing;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.hybrid.location.Area;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.location.navigation.cognizant.RegionPath;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2(topic = "Traverse")
+public class Traverse {
+    public static final String DIP = "Last-destination (DIP)";
+    public static final String DIPTree = "Ring-last-destination (DIP)";
+
+    public static void breakHouseTab() {
+        log.debug("break house tab");
+        var item = Inventory.getItems(items.houseTab).first();
+        if (item != null)
+            DirectInput.send(MenuAction.forSpriteItem(item, "Break"));
+    }
+
+
+    public static void traverseToSire() {
+        var destination1 = Area.rectangular(new Coordinate(2989, 4750), new Coordinate(2990, 4751));
+        if (!sire.fightArea.contains(Players.getLocal())) {
+            if (!destination1.contains(Players.getLocal()) && !Phase2.tile1.isLoaded()) {
+                if (SireState.isPaused()) return;
+                Execution.delayUntil(() -> RegionPath.buildTo(destination1) != null, 10000);
+                var path1 = RegionPath.buildTo(destination1);
+                if (path1 != null) {
+                    path1.step();
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate path1 in traverseToSire");
+                }
+            }
+        }
+        var x = Players.getLocal().getPosition().getX();
+        var isWalkingSafe = x >= Phase2.tile2.getX() && x <= Phase2.tile1.getX();
+        if (Phase2.tile1.isLoaded() && !isWalkingSafe) {
+            // walk so we don't get hit by tentacles.
+            var destinationx = Area.rectangular(new Coordinate(Phase2.tile2.getX(), 4759), new Coordinate(Phase2.tile1.getX(), 4761));
+            Execution.delayUntil(() -> RegionPath.buildTo(destinationx) != null, 10000);
+            if (u.getSire() == null && !destinationx.contains(Players.getLocal().getPosition())) {
+                var pathx = RegionPath.buildTo(destinationx);
+                if (pathx != null) {
+                    pathx.step();
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate pathx in traverseToSire");
+                }
+            }
+        } else if (Phase2.tile1.isLoaded()) {
+            var destination2 = Phase2.tile1;
+            Execution.delayUntil(() -> RegionPath.buildTo(destination2) != null, 10000);
+            if (u.getSire() == null && !destination2.equals(Players.getLocal().getPosition())) {
+                if (SireState.isPaused()) return;
+                var path2 = RegionPath.buildTo(destination2);
+                if (path2 != null) {
+                    path2.step();
+                    Execution.delay(600, 1200);
+                } else {
+                    log.debug("Could not generate path2 in traverseToSire");
+                }
+            }
+        }
+        if (u.getSire() != null) {
+            SireState.setBotState(SireState.getInitialState());
+        }
+    }
+
+    public static void fairyRingBack() {
+        sire.updateStatus("Fairy ring");
+        HouseUtil.FairyRingTo(util.getFairyRing(), FairyRing.DIP);
+    }
+
+}

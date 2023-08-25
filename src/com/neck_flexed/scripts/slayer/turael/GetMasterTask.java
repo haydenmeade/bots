@@ -1,0 +1,98 @@
+package com.neck_flexed.scripts.slayer.turael;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.SlayerTask;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.traverse.Traverser;
+import com.neck_flexed.scripts.common.util;
+import com.neck_flexed.scripts.slayer.SlayerUtil;
+import com.neck_flexed.scripts.slayer.state.SlayerState;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.ChatDialog;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Objects;
+
+@Log4j2
+public class GetMasterTask extends BaseState<SlayerState> {
+    private final com.neck_flexed.scripts.slayer.turael.bot bot;
+    private final Traverser traverser;
+    private String startTask;
+    private boolean done;
+
+    public GetMasterTask(bot bot) {
+        super(bot, SlayerState.GET_MASTER_TASK);
+        this.bot = bot;
+        this.traverser = new Traverser(
+                bot,
+                HouseConfig.parse(bot.settings()),
+                bot.settings().master().getLocation(),
+                bot.settings().master().getPathRegions(),
+                this::overrideWebPath,
+                bot.settings().master().getTraverses()
+        );
+    }
+
+    private Boolean overrideWebPath(Coordinate destination) {
+        return null;
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus(String.format("Getting task from %s", bot.settings().master()));
+        this.startTask = SlayerTask.getCurrent();
+    }
+
+    @Override
+    public void deactivate() {
+        var skipFor = bot.settings().skipFor();
+        var task = SlayerTask.getCurrent();
+        log.debug("Got slayer task from {}: {} {} at {}", bot.settings().master(), SlayerTask.getCount(), task, SlayerTask.getLocation());
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return this.done;
+    }
+
+    @Override
+    public void executeLoop() {
+        if (util.canNpcContact() && bot.settings().master().getNpc() == null) {
+            this.done = SlayerUtil.npcContactSlayerTaskFrom(bot.settings().master(), startTask);
+        } else {
+            this.done = this.pathToMasterSlayerTask(startTask);
+        }
+    }
+
+    private boolean pathToMasterSlayerTask(String startTask) {
+        var master = bot.settings().master().getNpc();
+        if (master == null) {
+            traverser.executeLoop();
+            return false;
+        }
+        if (ChatDialog.isOpen()) {
+            util.moveTo(Players.getLocal().getServerPosition());
+            Execution.delayWhile(ChatDialog::isOpen, 1000, 2000);
+            return false;
+        }
+
+        if (!Objects.equals(SlayerTask.getCurrent(), startTask)) {
+            return true;
+        }
+        di.send(MenuAction.forNpc(master, "Assignment"));
+
+        Execution.delayUntil(
+                () -> !Objects.equals(SlayerTask.getCurrent(), startTask),
+                util::playerMoving, 3000, 4000);
+        return false;
+    }
+}

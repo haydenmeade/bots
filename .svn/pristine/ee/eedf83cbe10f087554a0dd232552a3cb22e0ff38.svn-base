@@ -1,0 +1,56 @@
+package com.neck_flexed.scripts.slayer;
+
+import lombok.Setter;
+import org.jetbrains.annotations.Nullable;
+
+public enum Monsters {
+    AberrantSpectres,
+    AbyssalDemons,
+    AdamantDragons,
+    Ankou,
+    BlackDemons,
+    BlackDragons,
+    Bloodveld,
+    BlueDragons,
+    Dagannoth,
+    DustDevils,
+    FireGiants,
+    Gargoyles,
+    GreaterDemons,
+    Hellhounds,
+    IronDragons,
+    Kalphites,
+    Kalphites_Lair,
+    Kurask,
+    Nechryael,
+    RuneDragons,
+    SteelDragons,
+    Suqah,
+    Trolls,
+    Trolls_Ice,
+    Turoth,
+    ;
+//Aviansies,
+//Basilisks,
+//CaveHorrors,
+//CaveKraken,
+//DarkBeasts,
+//Drakes,
+//Elves,
+//FossilIslandWyverns,
+//Lizardmen,
+//MinionsOfScabaras,
+//MithrilDragons,
+//MutatedZygomites,
+//RedDragons,
+//SkeletalWyverns,
+//SmokeDevils,
+//SpiritualCreatures,
+//TzHaar,
+//Vampyres,
+//Waterfiends,
+//Wyrms,
+
+    @Setter
+    private static @Nullable Monsters DEBUG_MONSTER = null;
+}

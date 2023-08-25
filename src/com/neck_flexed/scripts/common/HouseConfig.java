@@ -1,0 +1,235 @@
+package com.neck_flexed.scripts.common;
+
+import com.neck_flexed.scripts.common.traverse.HouseJewelleryBoxTraverse;
+import com.neck_flexed.scripts.common.traverse.HouseSettings;
+import com.neck_flexed.scripts.common.traverse.HouseSettingsFairyRing;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.osrs.local.hud.interfaces.Magic;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Getter
+public class HouseConfig {
+    public static final HouseConfig EMPTY_OUSE = new HouseConfig(
+            JewelleryBox.None,
+            Altar.None,
+            Pool.None,
+            false,
+            false,
+            false,
+            false
+    );
+    public static final HouseConfig MAX_HOUSE = new HouseConfig(
+            HouseConfig.JewelleryBox.Ornate,
+            HouseConfig.Altar.Occult,
+            HouseConfig.Pool.Ornate,
+            true,
+            true,
+            true,
+            true,
+            PortalNexusTeleport.values()
+    );
+    private final JewelleryBox jewelleryBox;
+    private final Altar altar;
+    private final Pool pool;
+    private final boolean hasFairyRing;
+    private final boolean hasMountedDigsite;
+    private final boolean hasMountedXerics;
+    private final boolean hasSpiritTree;
+    private final PortalNexusTeleport[] portals;
+
+    public HouseConfig(boolean hasOrnateJewelleryBox,
+                       boolean hasOrnatePool,
+                       PortalNexusTeleport... portals) {
+        this.jewelleryBox = hasOrnateJewelleryBox ? JewelleryBox.Ornate : JewelleryBox.None;
+        this.altar = Altar.None;
+        this.pool = hasOrnatePool ? Pool.Ornate : Pool.None;
+        this.hasFairyRing = false;
+        this.hasMountedDigsite = false;
+        this.hasMountedXerics = false;
+        this.hasSpiritTree = false;
+        this.portals = portals;
+    }
+
+    public HouseConfig(JewelleryBox jewelleryBox,
+                       Altar altar,
+                       Pool pool,
+                       boolean hasFairyRing,
+                       boolean hasMountedDigsite,
+                       boolean hasMountedXerics,
+                       boolean hasSpiritTree,
+                       PortalNexusTeleport... portals) {
+        this.jewelleryBox = jewelleryBox;
+        this.altar = altar;
+        this.pool = pool;
+        this.hasFairyRing = hasFairyRing;
+        this.hasMountedDigsite = hasMountedDigsite;
+        this.hasMountedXerics = hasMountedXerics;
+        this.hasSpiritTree = hasSpiritTree;
+        this.portals = portals;
+    }
+
+    public static HouseConfig parse(HouseSettings s) {
+        return new HouseConfig(
+                s.jewelleryBox()
+                , s.altar()
+                , s.hasOrnatePool() ? Pool.Ornate : Pool.None
+                , s.hasHouseFairyRing()
+                , s.hasHouseMountedDigsite()
+                , s.hasMountedXerics()
+                , s.hasHouseSpiritTree()
+                , parsePortals(s)
+        );
+    }
+
+    public static HouseConfig parse(HouseSettings s, PortalNexusTeleport... teleports) {
+        return new HouseConfig(
+                s.jewelleryBox()
+                , s.altar()
+                , s.hasOrnatePool() ? Pool.Ornate : Pool.None
+                , s.hasHouseFairyRing()
+                , s.hasHouseMountedDigsite()
+                , s.hasMountedXerics()
+                , s.hasHouseSpiritTree()
+                , parsePortals(s, teleports)
+        );
+    }
+
+    public static HouseConfig parse(HouseSettingsFairyRing s, PortalNexusTeleport... teleports) {
+        return new HouseConfig(
+                s.jewelleryBox()
+                , Altar.None
+                , s.hasOrnatePool() ? Pool.Ornate : Pool.None
+                , s.hasHouseFairyRing()
+                , false, false, false, teleports
+        );
+    }
+
+    private static PortalNexusTeleport[] parsePortals(HouseSettings s, PortalNexusTeleport... teleports) {
+        var l = new ArrayList<PortalNexusTeleport>();
+        if (s.hasPortalArdougne())
+            l.add(PortalNexusTeleport.Ardougne);
+        if (s.hasPortalDraynor())
+            l.add(PortalNexusTeleport.DraynorManor);
+        if (s.hasPortalKourendCastle())
+            l.add(PortalNexusTeleport.KourendCastle);
+        if (s.hasPortalLumbridge())
+            l.add(PortalNexusTeleport.Lumbridge);
+        if (s.hasPortalSenntisten())
+            l.add(PortalNexusTeleport.Senntisten);
+        if (s.hasPortalVarrock())
+            l.add(PortalNexusTeleport.Varrock);
+        if (s.hasPortalSalveGraveyard())
+            l.add(PortalNexusTeleport.SalveGraveyard);
+        if (s.hasPortalFalador())
+            l.add(PortalNexusTeleport.Falador);
+        if (s.hasPortalLunarIsle())
+            l.add(PortalNexusTeleport.LunarIsle);
+        if (s.hasHousePortalBattlefront())
+            l.add(PortalNexusTeleport.Battlefront);
+        if (s.hasHousePortalWaterbirth())
+            l.add(PortalNexusTeleport.WaterbirthIsland);
+        for (var t : teleports) {
+            if (t != null) l.add(t);
+        }
+        return l.toArray(new PortalNexusTeleport[0]);
+    }
+
+    public boolean hasPortal(PortalNexusTeleport portalNexusTeleport) {
+        return Arrays.asList(this.portals).contains(portalNexusTeleport);
+    }
+
+    public boolean hasOrnateJewelleryBox() {
+        return this.jewelleryBox.equals(JewelleryBox.Ornate);
+    }
+
+    public boolean hasBaseJewelleryBox() {
+        return this.jewelleryBox.getLevel() >= 1;
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    public enum JewelleryBox {
+        None(0),
+        Basic(1),
+        Fancy(2),
+        Ornate(3);
+        private final int level;
+
+        public boolean supports(HouseJewelleryBoxTraverse.Destination destination) {
+            switch (destination) {
+                case PvpArena:
+                case CastleWars:
+                case Ferox:
+                case Burthorpe:
+                case BarbarianOutpost:
+                case CorpBeast:
+                case TearsOfGuthix:
+                case Wintertodt:
+                    return this.level >= 1;
+
+                case WarriorsGuild:
+                case ChampionsGuild:
+                case EdgevilleMonastery:
+                case RangingGuild:
+                case FishingGuild:
+                case MiningGuild:
+                case CraftingGuild:
+                case CookingGuild:
+                case WoodcuttingGuild:
+                case FarmingGuild:
+                    return this.level >= 2;
+
+                case Miscellania:
+                case GrandExchange:
+                case FaladorPark:
+                case DondakansRock:
+                case Edgeville:
+                case Karamja:
+                case DraynorVillage:
+                case AlKharid:
+                    return this.level >= 3;
+            }
+            return false;
+        }
+    }
+
+    public enum Altar {
+        None("None"),
+        Ancient("Ancient Altar", Magic.Book.ANCIENT),
+        Lunar("Lunar Altar", Magic.Book.LUNAR),
+        Dark("Dark Altar", Magic.Book.ARCEUUS),
+        Occult("Altar of the Occult", Magic.Book.values());
+        @Getter
+        private final Collection<Magic.Book> books;
+        private final Pattern pattern;
+
+        Altar(String name, Magic.Book... books) {
+            this.pattern = Pattern.compile(name, Pattern.CASE_INSENSITIVE);
+            this.books = util.join(books, Magic.Book.STANDARD).stream().distinct().collect(Collectors.toList());
+        }
+
+        public GameObject getGameObject() {
+            return GameObjects.newQuery()
+                    .names(pattern)
+                    .actions("Venerate")
+                    .results().first();
+        }
+
+        public boolean supportsSwitchTo(Magic.Book book) {
+            return books.contains(book);
+        }
+    }
+
+    public enum Pool {
+        None,
+        Ornate
+    }
+}

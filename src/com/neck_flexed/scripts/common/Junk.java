@@ -1,0 +1,30 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+public class Junk implements EngineListener {
+    public static final List<Pattern> junkList = Arrays.asList(
+            Pattern.compile("^Vial$"),
+            Pattern.compile("^Pie dish$"),
+            Pattern.compile("^Bowl$"),
+            Pattern.compile("^Jug$")
+    );
+    public static final Pattern[] junkArray = junkList.toArray(new Pattern[0]);
+
+    public static void dropJunk() {
+        var junk = Inventory.getItems(junkArray).first();
+        if (junk == null) return;
+        DI.get().send(MenuAction.forSpriteItem(junk, "Drop"));
+    }
+
+    @Override
+    public void onTickStart() {
+        dropJunk();
+    }
+}

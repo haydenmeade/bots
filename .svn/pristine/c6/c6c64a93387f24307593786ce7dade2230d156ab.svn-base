@@ -1,0 +1,13 @@
+package com.neck_flexed.scripts.common;
+
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+
+public interface State {
+
+    void activate(EventDispatcher d);
+
+    void deactivate(EventDispatcher d);
+
+    void execute();
+
+}

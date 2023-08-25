@@ -1,0 +1,54 @@
+package com.neck_flexed.scripts.slayer;
+
+import com.neck_flexed.scripts.common.HouseConfig;
+import com.neck_flexed.scripts.common.traverse.TraverseMethod;
+import com.runemate.game.api.hybrid.entities.Npc;
+import com.runemate.game.api.hybrid.local.hud.interfaces.InterfaceComponent;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Interfaces;
+import com.runemate.game.api.hybrid.local.hud.interfaces.NpcContact;
+import com.runemate.game.api.hybrid.location.Coordinate;
+
+import java.util.regex.Pattern;
+
+public enum SlayerMaster implements NpcContact.Contact {
+    DURADEL,
+    NIEVE_STEVE,
+    TURAEL,
+    CHAELDAR;
+
+    public Coordinate getLocation() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).getLocation();
+    }
+
+    public InterfaceComponent getComponent() {
+        return Interfaces.newQuery().actions(this.getAction()).containers(this.getContainerId()).types(InterfaceComponent.Type.CONTAINER).results().first();
+    }
+
+    public boolean canTraverseOrContact(HouseConfig houseConfig) {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).canTraverseOrContact(houseConfig);
+    }
+
+    public int getContainerId() {
+        return 75;
+    }
+
+    public Pattern getAction() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).getAction();
+    }
+
+    public Npc getNpc() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).getNpc();
+    }
+
+    public String toString() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).toString();
+    }
+
+    public TraverseMethod[] getTraverses() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).getTraverses();
+    }
+
+    public int[] getPathRegions() {
+        return com.neck_flexed.scripts.slayer.turael.SlayerMaster.fromSlayerMaster(this).getPathRegions();
+    }
+}

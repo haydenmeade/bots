@@ -1,0 +1,169 @@
+package com.neck_flexed.scripts.hydra;
+
+import com.neck_flexed.scripts.common.Boost;
+import com.neck_flexed.scripts.common.BreakManager;
+import com.neck_flexed.scripts.common.LoopState;
+import com.neck_flexed.scripts.common.Loot;
+import com.runemate.game.api.hybrid.input.direct.DirectInput;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.local.hud.interfaces.Inventory;
+import com.runemate.game.api.script.Execution;
+import com.runemate.game.api.script.framework.core.EventDispatcher;
+import lombok.extern.log4j.Log4j2;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+@Log4j2(topic = "LootState")
+public class LootingState implements LoopState<HydraState> {
+
+    public static final List<String> mustLoot = Arrays.asList(
+            "Hydra's eye",
+            "Hydra's heart",
+            "Hydra's fang",
+            "Hydra tail",
+            "Dragon thrownaxe",
+            "Dragon knife",
+            "Jar of chemicals",
+            "Alchemical hydra heads",
+            "Hydra's claw",
+            "Hydra leather"
+    );
+    public static final List<String> alchables = Arrays.asList(
+            "Mystic fire staff",
+            "Mystic water staff",
+            "Black d'hide body",
+            "Dragon longsword",
+            "Dragon med helm",
+            "Rune platebody",
+            "Dragon battleaxe",
+            "Rune platelegs",
+            "Rune plateskirt",
+            "Mystic robe top (light)",
+            "Mystic robe bottom (light)",
+            "Rune 2h sword",
+            "Rune battleaxe",
+            "Rune sq shield",
+            "Rune kiteshield"
+    );
+    public static final List<String> ignoreLoot = Arrays.asList(
+            "Watermelon seed",
+            "Willow seed",
+            "Mahogany seed",
+            "Maple seed",
+            "Teak seed",
+            "Papaya tree seed",
+            "Palm tree seed",
+            "Ranging potion(3)",
+            "Super restore(3)",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Oyster pearls",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Steel arrow",
+            "Iron arrow",
+            "Mithril bar",
+            "Uncut ruby",
+            "Adamant javelin",
+            "Uncut sapphire",
+            "Uncut emerald",
+            "Air talisman",
+            "Body talisman",
+            "Earth talisman",
+            "Fire talisman",
+            "Mind talisman",
+            "Water talisman",
+            "Cosmic talisman",
+            "Chaos talisman",
+            "Nature talisman"
+    );
+    private static String hydraBones = "Hydra bones";
+    private final com.neck_flexed.scripts.hydra.bot bot;
+    private final BreakManager breakManager;
+    private Loot.LootResult result = Loot.LootResult.NotDone;
+
+    public LootingState(com.neck_flexed.scripts.hydra.bot bot, BreakManager breakManager) {
+        this.bot = bot;
+        this.breakManager = breakManager;
+    }
+
+    @Override
+    public void activate(EventDispatcher d) {
+        bot.updateStatus("Looting");
+        Loot.waitForLoot(null, Pattern.compile(".*"), 15000);
+        bot.loadouts.invalidateCurrent();
+    }
+
+    @Override
+    public HydraState deactivate(EventDispatcher d) {
+        bot.loadouts.equip(bot.loadouts.getAnyCombat());
+        if (bot.isSlayerTaskDone()) {
+            bot.forceState(HydraState.RESTORING);
+        }
+        if (result.equals(Loot.LootResult.Full) || this.breakManager.breaking() || this.breakManager.stopBot() || bot.doWeNeedToRestock())
+            return HydraState.RESTORING;
+        if (bot.getHydra() != null && bot.getHydra().getNpc() != null)
+            return HydraState.FIGHTING;
+        return HydraState.POST_LOOT;
+    }
+
+    @Override
+    public HydraState get() {
+        return HydraState.LOOTING;
+    }
+
+    @Override
+    public String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        if (bot.isSlayerTaskDone()) return !this.result.equals(Loot.LootResult.NotDone);
+        return bot.getHydra() != null && bot.getHydra().getNpc() != null || !this.result.equals(Loot.LootResult.NotDone);
+    }
+
+    @Override
+    public void executeLoop() {
+        if (bot.settings().boneStrategy().equals(BoneStrategy.Bury) && Inventory.contains(hydraBones) && Inventory.isFull()) {
+            buryBone();
+        }
+        var ignoreCpy = new ArrayList<>(ignoreLoot);
+        if (bot.settings().boost().equals(Boost.Ranging) && Inventory.getQuantity(bot.settings().boost().patternAny()) < 2) {
+            ignoreCpy.remove("Ranging potion(3)");
+        }
+        this.result = Loot.doLoop(
+                null
+                , ignoreCpy
+                ,
+                bot.settings().boost().equals(Boost.ImbuedHeart)
+                        ? new Pattern[0]
+                        : bot.settings().boost().patternAny()
+                , 2000, 600
+                , g -> {
+                    if (!bot.settings().boneStrategy().equals(BoneStrategy.Ignore)) return false;
+                    return g.getDefinition() != null && hydraBones.equals(g.getDefinition().getName());
+                }
+                , bot.settings().minAlchValue()
+                , mustLoot
+        );
+    }
+
+    private void buryBone() {
+        var bone = Inventory.newQuery()
+                .names(hydraBones)
+                .unnoted()
+                .actions("Bury")
+                .results()
+                .first();
+        if (bone == null) return;
+        DirectInput.send(MenuAction.forSpriteItem(bone, "Bury"));
+        Execution.delay(700, 900);
+    }
+}

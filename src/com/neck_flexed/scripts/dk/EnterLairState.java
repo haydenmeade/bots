@@ -1,0 +1,133 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.loadout.Loadout;
+import com.neck_flexed.scripts.common.loadout.Loadouts;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.Coordinate;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.Execution;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+
+@Log4j2(topic = "EnterLairState")
+public class EnterLairState extends BaseState<DkState> {
+
+    private final Loadouts loadouts;
+    private final dk bot;
+    private PeekListener peekListener;
+    private DkListener dkListener;
+    private PrayerFlicker prayerFlicker;
+
+    public EnterLairState(DkListener dkListener, dk bot, PrayerFlicker prayerFlicker) {
+        super(bot, DkState.BREAKING);
+        this.dkListener = dkListener;
+        this.bot = bot;
+        this.prayerFlicker = prayerFlicker;
+        this.loadouts = bot.loadouts;
+        this.peekListener = new PeekListener(bot);
+    }
+
+    public static GameObject getRoot() {
+        return GameObjects.newQuery()
+                .names("Root")
+                .on(new Coordinate(1918, 4366, 0))
+                .actions("Step-over")
+                .results().nearest();
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this.peekListener};
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Entering boss room");
+        this.dkListener.reset();
+    }
+
+    @Override
+    public void deactivate() {
+        if (this.needHop()) {
+            bot.forceState(DkState.HOPPING);
+        }
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return dkAreas.inBossRoom() || needHop();
+    }
+
+    private boolean needHop() {
+        return this.peekListener.getPlayerCount() > 0;
+    }
+
+    private GameObject getLadder() {
+        return GameObjects.newQuery()
+                .ids(3831)
+                .on(new Coordinate(1911, 4367, 0))
+                .actions("Standard", "Slayer", "Peek")
+                .results().nearest();
+    }
+
+    private GameObject getCrack() {
+        return GameObjects.newQuery()
+                .ids(30169)
+                .on(new Coordinate(1917, 4362, 0))
+                .actions("Peek")
+                .results().nearest();
+    }
+
+    @Override
+    public void executeLoop() {
+        if (this.loadouts.getEquipped() == null) {
+            this.loadouts.setCurrentFromEquipmentOrEquip(this.loadouts.getForRole(Loadout.LoadoutRole.Combat));
+            this.loadouts.equip(this.loadouts.getEquipped(), true);
+        }
+        var roomEntrance = getLadder();
+        if (roomEntrance == null) {
+            log.debug("null ladder");
+            Execution.delay(600);
+            return;
+        }
+
+        var crack = getCrack();
+        if (this.peekListener.getPlayerCount() == -1) {
+            this.prayerFlicker.disable();
+            // Peek on Crack (1917,4362) |
+            log.debug("peeking the crack");
+            di.send(MenuAction.forGameObject(crack, "Peek"));
+            Execution.delayUntil(() -> this.peekListener.getPlayerCount() != -1, 5000);
+        } else if (dkAreas.peekArea.contains(Players.getLocal())) {
+            var root = getRoot();
+            if (root == null) {
+                log.error("null root");
+                return;
+            }
+            this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MAGIC);
+            di.send(MenuAction.forGameObject(root, "Step-over"));
+            Execution.delayUntil(() -> !dkAreas.peekArea.contains(Players.getLocal()),
+                    util::playerAnimatingOrMoving, 1600, 2400);
+        } else {
+            log.debug("going in boss room");
+            this.prayerFlicker.setActivePrayers(Prayer.PROTECT_FROM_MAGIC);
+            di.send(MenuAction.forGameObject(roomEntrance,
+                    bot.settings().useSlayerCave() ? "Slayer" : "Standard"));
+            Execution.delayUntil(dkAreas::inBossRoom,
+                    util::playerAnimatingOrMoving, 5000, 5500);
+        }
+    }
+}

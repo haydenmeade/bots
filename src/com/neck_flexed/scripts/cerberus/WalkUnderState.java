@@ -1,0 +1,102 @@
+package com.neck_flexed.scripts.cerberus;
+
+import com.neck_flexed.scripts.common.Action;
+import com.neck_flexed.scripts.common.state.BaseState;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.GameObject;
+import com.runemate.game.api.hybrid.input.direct.MenuAction;
+import com.runemate.game.api.hybrid.location.navigation.Traversal;
+import com.runemate.game.api.hybrid.region.GameObjects;
+import com.runemate.game.api.hybrid.region.Players;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.EventListener;
+
+
+@Log4j2(topic = "WalkUnderState")
+public class WalkUnderState extends BaseState<CerbState> implements EngineListener {
+    private final cerb bot;
+    private final CerbListener cerbListener;
+    private boolean done;
+    private int tick = 0;
+    private GameObject portcullis;
+
+    public WalkUnderState(cerb bot, CerbListener cerbListener) {
+        super(bot, CerbState.WALK_UNDER);
+        this.bot = bot;
+        this.cerbListener = cerbListener;
+    }
+
+    @Override
+    public EventListener[] getEventListeners() {
+        return new EventListener[]{this};
+    }
+
+    @Override
+    public void activate() {
+        bot.updateStatus("Walk under");
+        Action.set(Action.None);
+        this.portcullis = getPortcullis();
+        if (!Traversal.isRunEnabled())
+            Traversal.toggleRun();
+    }
+
+    private GameObject getPortcullis() {
+        // "Exit" on "Portcullis"
+        return GameObjects.newQuery().names("Portcullis").actions("Exit").results().first();
+    }
+
+    @Override
+    public @Nullable String fatalError() {
+        return null;
+    }
+
+    @Override
+    public boolean done() {
+        return cerbListener.isDead() || cerb.getCerb() == null || done;
+    }
+
+    @Override
+    public void onTickStart() {
+        tick++;
+        //var food = bot.settings.food();
+        var dog = cerb.getCerb();
+        if (dog == null) return;
+        var dogArea = dog.getArea();
+        if (dogArea == null) return;
+
+        var center = dog.getArea().getCenter();
+        var containsMe = dog.getArea().contains(Players.getLocal().getServerPosition());
+
+        if (!containsMe && !Action.get().equals(Action.Move)) {
+            util.moveTo(center);
+            log.debug(String.format("Walking under move"));
+        } else if (containsMe
+                && !Action.get().equals(Action.RedClick)
+                && !Action.get().equals(Action.Attack)
+                && !Action.get().equals(Action.Spec)
+        ) {
+            log.debug(String.format("Walking under red click"));
+            redClick();
+        } else {
+        }
+
+        if (dog.getHealthGauge() == null || !dog.getHealthGauge().isValid()) {
+            log.debug("health bar gone");
+            done = true;
+        }
+    }
+
+    private void redClick() {
+        // "Exit" on "Portcullis"
+        di.send(MenuAction.forGameObject(this.portcullis, "Exit"));
+        Action.set(Action.RedClick);
+    }
+
+    @Override
+    public void executeLoop() {
+
+    }
+}

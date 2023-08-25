@@ -1,0 +1,240 @@
+package com.neck_flexed.scripts.dk;
+
+import com.neck_flexed.scripts.common.PrayerFlicker;
+import com.neck_flexed.scripts.common.util;
+import com.runemate.game.api.hybrid.entities.details.Identifiable;
+import com.runemate.game.api.osrs.local.hud.interfaces.Prayer;
+import com.runemate.game.api.script.framework.listeners.EngineListener;
+import com.runemate.game.api.script.framework.listeners.NpcListener;
+import com.runemate.game.api.script.framework.listeners.events.AnimationEvent;
+import com.runemate.game.api.script.framework.listeners.events.DeathEvent;
+import com.runemate.game.api.script.framework.listeners.events.NpcSpawnedEvent;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+
+@Log4j2(topic = "DkListener")
+public class DkListener implements NpcListener, EngineListener {
+    private static final int attackTicks = 4;
+    private static final int respawnTicks = 150;
+    private final PrayerFlicker prayerFlicker;
+    private final ConcurrentMap<King, Long> lastAttacks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<King, Long> respawnsOn = new ConcurrentHashMap<>();
+    @Getter
+    @Setter
+    private King lastTarget;
+    private long tick = 0L;
+    private dk bot;
+    private Prayer[] boostPrayers = new Prayer[0];
+
+    public DkListener(PrayerFlicker prayerFlicker, dk bot) {
+        this.prayerFlicker = prayerFlicker;
+        this.bot = bot;
+    }
+
+    public boolean isDead(King k) {
+        return respawnsOn.containsKey(k)
+                || k.getNpc() == null
+                || k.getNpc().getAnimationId() == dk.DeathAnimation;
+    }
+
+    public void notifyDidOffTick(King offticked) {
+        this.lastAttacks.remove(offticked);
+    }
+
+    @Override
+    public void onNpcSpawned(NpcSpawnedEvent event) {
+        try {
+            if (!dkAreas.inBossRoom()) return;
+            var npc = event.getNpc();
+            if (npc == null) return;
+            var id = getId(event.getNpc());
+            var king = King.fromId(id);
+            if (king == null) return;
+            log.debug(event);
+            log.debug(String.format("King spawned: %s", king.getName()));
+            this.respawnsOn.remove(king);
+            //this.lastAttacks.putIfAbsent(king, 0L);
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void onTickStart() {
+        try {
+            if (!dkAreas.inBossRoom()) return;
+            tick++;
+            var an = attacksNext();
+
+            log.debug(tick);
+            an.forEach((k, v) -> log.debug(String.format("next attack from %s on tick %s", k.getName(), v + 4)));
+            this.respawnsOn.forEach((k, v) -> log.debug(String.format("next %s respawn  on tick %s", k.getName(), v)));
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+    public void setBoost(Prayer[] boostPrayers) {
+        this.boostPrayers = boostPrayers;
+    }
+
+    @Override
+    public void onCycleStart() {
+        try {
+            if (!dkAreas.inBossRoom()) return;
+            var next = attacksNext();
+            if (next != null && !next.isEmpty()) {
+                var first = next.entrySet().stream()
+                        .min(Comparator.comparingInt(value -> value.getKey().getPrayPriority())).get();
+
+                var attackTick = first.getValue() + attackTicks;
+                Prayer protPrayer = tick == (attackTick - 1) ?
+                        first.getKey().getProtect()
+                        : getBestSecondaryPrayer(first.getKey());
+
+                prayerFlicker.setActivePrayers(
+                        util.joinPrayers(
+                                this.boostPrayers,
+                                protPrayer
+                        ));
+            } else {
+                prayerFlicker.setActivePrayers(
+                        util.joinPrayers(
+                                this.boostPrayers,
+                                getBestSecondaryPrayer(null)
+                        ));
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+
+    private Prayer getBestSecondaryPrayer(@Nullable King handled) {
+        var kings = King.getAllKings();
+        Prayer nextRespawn = getRespawnPrayer();
+        if (kings.isEmpty()) return nextRespawn;
+        var others = kings.stream()
+                .filter(king -> !king.equals(handled))
+                .collect(Collectors.toList());
+        if (others.isEmpty()) return handled == null ? nextRespawn : handled.getProtect();
+        if (others.contains(King.Rex)
+                && King.Rex.distanceTo() <= 4)
+            return Prayer.PROTECT_FROM_MELEE;
+        var bestKing = others.stream().min(Comparator.comparingInt(King::getPrayPriority));
+        return bestKing.get().getProtect();
+    }
+
+    private @Nullable Prayer getRespawnPrayer() {
+        if (this.respawnsOn.isEmpty()) return null;
+        var r = this.respawnsOn.entrySet().stream()
+                .filter(kv -> kv.getValue() > tick - 10)
+                .min(Comparator.comparingLong(Map.Entry::getValue));
+        return r.map(kingLongEntry -> kingLongEntry.getKey().getProtect()).orElse(null);
+    }
+
+    public Map<King, Long> attacksNext() {
+        if (lastAttacks.isEmpty()) return new HashMap<>();
+        var nextAttacks = lastAttacks.entrySet().stream()
+                .filter(kv -> (kv.getValue() + attackTicks) > tick && kv.getValue() > 0)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (nextAttacks.isEmpty()) return new HashMap<>();
+        var minT = nextAttacks.entrySet().stream().min(Comparator.comparingLong(Map.Entry::getValue)).get().getValue();
+        return nextAttacks.entrySet().stream()
+                .filter(kv -> Objects.equals(kv.getValue(), minT))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    public List<King> needToOffTick() {
+        if (lastAttacks.isEmpty()) return new ArrayList<>();
+        return lastAttacks.entrySet().stream()
+                .filter(kv -> kv.getValue() > 0)
+                .filter(kv -> Collections.frequency(lastAttacks.values(), kv.getValue()) > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void onNpcAnimationChanged(AnimationEvent event) {
+        try {
+            if (!dkAreas.inBossRoom()) return;
+            if (event.getAnimationId() == -1) return;
+            var npcId = getId(event.getSource());
+            var king = King.fromId(npcId);
+            if (king == null) return;
+            log.debug(event);
+            if (dk.DeathAnimation == event.getAnimationId()) {
+                this.lastAttacks.remove(king);
+                if (lastTarget != null && lastTarget.getId() == npcId) {
+                    lastTarget = null;
+                }
+            }
+            if (king.getAttackId() == event.getAnimationId()) {
+                // Maybe this logic needs to be in onTick?
+                var p = this.prayerFlicker.getActiveProtectionPrayer();
+                if (p.equals(king.getProtect()))
+                    log.debug(String.format("%s ATTACK, Praying %s", king.getName(), p.name()));
+                else
+                    log.error(String.format("PRAY ERROR %s ATTACK, Praying %s", king.getName(), p == null ? "None" : p.name()));
+                lastAttacks.put(king, tick);
+            }
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+
+    }
+
+    public int getId(Object o) {
+        if (o instanceof Identifiable) {
+            var identifiable = (Identifiable) o;
+            return identifiable.getId();
+        }
+        return -1;
+    }
+
+    @Override
+    public void onNpcDeath(@NotNull DeathEvent event) {
+        try {
+            if (!dkAreas.inBossRoom()) return;
+            log.debug(event);
+            // remove from attacks
+            var id = getId(event.getSource());
+            var king = King.fromId(id);
+            if (king == null) return;
+            if (lastTarget != null && lastTarget.getId() == id) {
+                lastTarget = null;
+            }
+            this.lastAttacks.remove(king);
+            this.respawnsOn.put(king, tick + respawnTicks);
+            log.debug(String.format("King dead: %s", king.getName()));
+            this.bot.addKill();
+        } catch (Exception e) {
+            log.error(e);
+            e.printStackTrace();
+        }
+    }
+
+
+    public void reset() {
+    }
+
+    public void attack(King king) {
+        this.lastTarget = king;
+        if (king == null) return;
+        var npc = king.getNpc();
+        if (npc == null) return;
+        util.attack(npc);
+    }
+}
